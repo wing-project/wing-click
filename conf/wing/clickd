@@ -1,0 +1,165 @@
+#!/bin/sh 
+
+# Copyright (c) 2006, Roberto Riggio
+#
+# All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without 
+# modification, are permitted provided that the following conditions    
+# are met:
+# 
+#   - Redistributions of source code must retain the above copyright 
+#     notice, this list of conditions and the following disclaimer.
+#   - Redistributions in binary form must reproduce the above copyright 
+#     notice, this list of conditions and the following disclaimer in 
+#     the documentation and/or other materials provided with the 
+#     distribution.
+#   - Neither the name of the CREATE-NET nor the names of its 
+#     contributors may be used to endorse or promote products derived 
+#     from this software without specific prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:./
+DAEMON=click
+HELPER=click_config
+NAME=clickd
+
+MODE="11g"
+CHANNEL="2412"
+DEV="moni0"
+
+PROFILE="bulk"
+LS="fcfs"
+METRIC="wcett"
+RC="static"
+
+CLICK_FILE=/var/run/$NAME.click
+PID_FILE=/var/run/$NAME.pid
+LOG_FILE=/var/log/$NAME.log 
+
+test -x "$(which $DAEMON)" || exit 0
+test -x "$(which $HELPER)" || exit 0
+
+case "$1" in
+  start)
+
+	echo "Starting $NAME"
+
+	if which wlanconfig > /dev/null 2>&1; then
+		PHY="wifi0"
+		WLANCONFIG=$(which wlanconfig)
+		[ ! -f "$WLANCONFIG" ] && {
+			echo "Couldn't find wlanconfig";
+			exit 1;	
+		}
+		$WLANCONFIG $DEV destroy 2> /dev/null
+		$WLANCONFIG $DEV create wlandev $PHY wlanmode monitor > /dev/null 2>&1 || {
+			echo "Couldn't create monitor device on $PHY";
+			exit 1;	
+		}
+		echo '803' >  /proc/sys/net/$DEV/dev_type
+		/sbin/iwpriv $DEV mode $MODE
+	elif which iw > /dev/null 2>&1; then
+		PHY="phy0"
+		IW=$(which iw)
+		[ ! -f "$IW" ] && {
+			echo "Couldn't find iw";
+			exit 1;	
+		}
+		$IW dev $DEV del > /dev/null 2>&1
+		$IW phy $PHY interface add $DEV type monitor > /dev/null 2>&1 || {
+			echo "Couldn't create monitor device on $PHY";
+			exit 1;	
+		}
+	else
+		echo "Couldn't find neither iw or wlanconfig";
+		exit 1
+	fi
+
+	/sbin/iwconfig $DEV channel ${CHANNEL}M
+	/sbin/ifconfig $DEV mtu 1900
+	/sbin/ifconfig $DEV txqueuelen 5
+	/sbin/ifconfig $DEV up
+	/sbin/modprobe tun > /dev/null 2>&1
+
+	# extract the bottom three octects to use as IP
+	MAC=$(/sbin/ifconfig $DEV 2>&1 | sed -n 's/^.*HWaddr \([0-9A-Za-z\-]*\).*/\1/p' | sed -e 's/\-/:/g' | cut -c1-17)
+	HI=$(echo $MAC | sed -n 's/.*:.*:.*:\([0-9A-Za-z:]*\):.*:.*.*/\1/p')
+	MID=$(echo $MAC | sed -n 's/.*:.*:.*:.*:\([0-9A-Za-z:]*\):.*.*/\1/p')
+	LOW=$(echo $MAC | sed -n 's/.*:.*:.*:.*:.*:\([0-9A-Za-z:]*\).*/\1/p')
+	SUFFIX=$((0x$HI)).$((0x$MID)).$((0x$LOW))
+
+	XR_IFNAME="wing-mesh"
+	XR_IP="6.$SUFFIX"
+	XR_NM="255.0.0.0"
+	XR_PERIOD="36000"
+	XR_TAU="360000"
+
+	$HELPER -p $PROFILE -r $RC -s $LS -l $METRIC -m $MODE -c $CHANNEL -n $DEV -a $MAC -d \
+		| sed -e "s/__XR_IFNAME__/$XR_IFNAME/g" \
+		| sed -e "s/__XR_IP__/$XR_IP/g" \
+		| sed -e "s/__XR_NM__/$XR_NM/g" \
+		| sed -e "s/__XR_PERIOD__/$XR_PERIOD/g" \
+		| sed -e "s/__XR_TAU__/$XR_TAU/g" > $CLICK_FILE
+
+	$DAEMON $CLICK_FILE > $LOG_FILE 2>&1 &
+
+	sleep 2
+	if ! pidof $DAEMON > /dev/null 2>&1; then
+		echo "Unable to start click. Check log for more information."
+		exit 1
+	fi
+
+	pidof $DAEMON > $PID_FILE
+
+	;;
+  stop)
+	echo "Stopping $NAME"
+
+	if which wlanconfig > /dev/null 2>&1; then
+		WLANCONFIG=$(which wlanconfig)
+		[ ! -f "$WLANCONFIG" ] && {
+			echo "Couldn't find wlanconfig";
+			exit 1;	
+		}
+		$WLANCONFIG $DEV destroy > /dev/null 2>&1
+	elif which iw > /dev/null 2>&1; then
+		IW=$(which iw)
+		[ ! -f "$IW" ] && {
+			echo "Couldn't find iw";
+			exit 1;	
+		}
+		$IW dev $DEV del > /dev/null 2>&1
+	else
+		exit 1
+	fi
+	[ -f $PID_FILE ] && {
+		kill -9 $(cat $PID_FILE)
+		[ -f $PID_FILE ] && rm $PID_FILE
+	}
+	[ -f $CLICK_FILE ] && rm $CLICK_FILE
+	[ -f $LOG_FILE ] && rm $LOG_FILE
+	;;
+  restart|force-reload)
+	$0 stop
+	sleep 1
+	$0 start
+	;;
+  *)
+	echo "Usage: $NAME {start|stop|restart}" >&2
+	exit 1
+	;;
+esac
+
+exit 0

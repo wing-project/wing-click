@@ -29,7 +29,9 @@ enum {
 
 struct click_wifi_extra {
   uint32_t magic;
-  uint32_t flags;
+
+  uint16_t flags;
+  uint16_t channel;
 
   uint8_t rssi;
   uint8_t silence;

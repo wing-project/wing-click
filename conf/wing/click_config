@@ -1,0 +1,278 @@
+#!/bin/sh 
+
+# Copyright (c) 2009, Roberto Riggio
+# 
+# All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without 
+# modification, are permitted provided that the following conditions    
+# are met:
+# 
+#   - Redistributions of source code must retain the above copyright 
+#     notice, this list of conditions and the following disclaimer.
+#   - Redistributions in binary form must reproduce the above copyright 
+#     notice, this list of conditions and the following disclaimer in 
+#     the documentation and/or other materials provided with the 
+#     distribution.
+#   - Neither the name of the CREATE-NET nor the names of its 
+#     contributors may be used to endorse or promote products derived 
+#     from this software without specific prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+PROFILE=
+RC=
+LS=
+METRIC=
+MODES=
+CHANNELS=
+IFNAMES=
+HWADDRS=
+DEBUG="false"
+
+usage() {
+	echo "Usage: $0 -h -p <profile> -r <rc> -s <ls> -l <metric> -m \"<modes>\" -c \"<channels>\" -n \"<ifnames>\" -a \"<ifhwaddrs>\" -d"
+	exit 1
+}	
+
+while getopts "hp:r:m:c:n:a:s:l:d" OPTVAL
+do
+	case $OPTVAL in
+	p) PROFILE="$OPTARG"
+	  ;;
+	r) RC="$OPTARG"
+	  ;;
+	s) LS="$OPTARG"
+	  ;;
+	l) METRIC="$OPTARG"
+	  ;;
+	m) MODES="$OPTARG"
+	  ;;
+	c) CHANNELS="$OPTARG"
+	  ;;
+	n) IFNAMES="$OPTARG"
+	  ;;
+	a) HWADDRS="$OPTARG"
+	  ;;
+	d) DEBUG="true"
+	  ;;
+	h) usage
+	  ;;
+	esac
+done
+
+[ "$PROFILE" = "" -o "$RC" = "" -o "$MODES" = "" -o "$CHANNELS" = "" -o "$METRIC" = ""  -o "$IFNAMES" = "" -o "$HWADDRS" = "" ] && {
+	usage
+}
+
+XR_IFNAME="__XR_IFNAME__"
+XR_IP="__XR_IP__"
+XR_NM="__XR_NM__"
+XR_PERIOD="__XR_PERIOD__"
+XR_TAU="__XR_TAU__"
+NB_INTERFACES=$(echo $IFNAMES | wc -w)
+
+set_mode() {
+	local mode=$(echo "$MODES" | cut -d" " -f$1)
+	if [ $mode = "11a" -o $mode = "11na" ]; then
+		PROBES="12 60 12 1500 18 1500 24 1500 36 1500 48 1500 72 1500 96 1500 108 1500"
+		AVAILABLE_RATES="12 18 24 36 48 72 96 108"
+		AVAILABLE_CHANNELS="5180 5200 5220 5240 5260 5280 5300 5320"
+		TX_RATE="12"
+	elif [ $mode = "11g" -o $mode = "11bg" -o $mode = "11ng" ]; then
+		PROBES="12 60 12 1500 18 1500 24 1500 36 1500 48 1500 72 1500 96 1500 108 1500"
+		AVAILABLE_RATES="12 18 24 36 48 72 96 108"
+		AVAILABLE_CHANNELS="2412 2417 2422 2427 2432 2437 2442 2447 2452 2457 2462"
+		TX_RATE="12"
+	else
+		PROBES="2 60 2 1500 4 1500 11 1500 22 1500"
+		AVAILABLE_RATES="2 4 11 22"
+		AVAILABLE_CHANNELS="2412 2417 2422 2427 2432 2437 2442 2447 2452 2457 2462"
+		TX_RATE="2"
+	fi
+}
+
+get_element() {
+	local tmp=$(echo $1 | cut -d" " -f$2)
+	case "$3" in
+		"") eval "echo \"\$tmp\"";;
+		*) eval "export ${NO_EXPORT:+-n} -- \"$3=\$tmp\"";;
+	esac
+}
+
+LTM=""
+for i in $(seq 1 1 $NB_INTERFACES); do
+	set_mode $i
+	get_element "$HWADDRS" $i "addr"
+	get_element "$CHANNELS" $i "channel"
+	echo "rates_$i :: AvailableRates(DEFAULT $AVAILABLE_RATES, $addr $AVAILABLE_RATES);"
+	echo "channels_$i :: AvailableChannels(DEFAULT $AVAILABLE_CHANNELS, $addr $AVAILABLE_CHANNELS);"
+	echo "dev_$i :: DevInfo(ETH $addr, CHANNEL $channel, CHANNELS channels_$i, RATES rates_$i);"
+	LTM="$LTM dev_$i"
+done
+
+METRIC=$(echo $METRIC | tr '[a-z]' '[A-Z]')
+
+if [ $METRIC = "WCETT" ]; then
+	echo "lt :: LinkTableMulti(IP $XR_IP, DEV \"$LTM\", WCETT true, BETA 80);"
+	echo "metric :: WINGETTMetric(LT lt);"
+elif [ $METRIC = "ETT" ]; then
+	echo "lt :: LinkTableMulti(IP $XR_IP, DEV \"$LTM\");"
+	echo "metric :: WINGETTMetric(LT lt);"
+elif [ $METRIC = "ETX" ]; then
+	echo "lt :: LinkTableMulti(IP $XR_IP, DEV \"$LTM\");"
+	echo "metric :: WINGETXMetric(LT lt);"
+elif [ $METRIC = "HopCount" ]; then
+	echo "lt :: LinkTableMulti(IP $XR_IP, DEV \"$LTM\");"
+	echo "metric :: WINGHopCountMetric(LT lt);"
+else
+	echo "lt :: LinkTableMulti(IP $XR_IP, DEV \"$LTM\");"
+	echo "metric :: WINGETTMetric(LT lt);"
+fi
+
+echo "arp :: ARPTableMulti();
+
+elementclass EtherSplit {"
+	PATTERN=""
+	for i in $(seq 1 1 $NB_INTERFACES); do
+		get_element "$HWADDRS" $i "addr"
+		addr=$(echo $addr | sed 's/://g')
+		PATTERN="$PATTERN 6/$addr,"
+	done
+	PATTERN=$(echo $PATTERN | sed s/.$// )
+	echo "input -> cl :: Classifier($PATTERN);"
+	for i in $(seq 1 1 $NB_INTERFACES); do
+		echo "cl[$((i-1))] -> [$((i-1))] output;"
+	done
+echo "}
+
+elementclass LinkStat {
+    \$debug|"
+echo "input -> ps :: PaintSwitch();"
+for i in $(seq 1 1 $NB_INTERFACES); do
+	set_mode $i
+	get_element "$HWADDRS" $i "addr"
+	echo "es_$i :: WINGLinkStat(IP $XR_IP, 
+                                  DEV dev_$i,
+                                  PERIOD $XR_PERIOD,
+                                  TAU $XR_TAU,
+                                  PROBES \"$PROBES\",
+                                  ARP arp,
+                                  LT lt,
+                                  METRIC metric,
+                                  DEBUG \$debug);"
+	echo "ps[$((i-1))] -> es_$i -> output;"
+done
+echo "}
+"
+
+# profile script
+PROFILE_FILE="profile.$PROFILE.click"
+[ ! -f $PROFILE_FILE ] && {
+	PROFILE_FILE="/etc/wing/profile.$PROFILE.click"
+	[ ! -f $PROFILE_FILE ] && {
+		echo "Couldn't find $PROFILE_FILE";
+		exit 1;
+	}
+}
+cat $PROFILE_FILE
+
+# rc script
+RC_FILE="rc.$RC.click"
+[ ! -f $RC_FILE ] && {
+	RC_FILE="/etc/wing/rc.$RC.click"
+	[ ! -f $RC_FILE ] && {
+		echo "Couldn't find $RC_FILE";
+		exit 1;
+	}
+}
+cat $RC_FILE
+
+# pre scheduler script
+LS_FILE="ls.$LS.click"
+[ ! -f $LS_FILE ] && {
+	LS_FILE="/etc/wing/ls.$LS.click"
+	[ ! -f $LS_FILE ] && {
+		echo "Couldn't find $LS_FILE";
+		exit 1;
+	}
+}
+cat $LS_FILE
+
+echo "control :: ControlSocket(\"TCP\", 7777);
+
+// has one input and one output
+// takes and spits out ip packets
+elementclass LinuxIPHost {
+    \$dev, \$ip, \$nm|
+  input -> KernelTun(\$ip/\$nm, MTU 1500, DEVNAME \$dev) 
+  -> CheckIPHeader(CHECKSUM false)
+  -> output;
+}
+
+elementclass SniffDevice {
+    \$device|
+  from_dev :: FromDevice(\$device, PROMISC false, OUTBOUND true, SNIFFER false) 
+  -> output;
+  input -> to_dev :: ToDevice(\$device);
+}
+
+wr :: WingRouter ($XR_IP, $XR_NM, $TX_RATE, $DEBUG);
+
+linux_ip_host :: LinuxIPHost($XR_IFNAME, $XR_IP, $XR_NM) -> [1] wr;
+
+rc_split :: EtherSplit(); 
+sl_split :: EtherSplit(); 
+
+wr [0] -> WINGSetHeader() -> sl_split; // queries, replies, bcast_stats
+wr [1] -> WINGSetHeader() -> rc_split; 
+wr [2] -> linux_ip_host;
+"
+
+for i in $(seq 1 1 $NB_INTERFACES); do
+	set_mode $i
+	get_element "$IFNAMES" $i "ifname"
+	echo "sniff_dev_$i :: SniffDevice($ifname);"
+	echo "rc_$i :: RateControl($TX_RATE, rates_$i);"
+	echo "ls_$i :: LinkScheduler(lt, arp);"
+	echo "outgoing_$i :: PrioSched()
+-> SetTXPower(POWER 60) 
+-> RadiotapEncap() 
+-> sniff_dev_$i;
+"
+	echo "sl_split[$((i-1))] -> FullNoteQueue() -> WifiEncap(0x0, 00:00:00:00:00:00) -> [0] outgoing_$i;"
+	echo "rc_split[$((i-1))] -> ls_$i -> WifiEncap(0x0, 00:00:00:00:00:00) -> rc_$i -> [1] outgoing_$i;
+"
+done
+
+echo "cl :: Classifier(12/06AA) // this protocol's ethertype
+-> WINGCheckHeader()
+-> wr;
+"
+
+for i in $(seq 1 1 $NB_INTERFACES); do
+	get_element "$HWADDRS" $i "addr"
+	echo "sniff_dev_$i
+-> RadiotapDecap
+-> FilterPhyErr()
+-> Classifier(0/08%0c) //data
+-> tx_filter_$i :: FilterTX()
+-> WifiDupeFilter() 
+-> WifiDecap()
+-> HostEtherFilter($addr, DROP_OTHER true, DROP_OWN true)
+-> Paint($((i-1)))
+-> cl;
+"
+	echo "tx_filter_$i[1] -> [1] rc_$i;
+"
+done

@@ -50,6 +50,28 @@ static const int radiotap_elem_to_bytes[NUM_RADIOTAP_ELEMENTS] =
 	 1, /* IEEE80211_RADIOTAP_DATA_RETRIES */
 	};
 
+static const int radiotap_required_align[NUM_RADIOTAP_ELEMENTS] =
+	{4, /* IEEE80211_RADIOTAP_TSFT */
+	 1, /* IEEE80211_RADIOTAP_FLAGS */
+	 1, /* IEEE80211_RADIOTAP_RATE */
+	 2, /* IEEE80211_RADIOTAP_CHANNEL */
+	 1, /* IEEE80211_RADIOTAP_FHSS */
+	 1, /* IEEE80211_RADIOTAP_DBM_ANTSIGNAL */
+	 1, /* IEEE80211_RADIOTAP_DBM_ANTNOISE */
+	 2, /* IEEE80211_RADIOTAP_LOCK_QUALITY */
+	 2, /* IEEE80211_RADIOTAP_TX_ATTENUATION */
+	 2, /* IEEE80211_RADIOTAP_DB_TX_ATTENUATION */
+	 1, /* IEEE80211_RADIOTAP_DBM_TX_POWER */
+	 1, /* IEEE80211_RADIOTAP_ANTENNA */
+	 1, /* IEEE80211_RADIOTAP_DB_ANTSIGNAL */
+	 1, /* IEEE80211_RADIOTAP_DB_ANTNOISE */
+	 2, /* IEEE80211_RADIOTAP_RX_FLAGS */
+	 2, /* IEEE80211_RADIOTAP_TX_FLAGS */
+	 1, /* IEEE80211_RADIOTAP_RTS_RETRIES */
+	 1, /* IEEE80211_RADIOTAP_DATA_RETRIES */
+	};
+
+
 static int rt_el_present(struct ieee80211_radiotap_header *th, u_int32_t element)
 {
 	if (element > NUM_RADIOTAP_ELEMENTS)
@@ -88,11 +110,17 @@ static int rt_check_header(struct ieee80211_radiotap_header *th, int len)
 static u_int8_t *rt_el_offset(struct ieee80211_radiotap_header *th, u_int32_t element) {
 	unsigned int x = 0;
 	u_int8_t *offset = ((u_int8_t *) th) + sizeof(ieee80211_radiotap_header);
+	u_int8_t bound = 0;
 	for (x = 0; x < NUM_RADIOTAP_ELEMENTS && x < element; x++) {
-		if (rt_el_present(th, x))
-			offset += radiotap_elem_to_bytes[x];
+		if (rt_el_present(th, x)) {
+			u_int8_t req = radiotap_required_align[x];
+			u_int8_t push = radiotap_elem_to_bytes[x] + (req - (bound % req)) % req;
+			offset += push;
+			bound = (bound + push) % 4;
+		}
 	}
-
+	u_int8_t req = radiotap_required_align[element];
+	offset += (req - (bound % req)) % req;
 	return offset;
 }
 
@@ -141,6 +169,9 @@ RadiotapDecap::simple_action(Packet *p)
 
 		if (rt_el_present(th, IEEE80211_RADIOTAP_DBM_ANTSIGNAL))
 			ceh->rssi = *((u_int8_t *) rt_el_offset(th, IEEE80211_RADIOTAP_DBM_ANTSIGNAL));
+
+		if (rt_el_present(th, IEEE80211_RADIOTAP_CHANNEL)) 
+			ceh->channel = le16_to_cpu(*((u_int16_t *) rt_el_offset(th, IEEE80211_RADIOTAP_CHANNEL)));
 
 		if (rt_el_present(th, IEEE80211_RADIOTAP_DBM_ANTNOISE))
 			ceh->silence = *((u_int8_t *) rt_el_offset(th, IEEE80211_RADIOTAP_DBM_ANTNOISE));

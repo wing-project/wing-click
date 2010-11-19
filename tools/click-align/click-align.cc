@@ -269,9 +269,20 @@ static ElementClassT *class_factory(const String &name)
 	return new AlignClass(name, new ShifterAligner(-14));
     if (name == "FromHost" || name == "FromDevice" || name == "PollDevice")
 	return new DeviceAlignClass(name, true);
-    if (name == "SR2SetChecksum" || name == "SR2CheckHeader"
-	|| name == "SetSRChecksum" || name == "CheckSRHeader")
+    if (name == "RadiotapDecap")
+	return new AlignClass(name, new GeneratorAligner(Alignment(1, 0)));
+    if (name == "WifiDecap")
 	return new AlignClass(name, new GeneratorAligner(Alignment(4, 2)));
+    if (name == "WINGStripHeader")
+	return new AlignClass(name, new ShifterAligner(+14));
+    if (name == "WINGatewayResponder"
+         || name == "WINGGatewaySelector"
+         || name == "WINGLinkStat"
+         || name == "WINGMetricFlood"
+         || name == "WINGQuerier"
+         || name == "WINGQueryResponder"
+         || name == "WINGReplyForwarder")
+	return new AlignClass(name, new ShifterAligner(-14));
     if (name == "ICMPError")
 	return new ICMPErrorAlignClass(name);
     if (name == "InfiniteSource" || name == "RatedSource")
