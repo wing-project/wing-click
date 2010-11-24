@@ -38,7 +38,7 @@ enum {
 };
 
 WINGLinkStat::WINGLinkStat() :
-	_ads_rs_index(0), _neighbors_index(0), _tau(10000), _period(1000),
+	_ads_rs_index(0), _neighbors_index(0), _tau(100000), _period(10000),
 	_sent(0), _link_metric(0), _arp_table(0), _link_table(0),
 	_dev(0), _timer(this), _debug(false) {
 }
@@ -293,29 +293,32 @@ WINGLinkStat::simple_action(Packet *p) {
 		probe_list = _bcast_stats.findp(node);
 		probe_list->_sent = 0;
 	} else if (probe_list->_period != period) {
-		click_chatter("%{element} :: %s :: %s has changed its link probe period from %u to %u; clearing probe info", 
-				this, 
-				__func__, 
-				node.unparse().c_str(), 
-				probe_list->_period, 
-				period);
+		if (_debug) {
+			click_chatter("%{element} :: %s :: %s has changed its link probe period from %u to %u; clearing probe info", 
+					this, 
+					__func__, 
+					node.unparse().c_str(), 
+					probe_list->_period, 
+					period);
+		}
 		probe_list->_probes.clear();
-
 	} else if (probe_list->_tau != tau) {
-		click_chatter("%{element} :: %s :: %s has changed its link probe period from %u to %u; clearing probe info", 
-				this, 
-				__func__, 
-				node.unparse().c_str(), 
-				probe_list->_tau, 
-				tau);
-
+		if (_debug) {
+			click_chatter("%{element} :: %s :: %s has changed its link probe period from %u to %u; clearing probe info", 
+					this, 
+					__func__, 
+					node.unparse().c_str(), 
+					probe_list->_tau, 
+					tau);
+		}
 		probe_list->_probes.clear();
 	} else if (probe_list->_sent > lp->sent()) {
-		click_chatter("%{element} :: %s :: %s has reset; clearing probe info",
-				this, 
-				__func__, 
-				node.unparse().c_str());
-
+		if (_debug) {
+			click_chatter("%{element} :: %s :: %s has reset; clearing probe info",
+					this, 
+					__func__, 
+					node.unparse().c_str());
+		}
 		probe_list->_probes.clear();
 	}
 
@@ -420,11 +423,13 @@ void WINGLinkStat::clear_stale()  {
 		NodeAddress node = _neighbors[x];
 		ProbeList *list = _bcast_stats.findp(node);
 		if (!list || (unsigned) now.sec() - list->_last_rx.sec() > 2 * list->_period / 1000) {
-			click_chatter("%{element} :: %s :: clearing stale neighbor %s age %d", 
-					this, 
-					__func__, 
-					node.unparse().c_str(),
-					now.sec() - list->_last_rx.sec());
+			if (_debug) {
+				click_chatter("%{element} :: %s :: clearing stale neighbor %s age %d", 
+						this, 
+						__func__, 
+						node.unparse().c_str(),
+						now.sec() - list->_last_rx.sec());
+			}
 			_bcast_stats.remove(node);
 		} else {
 			new_neighbors.push_back(node);

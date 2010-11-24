@@ -111,11 +111,11 @@ void WINGGatewaySelector::start_ad(int iface) {
 				__func__,
 				src.unparse().c_str(),
 				eth_src.unparse().c_str());
-
 	}
 	if (_debug) {
 		click_chatter("%{element} :: %s :: hna %s seq %d iface %u", 
-				this, __func__,
+				this, 
+				__func__,
 				nfo.unparse().c_str(), 
 				_seq,
 				iface);
