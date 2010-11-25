@@ -39,8 +39,8 @@ void Minstrel::run_timer(Timer *)
 {
 	for (NeighborIter iter = _neighbors.begin(); iter.live(); iter++) {
 		DstInfo *nfo = &iter.value();
-		uint32_t max_tp = 0, index_max_tp = 0, index_max_tp2 = 0;
-		uint32_t max_prob = 0, index_max_prob = 0;
+		int max_tp = 0, index_max_tp = 0, index_max_tp2 = 0;
+		int max_prob = 0, index_max_prob = 0;
 		uint32_t usecs;
 		int i;
 		uint32_t p;
