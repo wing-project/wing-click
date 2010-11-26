@@ -63,18 +63,6 @@ WINGCheckHeader::simple_action(Packet *p) {
 		goto bad;
 	}
 
-	// check packet type
-	if ((pk->_type != WING_PT_QUERY) &&
-	    (pk->_type != WING_PT_REPLY) &&
-	    (pk->_type != WING_PT_GATEWAY) &&
-	    (pk->_type != WING_PT_PROBE) &&
-	    (pk->_type != WING_PT_DATA)) {
-
-		click_chatter("%{element} :: %s :: bad packet type %d", this, __func__, ntohs(pk->_type));
-		goto bad;
-
-	}
-
 	// check packet length
 	int len;
 	switch (pk->_type) {
@@ -89,6 +77,9 @@ WINGCheckHeader::simple_action(Packet *p) {
 	case WING_PT_DATA : 
 		len = ((struct wing_data *) (eh + 1))->hlen_w_data();
 		break;
+	default : 
+		click_chatter("%{element} :: %s :: bad packet type %d", this, __func__, ntohs(pk->_type));
+		goto bad;
 	}
 
 	if (len + sizeof(click_ether) != p->length()) {

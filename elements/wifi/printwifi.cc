@@ -308,7 +308,8 @@ PrintWifi::simple_action(Packet *p)
   struct click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p);
   int type = wh->i_fc[0] & WIFI_FC0_TYPE_MASK;
   int subtype = wh->i_fc[0] & WIFI_FC0_SUBTYPE_MASK;
-  int duration = cpu_to_le16(*(uint16_t *) wh->i_dur);
+  uint16_t *d16 = (uint16_t *) wh->i_dur;
+  int duration = cpu_to_le16(*d16);
   EtherAddress src;
   EtherAddress dst;
   EtherAddress bssid;
@@ -506,8 +507,9 @@ PrintWifi::simple_action(Packet *p)
   sa << " ";
 
   if (p->length() >= sizeof(click_wifi)) {
-    uint16_t seq = le16_to_cpu(*(u_int16_t *)wh->i_seq) >> WIFI_SEQ_SEQ_SHIFT;
-    uint8_t frag = le16_to_cpu(*(u_int16_t *)wh->i_seq) & WIFI_SEQ_FRAG_MASK;
+    uint16_t *s16 = (uint16_t *) wh->i_seq;
+    uint16_t seq = le16_to_cpu(*s16) >> WIFI_SEQ_SEQ_SHIFT;
+    uint8_t frag = le16_to_cpu(*s16) & WIFI_SEQ_FRAG_MASK;
     sa << "seq " << (int) seq;
     if (frag || wh->i_fc[1] & WIFI_FC1_MORE_FRAG) {
       sa << " frag " << (int) frag;
