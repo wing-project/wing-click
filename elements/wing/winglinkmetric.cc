@@ -24,14 +24,16 @@
 CLICK_DECLS
 
 WINGLinkMetric::WINGLinkMetric() :
-	_link_table(0) {
+	_link_table(0), _debug(false) {
 }
 
 WINGLinkMetric::~WINGLinkMetric() {
 }
 
 int WINGLinkMetric::configure(Vector<String> &conf, ErrorHandler *errh) {
-	if (cp_va_kparse(conf, this, errh, "LT", cpkM, cpElement, &_link_table,
+	if (cp_va_kparse(conf, this, errh, 
+				"LT", cpkM, cpElement, &_link_table,
+				"DEBUG", 0, cpBool, &_debug, 
 			cpEnd) < 0)
 		return -1;
 

@@ -21,6 +21,7 @@ public:
 protected:
 
 	class LinkTableMulti *_link_table;
+	bool _debug;
 
 };
 

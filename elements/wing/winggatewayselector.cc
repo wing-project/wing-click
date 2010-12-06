@@ -256,12 +256,33 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 		uint32_t fwd_m = pk->get_link_fwd(i);
 		uint32_t rev_m = pk->get_link_rev(i);
 		uint32_t seq = pk->get_link_seq(i);
+		uint32_t age = pk->get_link_age(i);
 		uint32_t channel = pk->get_link_channel(i);
 		if (!fwd_m || !rev_m || !seq || !channel) {
+			click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u, %u) > %s",
+					this, 
+					__func__, 
+					a.unparse().c_str(), 
+					fwd_m,
+					rev_m,
+					seq,
+					channel,
+					b.unparse().c_str());
 			p_in->kill();
 			return;
 		}
-		if (fwd_m && !_link_table->update_link(a, b, seq, 0, fwd_m, channel)) {
+		if (_debug) {
+			click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u, %u) > %s",
+					this, 
+					__func__, 
+					a.unparse().c_str(), 
+					seq,
+					age,
+					fwd_m,
+					channel,
+					b.unparse().c_str());
+		}
+		if (fwd_m && !_link_table->update_link(a, b, seq, age, fwd_m, channel)) {
 			click_chatter("%{element} :: %s :: couldn't update fwd_m %s > %d > %s",
 					this, 
 					__func__, 
@@ -269,7 +290,18 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 					fwd_m,
 					b.unparse().c_str());
 		}
-		if (rev_m && !_link_table->update_link(b, a, seq, 0, rev_m, channel)) {
+		if (_debug) {
+			click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u, %u) > %s",
+					this, 
+					__func__, 
+					b.unparse().c_str(), 
+					seq,
+					age,
+					rev_m,
+					channel,
+					a.unparse().c_str());
+		}
+		if (rev_m && !_link_table->update_link(b, a, seq, age, rev_m, channel)) {
 			click_chatter("%{element} :: %s :: couldn't update rev_m %s < %d < %s",
 					this, 
 					__func__, 

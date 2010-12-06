@@ -424,7 +424,7 @@ void WINGLinkStat::clear_stale()  {
 		ProbeList *list = _bcast_stats.findp(node);
 		if (!list || (unsigned) now.sec() - list->_last_rx.sec() > 2 * list->_period / 1000) {
 			if (_debug) {
-				click_chatter("%{element} :: %s :: clearing stale neighbor %s age %d", 
+				click_chatter("%{element} :: %s :: clearing stale neighbor %s age %u", 
 						this, 
 						__func__, 
 						node.unparse().c_str(),
