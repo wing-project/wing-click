@@ -955,14 +955,6 @@ DSRRouteTable::add_dsr_header(Packet *p_in, const Vector<IPAddress> &source_rout
 
   DEBUG_CHATTER(" * add_dsr_header: new packet size is %d, old was %d \n", p->length(), old_len);
 
-  // there's not really much mention of TTL in the IETF draft (other
-  // than in the case of RREQs), I suppose it's sort of implicitly the
-  // length of the source route.  so right now we're not checking OR
-  // decrementing the TTL when forwarding (again, except in the case
-  // of RREQs).
-  //
-  ip->ip_ttl = 255;
-
   ip->ip_len = htons(p->length());
   ip->ip_dst.s_addr = (unsigned)p->dst_ip_anno(); // XXX not sure I understand why we need to reset this
   ip->ip_sum = 0;
@@ -1018,7 +1010,7 @@ DSRRouteTable::strip_headers(Packet *p_in)
 
   p->set_ip_header((click_ip*)p->data(),sizeof(click_ip));
 
-  DEBUG_CHATTER(" * stripping headers; removed %d bytes\n");
+  DEBUG_CHATTER(" * stripping headers; removed %d bytes\n", dsr_len);
 
   return p;
 }
