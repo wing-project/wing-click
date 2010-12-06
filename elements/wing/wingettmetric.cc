@@ -111,7 +111,7 @@ void WINGETTMetric::update_link(NodeAddress from, NodeAddress to, Vector<RateSiz
 
 	/* update linktable */
 	if (_debug) {
-		click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u) > %s",
+		click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u) > %s",
 				this, 
 				__func__, 
 				from.unparse().c_str(), 
@@ -129,7 +129,7 @@ void WINGETTMetric::update_link(NodeAddress from, NodeAddress to, Vector<RateSiz
 				to.unparse().c_str());
 	} 
 	if (_debug) {
-		click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u) > %s",
+		click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u) > %s",
 				this, 
 				__func__, 
 				to.unparse().c_str(), 

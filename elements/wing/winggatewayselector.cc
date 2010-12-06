@@ -272,7 +272,7 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 			return;
 		}
 		if (_debug) {
-			click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u, %u) > %s",
+			click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u, %u) > %s",
 					this, 
 					__func__, 
 					a.unparse().c_str(), 
@@ -291,7 +291,7 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 					b.unparse().c_str());
 		}
 		if (_debug) {
-			click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u, %u) > %s",
+			click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u, %u) > %s",
 					this, 
 					__func__, 
 					b.unparse().c_str(), 

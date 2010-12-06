@@ -114,7 +114,7 @@ void WINGETXMetric::update_link(NodeAddress from, NodeAddress to,
 
 	/* update linktable */
 	if (_debug) {
-		click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u) > %s",
+		click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u) > %s",
 				this, 
 				__func__, 
 				from.unparse().c_str(), 
@@ -132,7 +132,7 @@ void WINGETXMetric::update_link(NodeAddress from, NodeAddress to,
 				to.unparse().c_str());
 	} 
 	if (_debug) {
-		click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u) > %s",
+		click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u) > %s",
 				this, 
 				__func__, 
 				from.unparse().c_str(), 
