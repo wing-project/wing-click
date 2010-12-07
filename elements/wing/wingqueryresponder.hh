@@ -25,7 +25,7 @@ public:
 	~WINGQueryResponder();
 
 	const char *class_name() const { return "WINGQueryResponder"; }
-	const char *port_count() const { return PORTS_1_1; }
+	const char *port_count() const { return "2/1"; }
 	const char *processing() const { return PUSH; }
 	const char *flow_code() const { return "#/#"; }
 
@@ -35,6 +35,8 @@ public:
 	void add_handlers();
 
 	void push(int, Packet *);
+	void process_query(Packet *);
+	void process_reply(Packet *);
 	void start_reply(PathMulti, uint32_t);
 
 private:
