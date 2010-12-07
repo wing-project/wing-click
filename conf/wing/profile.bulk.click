@@ -49,12 +49,6 @@ query_responder :: WINGQueryResponder(IP $ip,
                                      DEBUG $debug);
 
 
-reply_forwarder :: WINGReplyForwarder(IP $ip, 
-                                     LT lt, 
-                                     ARP arp,
-                                     DEBUG $debug);
-
-
 gw_responder ::  WINGGatewayResponder(IP $ip,
                                  PERIOD 15000,
                                  SEL gw, 
@@ -66,11 +60,10 @@ gw_responder ::  WINGGatewayResponder(IP $ip,
 gw -> outgoing;
 gw_responder -> outgoing;
 query_responder -> outgoing;
-reply_forwarder -> outgoing;
 query_forwarder -> outgoing;
 
 
-query_forwarder [1] -> query_responder;
+query_forwarder [1] -> [0] query_responder;
 
 
 input [1] 
@@ -119,8 +112,8 @@ input [0]
  
  
  ncl[0] -> forwarder;
- ncl[1] -> [1] query_forwarder
- ncl[2] -> reply_forwarder;
+ ncl[1] -> [1] query_forwarder;
+ ncl[2] -> [1] query_responder;
  ncl[3] -> es;
  ncl[4] -> gw;
 
