@@ -245,6 +245,12 @@ public:
 		}
 		return false;
 	}
+	bool update_both_links(NodeAddress from, NodeAddress to, uint32_t seq, uint32_t age, uint32_t fwd, uint32_t rev, uint16_t channel) {	
+		if (update_link(from, to, seq, age, fwd, channel)) {
+			return update_link(to, from, seq, age, rev, channel);
+		}
+		return false;
+	}
 
 	uint32_t get_link_metric(NodeAddress from, NodeAddress to);
 	uint32_t get_link_seq(NodeAddress from, NodeAddress to);

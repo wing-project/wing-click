@@ -43,6 +43,47 @@ int WINGLinkMetric::configure(Vector<String> &conf, ErrorHandler *errh) {
 	return 0;
 }
 
+void WINGLinkMetric::update_link_table(NodeAddress from, NodeAddress to, uint32_t seq, uint32_t fwd, uint32_t rev, uint16_t channel) {
+
+	if (_debug) {
+		click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u) > %s",
+				this, 
+				__func__, 
+				from.unparse().c_str(), 
+				seq,
+				fwd,
+				channel,
+				to.unparse().c_str());
+	}
+	if (fwd && _link_table && !_link_table->update_link(from, to, seq, 0, fwd, channel)) {
+		click_chatter("%{element} :: %s :: couldn't update link %s > %d > %s",
+				this, 
+				__func__, 
+				from.unparse().c_str(), 
+				fwd,
+				to.unparse().c_str());
+	} 
+	if (_debug) {
+		click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u) > %s",
+				this, 
+				__func__, 
+				to.unparse().c_str(), 
+				seq,
+				rev,
+				channel,
+				from.unparse().c_str());
+	}
+	if (rev && _link_table && !_link_table->update_link(to, from, seq, 0, rev, channel)) {
+		click_chatter("%{element} :: %s :: couldn't update link %s > %d > %s",
+				this, 
+				__func__, 
+				to.unparse().c_str(), 
+				fwd,
+				from.unparse().c_str());
+	} 
+
+}
+
 void WINGLinkMetric::update_link(NodeAddress, NodeAddress, Vector<RateSize>, Vector<int>, Vector<int>, uint32_t, uint32_t) {
 }
 

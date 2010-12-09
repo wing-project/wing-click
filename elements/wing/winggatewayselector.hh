@@ -8,6 +8,7 @@
 #include <click/hashmap.hh>
 #include <click/dequeue.hh>
 #include "pathmulti.hh"
+#include "wingbase.hh"
 CLICK_DECLS
 
 /*
@@ -24,13 +25,14 @@ CLICK_DECLS
  * metric and forward ads.
  */
 
-class WINGGatewaySelector: public Element {
+class WINGGatewaySelector: public WINGBase {
 public:
 
 	WINGGatewaySelector();
 	~WINGGatewaySelector();
 
 	const char *class_name() const { return "WINGGatewaySelector"; }
+	void *cast(const char *);
 	const char *port_count() const { return PORTS_1_1; }
 	const char *processing() const { return PUSH; }
 
@@ -165,10 +167,6 @@ private:
 	GWTable _gateways;
 
 	uint32_t _seq; // Next query sequence number to use.
-	IPAddress _ip; // My address.
-
-	class LinkTableMulti *_link_table;
-	class ARPTableMulti *_arp_table;
 
 	int _hna_index;
 	unsigned int _jitter; // msecs
@@ -177,7 +175,6 @@ private:
 	unsigned int _expire; // msecs
 
 	Timer _timer;
-	bool _debug;
 
 	void start_ad(int);
 	void send(WritablePacket *);

@@ -30,31 +30,34 @@
 CLICK_DECLS
 
 WINGGatewaySelector::WINGGatewaySelector() :
-	_ip(), _link_table(0), _arp_table(0), _hna_index(0), _jitter(1000), _max_seen_size(100), _period(5000), _timer(this), _debug(false) {
+	_hna_index(0), _jitter(1000), _max_seen_size(100), _period(5000), _timer(this) {
 	_seq = Timestamp::now().usec();
 }
 
 WINGGatewaySelector::~WINGGatewaySelector() {
 }
 
+void *
+WINGGatewaySelector::cast(const char *n) {
+	if (strcmp(n, "WINGGatewaySelector") == 0)
+		return (WINGGatewaySelector *) this;
+	else if (strcmp(n, "WINGBase") == 0)
+		return (WINGBase *) this;
+	else
+		return 0;
+}
+
 int WINGGatewaySelector::configure(Vector<String> &conf, ErrorHandler *errh) {
+
 	if (cp_va_kparse(conf, this, errh, 
-				"IP", cpkM, cpIPAddress, &_ip, 
-				"LT", 0, cpElement, &_link_table,
-				"ARP", 0, cpElement, &_arp_table, 
 				"PERIOD", 0, cpUnsigned, &_period, 
 				"JITTER", 0, cpUnsigned, &_jitter, 
 				"EXPIRE", 0, cpUnsigned, &_expire, 
-				"DEBUG", 0, cpBool, &_debug, 
 				cpEnd) < 0)
 		return -1;
 
-	if (_link_table && _link_table->cast("LinkTableMulti") == 0)
-		return errh->error("LT element is not a LinkTableMulti");
-	if (_arp_table && _arp_table->cast("ARPTableMulti") == 0)
-		return errh->error("ARP element is not an ARPTableMulti");
+	return WINGBase::configure(conf, errh);
 
-	return 0;
 }
 
 int WINGGatewaySelector::initialize(ErrorHandler *) {
@@ -249,67 +252,14 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 				hna.unparse().c_str(), 
 				seq);
 	}
+
 	/* update the metrics from the packet */
-	for (int i = 0; i < pk->num_links(); i++) {
-		NodeAddress a = pk->get_link_dep(i);
-		NodeAddress b = pk->get_link_arr(i);
-		uint32_t fwd_m = pk->get_link_fwd(i);
-		uint32_t rev_m = pk->get_link_rev(i);
-		uint32_t seq = pk->get_link_seq(i);
-		uint32_t age = pk->get_link_age(i);
-		uint32_t channel = pk->get_link_channel(i);
-		if (!fwd_m || !rev_m || !seq || !channel) {
-			click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u, %u) > %s",
-					this, 
-					__func__, 
-					a.unparse().c_str(), 
-					fwd_m,
-					rev_m,
-					seq,
-					channel,
-					b.unparse().c_str());
-			p_in->kill();
-			return;
-		}
-		if (_debug) {
-			click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u, %u) > %s",
-					this, 
-					__func__, 
-					a.unparse().c_str(), 
-					seq,
-					age,
-					fwd_m,
-					channel,
-					b.unparse().c_str());
-		}
-		if (fwd_m && !_link_table->update_link(a, b, seq, age, fwd_m, channel)) {
-			click_chatter("%{element} :: %s :: couldn't update fwd_m %s > %d > %s",
-					this, 
-					__func__, 
-					a.unparse().c_str(), 
-					fwd_m,
-					b.unparse().c_str());
-		}
-		if (_debug) {
-			click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u, %u) > %s",
-					this, 
-					__func__, 
-					b.unparse().c_str(), 
-					seq,
-					age,
-					rev_m,
-					channel,
-					a.unparse().c_str());
-		}
-		if (rev_m && !_link_table->update_link(b, a, seq, age, rev_m, channel)) {
-			click_chatter("%{element} :: %s :: couldn't update rev_m %s < %d < %s",
-					this, 
-					__func__, 
-					b.unparse().c_str(), 	
-					rev_m,
-					a.unparse().c_str());
-		}
+	if (!update_link_table(pk)) {
+		p_in->kill();
+		return;
 	}
+	
+	/* update hnas from the packet */
 	int si = 0;
 	for (si = 0; si < _seen.size(); si++) {
 		if (hna == _seen[si]._hna && seq == _seen[si]._seq) {
@@ -334,6 +284,7 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 	}
 	nfo->_last_update = Timestamp::now();
 	nfo->_seen++;
+
 	/* schedule timer */
 	int delay = click_random(1, _jitter);
 	_seen[si]._to_send = _seen[si]._when + Timestamp::make_msec(delay);
@@ -466,5 +417,5 @@ void WINGGatewaySelector::add_handlers() {
 }
 
 CLICK_ENDDECLS
-ELEMENT_REQUIRES(LinkTableMulti ARPTableMulti)
+ELEMENT_REQUIRES(WINGBase LinkTableMulti ARPTableMulti)
 EXPORT_ELEMENT(WINGGatewaySelector)

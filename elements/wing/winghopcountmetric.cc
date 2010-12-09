@@ -54,42 +54,7 @@ void WINGHopCountMetric::update_link(NodeAddress from, NodeAddress to,
 	}
 
 	/* update linktable */
-	if (_debug) {
-		click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u) > %s",
-				this, 
-				__func__, 
-				from.unparse().c_str(), 
-				seq,
-				1,
-				channel,
-				to.unparse().c_str());
-	}
-	if (_link_table && !_link_table->update_link(from, to, seq, 0, 1, channel)) {
-		click_chatter("%{element} :: %s :: couldn't update link %s > %d > %s",
-				this, 
-				__func__, 
-				from.unparse().c_str(), 
-				1,
-				to.unparse().c_str());
-	} 
-	if (_debug) {
-		click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u) > %s",
-				this, 
-				__func__, 
-				to.unparse().c_str(), 
-				seq,
-				1,
-				channel,
-				from.unparse().c_str());
-	}
-	if (_link_table && !_link_table->update_link(to, from, seq, 0, 1, channel)) {
-		click_chatter("%{element} :: %s :: couldn't update link %s > %d > %s",
-				this, 
-				__func__, 
-				to.unparse().c_str(), 
-				1,
-				from.unparse().c_str());
-	} 
+	update_link_table(from, to, seq, 1, 1, channel);
 }
 
 EXPORT_ELEMENT(WINGHopCountMetric)

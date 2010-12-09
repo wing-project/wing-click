@@ -110,42 +110,8 @@ void WINGETTMetric::update_link(NodeAddress from, NodeAddress to, Vector<RateSiz
 	}
 
 	/* update linktable */
-	if (_debug) {
-		click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u) > %s",
-				this, 
-				__func__, 
-				from.unparse().c_str(), 
-				seq,
-				fwd_metric,
-				channel,
-				to.unparse().c_str());
-	}
-	if (fwd_metric && _link_table && !_link_table->update_link(from, to, seq, 0, fwd_metric, channel)) {
-		click_chatter("%{element} :: %s :: couldn't update link %s > %d > %s",
-				this, 
-				__func__, 
-				from.unparse().c_str(), 
-				fwd_metric,
-				to.unparse().c_str());
-	} 
-	if (_debug) {
-		click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u) > %s",
-				this, 
-				__func__, 
-				to.unparse().c_str(), 
-				seq,
-				rev_metric,
-				channel,
-				from.unparse().c_str());
-	}
-	if (rev_metric && _link_table && !_link_table->update_link(to, from, seq, 0, rev_metric, channel)) {
-		click_chatter("%{element} :: %s :: couldn't update link %s > %d > %s",
-				this, 
-				__func__, 
-				to.unparse().c_str(), 
-				fwd_metric,
-				from.unparse().c_str());
-	} 
+	update_link_table(from, to, seq, fwd_metric, rev_metric, channel);
+
 }
 
 EXPORT_ELEMENT(WINGETTMetric)

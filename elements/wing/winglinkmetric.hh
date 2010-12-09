@@ -18,6 +18,8 @@ public:
 
 	virtual void update_link(NodeAddress, NodeAddress, Vector<RateSize>, Vector<int>, Vector<int>, uint32_t, uint32_t);
 
+	void update_link_table(NodeAddress, NodeAddress, uint32_t, uint32_t, uint32_t, uint16_t);
+
 protected:
 
 	class LinkTableMulti *_link_table;

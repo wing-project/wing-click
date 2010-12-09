@@ -8,6 +8,7 @@
 #include <click/vector.hh>
 #include <click/hashmap.hh>
 #include <click/dequeue.hh>
+#include "wingbase.hh"
 #include "nodeaddress.hh"
 CLICK_DECLS
 
@@ -19,13 +20,14 @@ CLICK_DECLS
  * Floods a packet with previous hops based on Link Metrics.
  */
 
-class WINGMetricFlood: public Element {
+class WINGMetricFlood: public WINGBase {
 public:
 
 	WINGMetricFlood();
 	~WINGMetricFlood();
 
 	const char *class_name() const { return "WINGMetricFlood"; }
+	void *cast(const char *);
 	const char *port_count() const { return "2/2"; }
 	const char *processing() const { return PUSH; }
 	const char *flow_code() const {	return "#/#"; }
@@ -65,15 +67,10 @@ private:
 	};
 
 	DEQueue<Seen> _seen;
-	IPAddress _ip; // My address.
-
-	class LinkTableMulti *_link_table;
-	class ARPTableMulti *_arp_table;
 
 	uint32_t _seq; // Next query sequence number to use.
 	uint32_t _jitter; // msecs
 	int _max_seen_size;
-	bool _debug;
 
 	void start_flood(Packet *);
 	void process_flood(Packet *);

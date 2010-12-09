@@ -30,30 +30,31 @@
 CLICK_DECLS
 
 WINGMetricFlood::WINGMetricFlood() :
-	_link_table(0), _arp_table(0), _jitter(1000), _max_seen_size(100), _debug(false) {
+	_jitter(1000), _max_seen_size(100) {
 	_seq = Timestamp::now().usec();
 }
 
 WINGMetricFlood::~WINGMetricFlood() {
 }
 
+void *
+WINGMetricFlood::cast(const char *n) {
+	if (strcmp(n, "WINGMetricFlood") == 0)
+		return (WINGMetricFlood *) this;
+	else if (strcmp(n, "WINGBase") == 0)
+		return (WINGBase *) this;
+	else
+		return 0;
+}
+
 int WINGMetricFlood::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	if (cp_va_kparse(conf, this, errh, 
-				"IP", cpkM, cpIPAddress, &_ip, 
-				"LT", cpkM, cpElement, &_link_table, 
-				"ARP", cpkM, cpElement, &_arp_table, 
 				"JITTER", 0, cpUnsigned, &_jitter, 
-				"DEBUG", 0, cpBool, &_debug, 
 			cpEnd) < 0)
 		return -1;
 
-	if (_link_table->cast("LinkTableMulti") == 0)
-		return errh->error("LinkTable element is not a LinkTableMulti");
-	if (_arp_table->cast("ARPTableMulti") == 0)
-		return errh->error("ARPTableMulti element is not a ARPTableMulti");
-
-	return 0;
+	return WINGBase::configure(conf, errh);
 
 }
 
@@ -72,14 +73,9 @@ void WINGMetricFlood::forward_query_hook() {
 }
 
 void WINGMetricFlood::forward_query(NodeAddress src, Seen *s) {
-	EtherAddress eth_src = _arp_table->lookup(src);
-	if (eth_src.is_group()) {
-		click_chatter("%{element} :: %s :: arp lookup failed for %s",
-			      this,
-			      __func__,
-			      src.unparse().c_str());
-	}
+
 	PathMulti best = _link_table->best_route(s->_src, false);
+
 	if (!_link_table->valid_route(best)) {
 		if (_debug) {
 			click_chatter("%{element} :: %s :: invalid route from %s",
@@ -89,13 +85,7 @@ void WINGMetricFlood::forward_query(NodeAddress src, Seen *s) {
 		}
 		return;
 	}
-	int hops = best.size() - 1;
-	int len = wing_packet::len_wo_data(hops);
-	WritablePacket *p = Packet::make(len + sizeof(click_ether));
-	if (p == 0) {
-		click_chatter("%{element} :: %s :: cannot make query packet!", this, __func__);
-		return;
-	}
+
 	if (_debug) {
 		click_chatter("%{element} :: %s :: forward query dst %s src %s seq %d iface %s", 
 				this,
@@ -105,25 +95,11 @@ void WINGMetricFlood::forward_query(NodeAddress src, Seen *s) {
 				s->_seq,
 				src.unparse().c_str());
 	}
-	click_ether *eh = (click_ether *) p->data();
-	struct wing_packet *pk = (struct wing_packet *) (eh + 1);
-	memset(pk, '\0', len);
-	pk->_type = WING_PT_QUERY;
-	pk->set_qdst(s->_dst);
-	pk->set_qsrc(s->_src);
-	pk->set_seq(s->_seq);
-	pk->set_num_links(hops);
-	for (int i = 0; i < hops; i++) {
-		pk->set_link(i, best[i].dep(), best[i + 1].arr(),
-				_link_table->get_link_metric(best[i].dep(), best[i + 1].arr()),
-				_link_table->get_link_metric(best[i + 1].arr(), best[i].dep()),
-				_link_table->get_link_seq(best[i].dep(), best[i + 1].arr()),
-				_link_table->get_link_age(best[i].dep(), best[i + 1].arr()),
-				_link_table->get_link_channel(best[i].dep(), best[i + 1].arr()));
-	}
-	memcpy(eh->ether_shost, eth_src.data(), 6);
-	memset(eh->ether_dhost, 0xff, 6);
+
+	Packet * p = encap(src, NodeAddress(), WING_PT_QUERY, s->_dst, NodeAddress(), s->_src, s->_seq, best);
+
 	output(0).push(p);
+
 }
 
 void WINGMetricFlood::process_flood(Packet *p_in) {
@@ -138,67 +114,14 @@ void WINGMetricFlood::process_flood(Packet *p_in) {
 		p_in->kill();
 		return;
 	}
+
 	/* update the metrics from the packet */
-	for (int i = 0; i < pk->num_links(); i++) {
-		NodeAddress a = pk->get_link_dep(i);
-		NodeAddress b = pk->get_link_arr(i);
-		uint32_t fwd_m = pk->get_link_fwd(i);
-		uint32_t rev_m = pk->get_link_rev(i);
-		uint32_t seq = pk->get_link_seq(i);
-		uint32_t age = pk->get_link_age(i);
-		uint32_t channel = pk->get_link_channel(i);
-		if (!fwd_m || !rev_m || !seq || !channel) {
-			click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u, %u) > %s",
-					this, 
-					__func__, 
-					a.unparse().c_str(), 
-					fwd_m,
-					rev_m,
-					seq,
-					channel,
-					b.unparse().c_str());
-			p_in->kill();
-			return;
-		}
-		if (_debug) {
-			click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u, %u) > %s",
-					this, 
-					__func__, 
-					a.unparse().c_str(), 
-					seq,
-					age,
-					fwd_m,
-					channel,
-					b.unparse().c_str());
-		}
-		if (fwd_m && !_link_table->update_link(a, b, seq, age, fwd_m, channel)) {
-			click_chatter("%{element} :: %s :: couldn't update fwd_m %s > %d > %s",
-					this, 
-					__func__, 
-					a.unparse().c_str(), 
-					fwd_m,
-					b.unparse().c_str());
-		}
-		if (_debug) {
-			click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u, %u) > %s",
-					this, 
-					__func__, 
-					b.unparse().c_str(), 
-					seq,
-					age,
-					rev_m,
-					channel,
-					a.unparse().c_str());
-		}
-		if (rev_m && !_link_table->update_link(b, a, seq, age, rev_m, channel)) {
-			click_chatter("%{element} :: %s :: couldn't update rev_m %s < %d < %s",
-					this, 
-					__func__, 
-					b.unparse().c_str(), 	
-					rev_m,
-					a.unparse().c_str());
-		}
+	if (!update_link_table(pk)) {
+		p_in->kill();
+		return;
 	}
+
+	/* process query */
 	IPAddress src = pk->qsrc();
 	IPAddress dst = pk->qdst();
 	uint32_t seq = pk->seq();
@@ -226,6 +149,7 @@ void WINGMetricFlood::process_flood(Packet *p_in) {
 		output(1).push(p_in);
 		return;
 	}
+
 	/* schedule timer */
 	int delay = click_random(1, _jitter);
 	_seen[si]._to_send = _seen[si]._when + Timestamp::make_msec(delay);
@@ -349,5 +273,5 @@ void WINGMetricFlood::add_handlers() {
 }
 
 CLICK_ENDDECLS
-ELEMENT_REQUIRES(LinkTableMulti ARPTableMulti)
+ELEMENT_REQUIRES(WINGBase LinkTableMulti ARPTableMulti)
 EXPORT_ELEMENT(WINGMetricFlood)
