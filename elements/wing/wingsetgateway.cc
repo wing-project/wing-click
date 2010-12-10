@@ -28,26 +28,25 @@
 CLICK_DECLS
 
 WINGSetGateway::WINGSetGateway() :
-	_gw_sel(0) {
+	_gw(IPAddress()), _gw_sel(0) {
 }
 
 WINGSetGateway::~WINGSetGateway() {
 }
 
 int WINGSetGateway::configure(Vector<String> &conf, ErrorHandler *errh) {
-	_gw = IPAddress();
+
 	if (cp_va_kparse(conf, this, errh, 
 				"GW", 0, cpIPAddress, &_gw, 
-				"SEL", 0, cpElement, &_gw_sel, 
+				"SEL", 0, cpElementCast, "WINGGatewaySelector", &_gw_sel, 
 				"DEBUG", 0, cpBool, &_debug, 
 				cpEnd) < 0)
 		return -1;
 
-	if (_gw_sel && _gw_sel->cast("WINGGatewaySelector") == 0)
-		return errh->error("GW element is not a WINGGatewaySelector");
 	if (!_gw_sel && !_gw) {
 		return errh->error("Either GW or SEL must be specified!\n");
 	}
+
 	return 0;
 }
 

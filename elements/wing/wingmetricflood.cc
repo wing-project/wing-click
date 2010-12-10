@@ -50,11 +50,15 @@ WINGMetricFlood::cast(const char *n) {
 int WINGMetricFlood::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	if (cp_va_kparse(conf, this, errh, 
+				"IP", cpkM, cpIPAddress, &_ip, 
+				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
+				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
+				"DEBUG", 0, cpBool, &_debug, 
 				"JITTER", 0, cpUnsigned, &_jitter, 
-			cpEnd) < 0)
+				cpEnd) < 0)
 		return -1;
 
-	return WINGBase::configure(conf, errh);
+	return 0;
 
 }
 
@@ -65,38 +69,38 @@ void WINGMetricFlood::forward_query_hook() {
 		_link_table->dijkstra(false);
 		if (_seen[x]._to_send < now && !_seen[x]._forwarded) {
 			for (int i = 0; i < ifs.size(); i++) {
-				forward_query(NodeAddress(_ip, ifs[i]), &_seen[x]);
+				forward_query(ifs[i], &_seen[x]);
 			}
 			_seen[x]._forwarded = true;
 		}
 	}
 }
 
-void WINGMetricFlood::forward_query(NodeAddress src, Seen *s) {
+void WINGMetricFlood::forward_query(int iface, Seen *s) {
 
 	PathMulti best = _link_table->best_route(s->_src, false);
 
-	if (!_link_table->valid_route(best)) {
-		if (_debug) {
-			click_chatter("%{element} :: %s :: invalid route from %s",
-					this, 
-					__func__, 
-					s->_src.unparse().c_str());
-		}
-		return;
-	}
-
 	if (_debug) {
-		click_chatter("%{element} :: %s :: forward query dst %s src %s seq %d iface %s", 
+		click_chatter("%{element} :: %s :: forward query dst %s seq %d iface %s", 
 				this,
 				__func__, 
 				s->_dst.unparse().c_str(), 
-				s->_dst.unparse().c_str(), 
 				s->_seq,
-				src.unparse().c_str());
+				iface);
 	}
 
-	Packet * p = encap(src, NodeAddress(), WING_PT_QUERY, s->_dst, NodeAddress(), s->_src, s->_seq, best);
+	Packet * p = create_wing_packet(NodeAddress(_ip, iface),
+				NodeAddress(),
+				WING_PT_QUERY, 
+				s->_dst, 
+				NodeAddress(), 
+				s->_src, 
+				s->_seq, 
+				best);
+
+	if (!p) {
+		return;
+	}
 
 	output(0).push(p);
 
@@ -116,7 +120,7 @@ void WINGMetricFlood::process_flood(Packet *p_in) {
 	}
 
 	/* update the metrics from the packet */
-	if (!update_link_table(pk)) {
+	if (!update_link_table(p_in)) {
 		p_in->kill();
 		return;
 	}
@@ -161,43 +165,39 @@ void WINGMetricFlood::process_flood(Packet *p_in) {
 	return;
 }
 
-void WINGMetricFlood::start_query(IPAddress dst, NodeAddress src) {
-	EtherAddress eth_src = _arp_table->lookup(src);
-	if (eth_src.is_group()) {
-		click_chatter("%{element} :: %s :: arp lookup failed for %s",
-			      this,
-			      __func__,
-			      src.unparse().c_str());
-	}
-	unsigned len = wing_packet::len_wo_data(0);
-	WritablePacket *p = Packet::make(len + sizeof(click_ether));
-	if (!p) {
-		click_chatter("%{element} :: %s :: cannot make packet!", this, __func__);
-		return;
-	}
+void WINGMetricFlood::start_query(IPAddress dst, int iface) {
+
+	NodeAddress src = NodeAddress(_ip, iface);
+
 	if (_debug) {
-		click_chatter("%{element} :: %s :: start query dst %s src %s seq %d iface %s", 
+		click_chatter("%{element} :: %s :: start query dst %s seq %d from %s", 
 				this,
 				__func__, 
 				dst.unparse().c_str(), 
-				src.unparse().c_str(), 
 				_seq,
 				src.unparse().c_str());
 	}
+
+	Packet * p = create_wing_packet(src, 
+				NodeAddress(), 
+				WING_PT_GATEWAY, 
+				dst, 
+				NodeAddress(), 
+				src, 
+				_seq, 
+				PathMulti());
+
+	if (!p) {
+		return;
+	}
+
 	if (_seen.size() >= _max_seen_size) {
 		_seen.pop_front();
 	}
 	_seen.push_back(Seen(src, dst, _seq));
-	click_ether *eh = (click_ether *) p->data();
-	struct wing_packet *pk = (struct wing_packet *) (eh + 1);
-	memset(pk, '\0', len);
-	pk->_type = WING_PT_QUERY;
-	pk->set_qdst(dst);
-	pk->set_qsrc(_ip);
-	pk->set_seq(_seq);
-	memcpy(eh->ether_shost, eth_src.data(), 6);
-	memset(eh->ether_dhost, 0xff, 6);
+
 	output(0).push(p);
+
 }
 
 void WINGMetricFlood::start_flood(Packet *p_in) {
@@ -205,7 +205,7 @@ void WINGMetricFlood::start_flood(Packet *p_in) {
 	p_in->kill();
 	Vector<int> ifs = _link_table->get_local_interfaces();
 	for (int i = 0; i < ifs.size(); i++) {
-		start_query(dst, NodeAddress(_ip, ifs[i]));
+		start_query(dst, ifs[i]);
 	}
 	_seq++;
 }

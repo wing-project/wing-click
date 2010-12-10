@@ -32,7 +32,8 @@ forwarder :: WINGForwarder(IP $ip,
 
 querier :: WINGQuerier(QUERY_WAIT 5,
                          TIME_BEFORE_SWITCH 5,
-                         FWD forwarder,
+			 IP $ip,
+			 ARP arp,
                          LT lt, 
                          DEBUG $debug);
 

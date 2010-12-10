@@ -5,7 +5,7 @@
 #include <click/timer.hh>
 #include <click/etheraddress.hh>
 #include <click/hashmap.hh>
-#include "pathmulti.hh"
+#include "wingbase.hh"
 CLICK_DECLS
 
 /*
@@ -37,7 +37,7 @@ CLICK_DECLS
  * =a WINGForwarder
  */
 
-class WINGQuerier: public Element {
+class WINGQuerier: public WINGBase {
 public:
 
 	WINGQuerier();
@@ -54,10 +54,8 @@ public:
 	void add_handlers();
 	String print_queries();
 	String print_routes();
-	String route_to_string(PathMulti);
 
 	void push(int, Packet *);
-	void send_query(IPAddress, int);
 
 private:
 
@@ -82,13 +80,6 @@ private:
 
 	Timestamp _query_wait;
 	Timestamp _time_before_switch;
-	IPAddress _ip;
-
-	class WINGForwarder *_forwarder;
-	class LinkTableMulti *_link_table;
-	class ARPTableMulti *_arp_table;
-
-	bool _debug;
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);

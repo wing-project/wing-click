@@ -8,7 +8,7 @@
 #include <click/vector.hh>
 #include <click/hashmap.hh>
 #include <click/dequeue.hh>
-#include "pathmulti.hh"
+#include "wingbase.hh"
 CLICK_DECLS
 
 /*
@@ -18,7 +18,7 @@ CLICK_DECLS
  * Responds to queries destined for this node.
  */
 
-class WINGQueryResponder: public Element {
+class WINGQueryResponder: public WINGBase {
 public:
 
 	WINGQueryResponder();
@@ -41,8 +41,6 @@ public:
 
 private:
 
-	IPAddress _ip; // My address.
-
 	class Seen {
 	public:
 		Seen();
@@ -57,11 +55,7 @@ private:
 
 	DEQueue<Seen> _seen;
 
-	class LinkTableMulti *_link_table;
-	class ARPTableMulti *_arp_table;
-
 	int _max_seen_size;
-	bool _debug;
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);

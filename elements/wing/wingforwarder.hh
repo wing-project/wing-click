@@ -5,7 +5,7 @@
 #include <click/timer.hh>
 #include <click/etheraddress.hh>
 #include <click/vector.hh>
-#include "pathmulti.hh"
+#include "wingbase.hh"
 CLICK_DECLS
 
 /*
@@ -21,7 +21,7 @@ CLICK_DECLS
  *
  */
 
-class WINGForwarder: public Element {
+class WINGForwarder: public WINGBase {
 public:
 
 	WINGForwarder();
@@ -43,22 +43,13 @@ public:
 
 	void push(int, Packet *);
 
-	Packet *encap(Packet *, PathMulti);
-
 private:
-
-	IPAddress _ip; // My address.
 
 	/* statistics for handlers */
 	int _inc_packets;
 	int _inc_bytes;
 	int _out_packets;
 	int _out_bytes;
-
-	bool _debug;
-
-	class LinkTableMulti *_link_table;
-	class ARPTableMulti *_arp_table;
 
 	static String read_handler(Element *, void *);
 };

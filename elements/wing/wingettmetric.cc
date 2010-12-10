@@ -95,13 +95,13 @@ void WINGETTMetric::update_link(NodeAddress from, NodeAddress to, Vector<RateSiz
 				ack_rev = six_ack_rev;
 			}
 
-			int metric = wing_ett_metric(ack_rev, fwd[x], rs[x]._rate);
+			int metric = compute_metric(ack_rev, fwd[x], rs[x]._rate);
 
 			if (!fwd_metric || (metric && metric < fwd_metric)) {
 				fwd_metric = metric;
 			}
 
-			metric = wing_ett_metric(ack_fwd, rev[x], rs[x]._rate);
+			metric = compute_metric(ack_fwd, rev[x], rs[x]._rate);
 
 			if (!rev_metric || (metric && metric < rev_metric)) {
 				rev_metric = metric;

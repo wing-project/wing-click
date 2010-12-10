@@ -46,8 +46,7 @@ cp_node_airport(String s, NodeAirport *node)
 	return true;
 }
 
-WINGQuerier::WINGQuerier() :
-	_forwarder(0), _link_table(0), _arp_table(0), _debug(false) {
+WINGQuerier::WINGQuerier() {
 }
 
 WINGQuerier::~WINGQuerier() {
@@ -57,23 +56,19 @@ int WINGQuerier::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	_query_wait = Timestamp(5);
 	_time_before_switch = Timestamp(5);
+
 	if (cp_va_kparse(conf, this, errh, 
-				"FWD", cpkM, cpElement,	&_forwarder, 
-				"LT", cpkM, cpElement, &_link_table, 
+				"IP", cpkM, cpIPAddress, &_ip, 
+				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
+				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
+				"DEBUG", 0, cpBool, &_debug, 
 				"TIME_BEFORE_SWITCH", 0, cpTimestamp, &_time_before_switch,
 				"QUERY_WAIT", 0, cpTimestamp, &_query_wait, 
-				"DEBUG", 0, cpBool, &_debug, 
 				cpEnd) < 0)
 		return -1;
 
-	if (_forwarder->cast("WINGForwarder") == 0) {
-		return errh->error("FWD element is not a WINGForwarder");
-	}
-	if (_link_table->cast("LinkTableMulti") == 0) {
-		return errh->error("LT element is not a LinkTableMulti");
-	}
-
 	return 0;
+
 }
 
 void WINGQuerier::push(int, Packet *p_in) {
@@ -88,7 +83,7 @@ void WINGQuerier::push(int, Packet *p_in) {
 	}
 	PathMulti *p = _routes.findp(dst);
 	if (p) {
-		p_in = _forwarder->encap(p_in, *p);
+		p_in = encap(p_in, *p);
 		if (p_in) {
 			output(0).push(p_in);
 		}
@@ -123,7 +118,7 @@ void WINGQuerier::push(int, Packet *p_in) {
 		}
 	}
 	if (nfo->_best_metric) {
-		p_in = _forwarder->encap(p_in, nfo->_p);
+		p_in = encap(p_in, nfo->_p);
 		if (p_in) {
 			output(0).push(p_in);
 		}
@@ -171,17 +166,6 @@ String WINGQuerier::print_routes() {
 	for (RouteTable::iterator iter = _routes.begin(); iter.live(); iter++) {
 		sa << route_to_string(iter.value()) << "\n";
 	}
-	return sa.take_string();
-}
-
-String WINGQuerier::route_to_string(PathMulti p) {
-	StringAccum sa;
-	int hops = p.size() - 1;
-	StringAccum sa2;
-	for (int i = 0; i < p.size(); i++) {
-		sa2 << " " << p[i].unparse();
-	}
-	sa << p[p.size() - 1]._ip << " hops " << hops << sa2;
 	return sa.take_string();
 }
 

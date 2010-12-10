@@ -30,7 +30,7 @@
 CLICK_DECLS
 
 WINGGatewaySelector::WINGGatewaySelector() :
-	_hna_index(0), _jitter(1000), _max_seen_size(100), _period(5000), _timer(this) {
+	_hna_index(0), _jitter(1000), _expire(30000), _max_seen_size(100), _period(5000), _timer(this) {
 	_seq = Timestamp::now().usec();
 }
 
@@ -50,13 +50,17 @@ WINGGatewaySelector::cast(const char *n) {
 int WINGGatewaySelector::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	if (cp_va_kparse(conf, this, errh, 
+				"IP", cpkM, cpIPAddress, &_ip, 
+				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
+				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
+				"DEBUG", 0, cpBool, &_debug, 
 				"PERIOD", 0, cpUnsigned, &_period, 
 				"JITTER", 0, cpUnsigned, &_jitter, 
 				"EXPIRE", 0, cpUnsigned, &_expire, 
 				cpEnd) < 0)
 		return -1;
 
-	return WINGBase::configure(conf, errh);
+	return 0;
 
 }
 
@@ -105,41 +109,38 @@ void WINGGatewaySelector::run_timer(Timer *) {
 }
 
 void WINGGatewaySelector::start_ad(int iface) {
-	HNAInfo nfo = _hnas[_hna_index];
-	NodeAddress src = NodeAddress(_ip, iface);
-	EtherAddress eth_src = _arp_table->lookup(src);
-	if (eth_src.is_group()) {
-		click_chatter("%{element} :: %s :: arp lookup failed for src %s (%s)", 
-				this,
-				__func__,
-				src.unparse().c_str(),
-				eth_src.unparse().c_str());
-	}
+
+	HNAInfo hna = _hnas[_hna_index];
+
 	if (_debug) {
 		click_chatter("%{element} :: %s :: hna %s seq %d iface %u", 
 				this, 
 				__func__,
-				nfo.unparse().c_str(), 
+				hna.unparse().c_str(), 
 				_seq,
 				iface);
 	}
-	int len = wing_packet::len_wo_data(0);
-	WritablePacket *p = Packet::make(len + sizeof(click_ether));
+
+	Packet * p = create_wing_packet(NodeAddress(_ip, iface), 
+				NodeAddress(), 
+				WING_PT_GATEWAY, 
+				hna._dst, 
+				hna._nm, 
+				hna._gw, 
+				_seq, 
+				PathMulti());
+
 	if (!p) {
-		click_chatter("%{element} :: %s :: cannot make packet!", this, __func__);
 		return;
 	}
-	click_ether *eh = (click_ether *) p->data();
-	struct wing_packet *pk = (struct wing_packet *) (eh + 1);
-	memset(pk, '\0', len);
-	pk->_type = WING_PT_GATEWAY;
-	pk->set_qdst(nfo._dst);
-	pk->set_netmask(nfo._nm);
-	pk->set_qsrc(nfo._gw);
-	pk->set_seq(_seq);
-	memcpy(eh->ether_shost, eth_src.data(), 6);
-	memset(eh->ether_dhost, 0xff, 6);
+
+	if (_seen.size() >= _max_seen_size) {
+		_seen.pop_front();
+	}
+	_seen.push_back(Seen(hna, _seq));
+
 	output(0).push(p);
+
 }
 
 void WINGGatewaySelector::forward_ad_hook() {
@@ -157,24 +158,9 @@ void WINGGatewaySelector::forward_ad_hook() {
 }
 
 void WINGGatewaySelector::forward_ad(int iface, Seen *s) {
-	NodeAddress src = NodeAddress(_ip, iface);
-	EtherAddress eth_src = _arp_table->lookup(src);
-	if (eth_src.is_group()) {
-		click_chatter("%{element} :: %s :: arp lookup failed for src %s (%s)", 
-				this,
-				__func__,
-				src.unparse().c_str(),
-				eth_src.unparse().c_str());
 
-	}
 	PathMulti best = _link_table->best_route(s->_hna._gw, false);
-	if (!_link_table->valid_route(best)) {
-		click_chatter("%{element} :: %s :: invalid route from %s", 
-				this,
-				__func__, 
-				s->_hna._gw.unparse().c_str());
-		return;
-	}
+
 	if (_debug) {
 		click_chatter("%{element} :: %s :: hna %s seq %d iface %u", 
 				this, __func__,
@@ -182,32 +168,20 @@ void WINGGatewaySelector::forward_ad(int iface, Seen *s) {
 				s->_seq,
 				iface);
 	}
-	int hops = best.size() - 1;
-	int len = wing_packet::len_wo_data(hops);
-	WritablePacket *p = Packet::make(len + sizeof(click_ether));
+
+	Packet * p = create_wing_packet(NodeAddress(_ip, iface), 
+				NodeAddress(), 
+				WING_PT_GATEWAY, 
+				s->_hna._dst, 
+				s->_hna._nm, 
+				s->_hna._gw, 
+				s->_seq, 
+				best);
+
 	if (!p) {
-		click_chatter("%{element} :: %s :: cannot make packet!", this, __func__);
 		return;
 	}
-	click_ether *eh = (click_ether *) p->data();
-	struct wing_packet *pk = (struct wing_packet *) (eh + 1);
-	memset(pk, '\0', len);
-	pk->_type = WING_PT_GATEWAY;
-	pk->set_qdst(s->_hna._dst);
-	pk->set_netmask(s->_hna._nm);
-	pk->set_qsrc(s->_hna._gw);
-	pk->set_seq(s->_seq);
-	pk->set_num_links(hops);
-	for (int i = 0; i < hops; i++) {
-		pk->set_link(i, best[i].dep(), best[i + 1].arr(), 
-				_link_table->get_link_metric(best[i].dep(), best[i + 1].arr()), 
-				_link_table->get_link_metric(best[i + 1].arr(), best[i].dep()), 
-				_link_table->get_link_seq(best[i].dep(), best[i + 1].arr()), 
-				_link_table->get_link_age(best[i].dep(), best[i + 1].arr()),
-				_link_table->get_link_channel(best[i].dep(), best[i + 1].arr()));
-	}
-	memcpy(eh->ether_shost, eth_src.data(), 6);
-	memset(eh->ether_dhost, 0xff, 6);
+
 	output(0).push(p);
 }
 
@@ -254,11 +228,12 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 	}
 
 	/* update the metrics from the packet */
-	if (!update_link_table(pk)) {
+	if (!update_link_table(p_in)) {
 		p_in->kill();
 		return;
 	}
-	
+	_link_table->dijkstra(true);
+
 	/* update hnas from the packet */
 	int si = 0;
 	for (si = 0; si < _seen.size(); si++) {
@@ -417,5 +392,5 @@ void WINGGatewaySelector::add_handlers() {
 }
 
 CLICK_ENDDECLS
-ELEMENT_REQUIRES(WINGBase LinkTableMulti ARPTableMulti)
+ELEMENT_REQUIRES(WINGBase)
 EXPORT_ELEMENT(WINGGatewaySelector)

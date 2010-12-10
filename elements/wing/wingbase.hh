@@ -15,11 +15,11 @@ public:
 	const char *class_name() const { return "WINGBase"; }
 	const char *processing() const { return AGNOSTIC; }
 
-	int configure(Vector<String> &, ErrorHandler *);
+	bool update_link_table(Packet *);
 
-	bool update_link_table(wing_packet *);
-
-	Packet * encap(NodeAddress, NodeAddress, int, NodeAddress, NodeAddress, NodeAddress, int, PathMulti);
+	Packet * create_wing_packet(NodeAddress, NodeAddress, int, NodeAddress, NodeAddress, NodeAddress, int, PathMulti);
+	Packet * encap(Packet *, PathMulti);
+	void set_ethernet_header(WritablePacket *, NodeAddress src, NodeAddress dst);
 
 protected:
 

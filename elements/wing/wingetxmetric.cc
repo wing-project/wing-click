@@ -98,13 +98,13 @@ void WINGETXMetric::update_link(NodeAddress from, NodeAddress to,
 				ack_rev = six_ack_rev;
 			}
 
-			int metric = wing_etx_metric(ack_rev, fwd[x]);
+			int metric = compute_metric(ack_rev, fwd[x]);
 
 			if (!fwd_metric || (metric && metric < fwd_metric)) {
 				fwd_metric = metric;
 			}
 
-			metric = wing_etx_metric(ack_rev, fwd[x]);
+			metric = compute_metric(ack_rev, fwd[x]);
 
 			if (!rev_metric || (metric && metric < rev_metric)) {
 				rev_metric = metric;

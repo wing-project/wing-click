@@ -31,27 +31,26 @@
 CLICK_DECLS
 
 WINGGatewayResponder::WINGGatewayResponder() :
-	_ip(), _link_table(0), _timer(this), _debug(false) {
+	_timer(this), _debug(false) {
 }
 
 WINGGatewayResponder::~WINGGatewayResponder() {
 }
 
 int WINGGatewayResponder::configure(Vector<String> &conf, ErrorHandler *errh) {
-	if (cp_va_kparse(conf, this, errh, "IP", cpkM, cpIPAddress, &_ip, "LT",
-			cpkM, cpElement, &_link_table, "SEL", cpkM, cpElement, &_gw_sel,
-			"RESPONDER", cpkM, cpElement, &_responder, "PERIOD", 0, cpUnsigned,
-			&_period, "DEBUG", 0, cpBool, &_debug, cpEnd) < 0)
+
+	if (cp_va_kparse(conf, this, errh, 
+				"IP", cpkM, cpIPAddress, &_ip, 
+				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
+				"SEL", cpkM, cpElementCast, "WINGGatewaySelector", &_gw_sel, 
+				"RESPONDER", cpkM, cpElementCast, "WINGQueryResponder", &_responder, 
+				"DEBUG", 0, cpBool, &_debug, 
+				"PERIOD", 0, cpUnsigned, &_period, 
+				cpEnd) < 0)
 		return -1;
 
-	if (_gw_sel->cast("WINGGatewaySelector") == 0)
-		return errh->error("SEL element is not a WINGGatewaySelector");
-	if (_responder->cast("WINGQueryResponder") == 0)
-		return errh->error("RESPONDER element is not a WINGQueryResponder");
-	if (_link_table->cast("LinkTableMulti") == 0)
-		return errh->error("LT element is not a LinkTableMulti");
-
 	return 0;
+
 }
 
 int WINGGatewayResponder::initialize(ErrorHandler *) {

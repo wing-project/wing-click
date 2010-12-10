@@ -75,8 +75,8 @@ private:
 	void start_flood(Packet *);
 	void process_flood(Packet *);
 
-	void start_query(IPAddress, NodeAddress);
-	void forward_query(NodeAddress, Seen *);
+	void start_query(IPAddress, int);
+	void forward_query(int, Seen *);
 	void forward_query_hook();
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);

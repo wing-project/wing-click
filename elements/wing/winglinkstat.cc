@@ -74,36 +74,24 @@ int WINGLinkStat::initialize(ErrorHandler *errh) {
 }
 
 int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
+
 	String probes;
+
 	if (cp_va_kparse(conf, this, errh, 
 			"IP", cpkM, cpIPAddress, &_node,
-			"DEV", cpkM, cpElement, &_dev,
-			"METRIC", cpkM, cpElement, &_link_metric, 
-			"ARP", cpkM, cpElement, &_arp_table, 
-			"LT", cpkM, cpElement, &_link_table, 
+			"DEV", cpkM, cpElementCast, "DevInfo", &_dev,
+			"METRIC", cpkM, cpElementCast, "WINGLinkMetric", &_link_metric, 
+			"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
+			"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
 			"PROBES", cpkM, cpString, &probes, 
 			"PERIOD", 0, cpUnsigned, &_period, 
 			"TAU", 0, cpUnsigned, &_tau, 
 			"DEBUG", 0, cpBool, &_debug, 
 			cpEnd) < 0)
 		return -1;
-	int res;
-	if ((res = write_handler(probes, this, (void *) H_PROBES, errh)) < 0) {
-		return res;
-	}
-	if (_dev->cast("DevInfo") == 0) {
-		return errh->error("DEV is not a DevInfo element");
-	}
-	if (_link_metric->cast("WINGLinkMetric") == 0) {
-		return errh->error("METRIC is not an WINGLinkMetric element");
-	}
-	if (_link_table->cast("LinkTableMulti") == 0) {
-		return errh->error("LT element is not a LinkTableMulti");
-	}
-	if (_arp_table->cast("ARPTableMulti") == 0) {
-		return errh->error("ARP is not an ARPTableMulti element");
-	}
-	return 0;
+
+	return write_handler(probes, this, (void *) H_PROBES, errh);
+
 }
 
 void WINGLinkStat::send_probe() {
