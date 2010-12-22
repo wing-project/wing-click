@@ -1,11 +1,12 @@
-#ifndef CLICK_NODEMULTI_HH
-#define CLICK_NODEMULTI_HH
+#ifndef CLICK_NODEADDRESS_HH
+#define CLICK_NODEADDRESS_HH
+#include <click/string.hh>
 #include <click/ipaddress.hh>
+#include <click/glue.hh>
 #include <click/straccum.hh>
 CLICK_DECLS
 
-class NodeAddress {
-public:
+class NodeAddress { public:
 
 	IPAddress _ip;
 	uint8_t _iface;
@@ -59,8 +60,9 @@ public:
 		sa << _ip.unparse() << ':' << String((int)_iface);
 		return sa.take_string();
 	}
-
 };
 
+StringAccum & operator<<(StringAccum &, NodeAddress);
+
 CLICK_ENDDECLS
-#endif /* CLICK_NODEMULTI_HH */
+#endif 

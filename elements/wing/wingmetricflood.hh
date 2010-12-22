@@ -9,7 +9,6 @@
 #include <click/hashmap.hh>
 #include <click/dequeue.hh>
 #include "wingbase.hh"
-#include "nodeaddress.hh"
 CLICK_DECLS
 
 /*

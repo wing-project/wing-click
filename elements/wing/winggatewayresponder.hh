@@ -3,10 +3,6 @@
 #include <click/element.hh>
 #include <click/glue.hh>
 #include <click/timer.hh>
-#include <click/ipaddress.hh>
-#include <click/etheraddress.hh>
-#include <click/vector.hh>
-#include <click/hashmap.hh>
 #include "nodeaddress.hh"
 CLICK_DECLS
 

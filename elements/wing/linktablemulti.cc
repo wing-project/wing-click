@@ -22,9 +22,8 @@
 #include <click/confparse.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
-#include "pathmulti.hh"
 #include <click/straccum.hh>
-#include "nodeaddress.hh"
+#include "pathmulti.hh"
 CLICK_DECLS
 
 bool

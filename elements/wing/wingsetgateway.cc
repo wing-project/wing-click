@@ -28,7 +28,7 @@
 CLICK_DECLS
 
 WINGSetGateway::WINGSetGateway() :
-	_gw(IPAddress()), _gw_sel(0) {
+	_gw_sel(0), _gw(IPAddress()) {
 }
 
 WINGSetGateway::~WINGSetGateway() {

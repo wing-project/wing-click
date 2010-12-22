@@ -30,7 +30,7 @@
 CLICK_DECLS
 
 WINGGatewaySelector::WINGGatewaySelector() :
-	_hna_index(0), _jitter(1000), _expire(30000), _max_seen_size(100), _period(5000), _timer(this) {
+	_hna_index(0), _jitter(1000), _max_seen_size(100), _period(5000), _expire(30000), _timer(this) {
 	_seq = Timestamp::now().usec();
 }
 

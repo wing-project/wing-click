@@ -224,5 +224,6 @@ bool WINGBase::update_link_table(Packet *p) {
 	return true;
 }
 
+CLICK_ENDDECLS
 ELEMENT_REQUIRES(LinkTableMulti ARPTableMulti)
 ELEMENT_PROVIDES(WINGBase)

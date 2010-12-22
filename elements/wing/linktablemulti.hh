@@ -5,8 +5,8 @@
 #include <click/element.hh>
 #include <click/bighashmap.hh>
 #include <click/hashmap.hh>
-#include "pathmulti.hh"
 #include "nodeaddress.hh"
+#include "pathmulti.hh"
 #include "devinfo.hh"
 CLICK_DECLS
 
