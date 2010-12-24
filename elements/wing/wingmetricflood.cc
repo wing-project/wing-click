@@ -221,7 +221,9 @@ void WINGMetricFlood::push(int port, Packet *p_in) {
 }
 
 enum {
-	H_DEBUG, H_CLEAR, H_FLOODS
+	H_DEBUG, 
+	H_CLEAR_SEEN, 
+	H_FLOODS
 };
 
 String WINGMetricFlood::read_handler(Element *e, void *thunk) {
@@ -258,7 +260,7 @@ int WINGMetricFlood::write_handler(const String &in_s, Element *e, void *vparam,
 		f->_debug = debug;
 		break;
 	}
-	case H_CLEAR:
+	case H_CLEAR_SEEN:
 		f->_seen.clear();
 		break;
 	}
@@ -269,7 +271,7 @@ void WINGMetricFlood::add_handlers() {
 	add_read_handler("debug", read_handler, (void *) H_DEBUG);
 	add_read_handler("floods", read_handler, (void *) H_FLOODS);
 	add_write_handler("debug", write_handler, (void *) H_DEBUG);
-	add_write_handler("clear", write_handler, (void *) H_CLEAR);
+	add_write_handler("clear", write_handler, (void *) H_CLEAR_SEEN);
 }
 
 CLICK_ENDDECLS

@@ -37,19 +37,13 @@ int DevInfo::configure(Vector<String> &conf, ErrorHandler *errh) {
 	_debug = false;
 	if (cp_va_kparse(conf, this, errh,
 			"ETH", cpkM, cpEthernetAddress, &_eth,
+			"IFACE", cpkM, cpUnsigned, &_iface,
 			"CHANNEL", cpkM, cpUnsigned, &_channel,
-			"CHANNELS", cpkM, cpElement, &_ctable,
-			"RATES", cpkM, cpElement, &_rtable,
+			"CHANNELS", cpkM, cpElementCast, "AvailableChannels", &_ctable,
+			"RATES", cpkM, cpElementCast, "AvailableRates", &_rtable,
 			"DEBUG", 0, cpBool, &_debug,
 			cpEnd) < 0)
 		return -1;
-
-	if (_ctable->cast("AvailableChannels") == 0) {
-		return errh->error("CHANNELS is not a AvailableChannels element");
-	}
-	if (_rtable->cast("AvailableRates") == 0) {
-		return errh->error("RATES is not a AvailableRates element");
-	}
 	
 	return 0;
 }

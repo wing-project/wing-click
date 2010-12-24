@@ -117,26 +117,26 @@ for i in $(seq 1 1 $NB_INTERFACES); do
 	get_element "$CHANNELS" $i "channel"
 	echo "rates_$i :: AvailableRates(DEFAULT $AVAILABLE_RATES, $addr $AVAILABLE_RATES);"
 	echo "channels_$i :: AvailableChannels(DEFAULT $AVAILABLE_CHANNELS, $addr $AVAILABLE_CHANNELS);"
-	echo "dev_$i :: DevInfo(ETH $addr, CHANNEL $channel, CHANNELS channels_$i, RATES rates_$i);"
-	LTM="$LTM dev_$i"
+	echo "dev_$i :: DevInfo(ETH $addr, IFACE $i, CHANNEL $channel, CHANNELS channels_$i, RATES rates_$i);"
+	LTM="$LTM $i"
 done
 
 METRIC=$(echo $METRIC | tr '[a-z]' '[A-Z]')
 
 if [ $METRIC = "WCETT" ]; then
-	echo "lt :: LinkTableMulti(IP $XR_IP, DEV \"$LTM\", WCETT true, BETA 80);"
+	echo "lt :: LinkTableMulti(IP $XR_IP, IFACES \"$LTM\", WCETT true, BETA 80);"
 	echo "metric :: WINGETTMetric(LT lt);"
 elif [ $METRIC = "ETT" ]; then
-	echo "lt :: LinkTableMulti(IP $XR_IP, DEV \"$LTM\");"
+	echo "lt :: LinkTableMulti(IP $XR_IP, IFACES \"$LTM\");"
 	echo "metric :: WINGETTMetric(LT lt);"
 elif [ $METRIC = "ETX" ]; then
-	echo "lt :: LinkTableMulti(IP $XR_IP, DEV \"$LTM\");"
+	echo "lt :: LinkTableMulti(IP $XR_IP, IFACES \"$LTM\");"
 	echo "metric :: WINGETXMetric(LT lt);"
 elif [ $METRIC = "HopCount" ]; then
-	echo "lt :: LinkTableMulti(IP $XR_IP, DEV \"$LTM\");"
+	echo "lt :: LinkTableMulti(IP $XR_IP, IFACES \"$LTM\");"
 	echo "metric :: WINGHopCountMetric(LT lt);"
 else
-	echo "lt :: LinkTableMulti(IP $XR_IP, DEV \"$LTM\");"
+	echo "lt :: LinkTableMulti(IP $XR_IP, IFACES \"$LTM\");"
 	echo "metric :: WINGETTMetric(LT lt);"
 fi
 

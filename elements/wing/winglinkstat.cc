@@ -56,7 +56,7 @@ void WINGLinkStat::run_timer(Timer *) {
 	_timer.reschedule_after_msec(delay);
 }
 
-int WINGLinkStat::initialize(ErrorHandler *errh) {
+int WINGLinkStat::initialize(ErrorHandler *) {
 	if (noutputs() > 0) {
 		int p = _period / _ads_rs.size();
 		unsigned max_jitter = p / 10;
@@ -64,11 +64,6 @@ int WINGLinkStat::initialize(ErrorHandler *errh) {
 		_timer.initialize(this);
 		_timer.reschedule_after_msec(p + j - max_jitter);
 	}
-	int iface = _link_table->reverse_lookup(_dev->eth());
-	if (iface == 0) {
-		return errh->error("Unable to fetch indentifier for interface %s", _dev->eth().unparse().c_str());
-	}
-	_node._iface = iface;
 	reset();
 	return 0;
 }
@@ -76,9 +71,10 @@ int WINGLinkStat::initialize(ErrorHandler *errh) {
 int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	String probes;
+	IPAddress ip;
 
 	if (cp_va_kparse(conf, this, errh, 
-			"IP", cpkM, cpIPAddress, &_node,
+			"IP", cpkM, cpIPAddress, &ip,
 			"DEV", cpkM, cpElementCast, "DevInfo", &_dev,
 			"METRIC", cpkM, cpElementCast, "WINGLinkMetric", &_link_metric, 
 			"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
@@ -89,6 +85,8 @@ int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
 			"DEBUG", 0, cpBool, &_debug, 
 			cpEnd) < 0)
 		return -1;
+
+	_node = NodeAddress(ip, _dev->iface());
 
 	return write_handler(probes, this, (void *) H_PROBES, errh);
 
