@@ -33,6 +33,16 @@ LinkTableMulti::~LinkTableMulti()
 {
 }
 
+void *
+LinkTableMulti::cast(const char *n) {
+	if (strcmp(n, "LinkTableMulti") == 0)
+		return (LinkTableMulti *) this;
+	else if (strcmp(n, "LinkTable") == 0)
+		return (LinkTable *) this;
+	else
+		return 0;
+}
+
 int 
 LinkTableMulti::configure(Vector<String> &conf, ErrorHandler *errh) {
 	int stale_period = 120;

@@ -28,6 +28,7 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
     ~LinkTableMulti();
 
     const char *class_name() const { return "LinkTableMulti"; }
+    void *cast(const char *);
     int configure (Vector<String> &, ErrorHandler *);
 
     PathMulti best_route(IPAddress, bool);

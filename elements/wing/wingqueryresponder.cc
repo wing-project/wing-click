@@ -112,7 +112,7 @@ void WINGQueryResponder::process_query(Packet *p_in) {
 	PathMulti best = _link_table->best_route(src, false);
 	int si = 0;
 	for (si = 0; si < _seen.size(); si++) {
-		if (src == _seen[si]._src && seq == _seen[si]._seq) {
+		if (src == _seen[si]._ip && seq == _seen[si]._seq) {
 			break;
 		}
 	}
@@ -133,7 +133,7 @@ void WINGQueryResponder::process_query(Packet *p_in) {
 		}
 		return;
 	}
-	_seen[si]._src = src;
+	_seen[si]._ip = src;
 	_seen[si]._seq = seq;
 	_seen[si]._last_response = best;
 	if (!_link_table->valid_route(best)) {

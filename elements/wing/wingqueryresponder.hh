@@ -44,11 +44,11 @@ private:
 	class Seen {
 	public:
 		Seen();
-		Seen(IPAddress src, uint32_t seq) {
-			_src = src;
+		Seen(IPAddress ip, uint32_t seq) {
+			_ip = ip;
 			_seq = seq;
 		}
-		IPAddress _src;
+		IPAddress _ip;
 		uint32_t _seq;
 		PathMulti _last_response;
 	};
