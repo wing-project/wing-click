@@ -35,7 +35,6 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
     String print_routes(bool, bool);
     String route_to_string(PathMulti);
     uint32_t get_route_metric(const PathMulti &);
-
     void dijkstra(bool);
 
     inline Vector<int> get_local_interfaces() { 
@@ -50,6 +49,9 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
 
     class HostInfoMulti : public HostInfo {
       public:
+	HostInfoMulti() : HostInfo() {}
+	HostInfoMulti(IPAddress p) : HostInfo(p) {}
+	HostInfoMulti(const HostInfo &p) : HostInfo(p) {}
 	uint8_t _if_from_me;
 	uint8_t _if_to_me;
         MetricTable _metric_table_from_me;
