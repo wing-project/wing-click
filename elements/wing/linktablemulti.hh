@@ -3,7 +3,6 @@
 #include <elements/wifi/linktable.hh>
 #include "nodeaddress.hh"
 #include "pathmulti.hh"
-#include "devinfo.hh"
 CLICK_DECLS
 
 /*
@@ -70,9 +69,6 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
 
     typedef HashMap<IPAddress, HostInfoMulti> HTable;
     typedef HTable::const_iterator HTIter;
-
-    typedef HashMap<int, DevInfo*> ITable;
-    typedef ITable::const_iterator IIter;
 
     HTable _hosts;
 

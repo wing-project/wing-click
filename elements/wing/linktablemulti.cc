@@ -23,7 +23,6 @@
 #include <click/error.hh>
 #include <click/glue.hh>
 #include <click/straccum.hh>
-#include "devinfo.hh"
 CLICK_DECLS
 
 LinkTableMulti::LinkTableMulti()
