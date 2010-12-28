@@ -126,7 +126,7 @@ public:
 
   uint32_t get_host_metric_to_me(T s);
   uint32_t get_host_metric_from_me(T s);
-  Vector<T> get_hosts();
+  Vector<IPAddress> get_hosts();
 
   Link<T> random_link();
 
@@ -397,15 +397,14 @@ LinkTableBase<T,U>::random_link()
 }
 
 template <typename T, typename U>
-Vector<T>
+Vector<IPAddress>
 LinkTableBase<T,U>::get_hosts()
 {
-  Vector<T> v;
+  Vector<IPAddress> addrs;
   for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
-    HostInfo n = iter.value();
-    v.push_back(n._address);
+    addrs.push_back(iter.key());
   }
-  return v;
+  return addrs;
 }
 
 template <typename T, typename U>
@@ -561,12 +560,13 @@ String
 LinkTableBase<T,U>::print_hosts()
 {
   StringAccum sa;
-  Vector<T> addrs;
+  Vector<IPAddress> addrs;
 
-  for (HTIter iter = _hosts.begin(); iter.live(); iter++)
+  for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
     addrs.push_back(iter.key());
+  }
 
-  click_qsort(addrs.begin(), addrs.size(), sizeof(T), ipaddr_sorter);
+  click_qsort(addrs.begin(), addrs.size(), sizeof(IPAddress), ipaddr_sorter);
 
   for (int x = 0; x < addrs.size(); x++)
     sa << addrs[x] << "\n";
