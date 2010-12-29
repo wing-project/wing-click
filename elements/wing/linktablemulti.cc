@@ -96,7 +96,6 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
 		return reverse_route;
 	}
 	HostInfo *nfo = _hosts.findp(dst);
-	uint16_t prev_if = 0;
 	if (from_me) {
 		Vector<NodeAddress> raw_path;
 		while (nfo && nfo->_metric_from_me != 0) {
@@ -144,15 +143,6 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
 		return route;
 	}
 	return reverse_route;
-}
-
-bool
-LinkTableMulti::update_link(NodeAddress from, NodeAddress to, uint32_t seq, uint32_t age, uint32_t metric, uint16_t channel) {
-	LinkTableBase<NodeAddress, PathMulti>::update_link(from, NodeAddress(from._ip, 0), Timestamp::now().sec(), 0, 1, 1);
-	LinkTableBase<NodeAddress, PathMulti>::update_link(NodeAddress(from._ip, 0), from, Timestamp::now().sec(), 0, 1, 1);
-	LinkTableBase<NodeAddress, PathMulti>::update_link(to, NodeAddress(to._ip, 0), Timestamp::now().sec(), 0, 1, 1);
-	LinkTableBase<NodeAddress, PathMulti>::update_link(NodeAddress(to._ip, 0), to, Timestamp::now().sec(), 0, 1, 1);
-	LinkTableBase<NodeAddress, PathMulti>::update_link(from, to, seq, age, metric, channel);
 }
 
 String 

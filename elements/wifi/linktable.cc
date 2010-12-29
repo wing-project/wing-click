@@ -111,7 +111,7 @@ LinkTable::print_routes(bool from_me, bool pretty)
   for (HTIter iter = _hosts.begin(); iter.live(); iter++)
     addrs.push_back(iter.key());
 
-  click_qsort(addrs.begin(), addrs.size(), sizeof(IPAddress), ipaddr_sorter);
+  click_qsort(addrs.begin(), addrs.size(), sizeof(IPAddress), addr_sorter<IPAddress>);
 
   for (int x = 0; x < addrs.size(); x++) {
     IPAddress address = addrs[x];

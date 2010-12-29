@@ -55,12 +55,6 @@ public:
     }
     return false;
   }
-  bool update_both_links(T from, T to, uint32_t seq, uint32_t age, uint32_t fwd, uint32_t rev, uint16_t channel) {	
-    if (update_link(from, to, seq, age, fwd, channel)) {
-      return update_link(to, from, seq, age, rev, channel);
-    }
-    return false;
-  }
   virtual U best_route(T, bool) = 0;
 
   virtual uint32_t get_route_metric(const U &) = 0;

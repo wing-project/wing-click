@@ -34,8 +34,22 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
     String route_to_string(PathMulti);
     uint32_t get_route_metric(const PathMulti &);
 
-    bool update_link(NodeAddress from, NodeAddress to, uint32_t seq, uint32_t age, uint32_t metric, uint16_t channel);
+    bool update_link(NodeAddress node) {	
+      if (LinkTableBase<NodeAddress, PathMulti>::update_link(node, node._ip, Timestamp::now().sec(), 0, 1, 1)) {
+        return LinkTableBase<NodeAddress, PathMulti>::update_link(node._ip, node, Timestamp::now().sec(), 0, 1, 1);
+      }
+      return false;
+    }
 
+    bool update_link(NodeAddress from, NodeAddress to, uint32_t seq, uint32_t age, uint32_t metric, uint16_t channel) {
+      if (update_link(from)) {
+        if (update_link(to)) {
+          return LinkTableBase<NodeAddress, PathMulti>::update_link(from, to, seq, age, metric, channel);
+        }
+      }
+      return false;
+    }
+	
     Vector<int> get_interfaces(NodeAddress);
     Vector<int> get_local_interfaces() {
       return get_interfaces(_ip);
