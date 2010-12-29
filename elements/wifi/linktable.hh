@@ -25,55 +25,6 @@ CLICK_DECLS
  *
  */
 
-template <typename T> 
-class Link {
-  public:
-    T _from;
-    T _to;
-    uint32_t _seq;
-    uint32_t _metric;
-    Link() : _from(), _to(), _seq(0), _metric(0) { }
-    Link(T from, T to, uint32_t seq, uint32_t metric) {
-      _from = from;
-      _to = to;
-      _seq = seq;
-      _metric = metric;
-    }
-};
-
-template <typename T> 
-class AddressPair {
-  public:
-
-    T _to;
-    T _from;
-
-    AddressPair()
-	: _to(), _from() {
-    }
-
-    AddressPair(T from, T to)
-	: _to(to), _from(from) {
-    }
-
-    bool contains(T foo) const {
-	return (foo == _to) || (foo == _from);
-    }
-
-    bool other(T foo) const {
-	return (_to == foo) ? _from : _to;
-    }
-
-    inline hashcode_t hashcode() const {
-	return CLICK_NAME(hashcode)(_to) + CLICK_NAME(hashcode)(_from);
-    }
-
-    inline bool operator==(AddressPair other) const {
-	return (other._to == _to && other._from == _from);
-    }
-
-};
-
 template <typename T, typename U>
 class LinkTableBase: public Element{
 public:
@@ -110,25 +61,22 @@ public:
     }
     return false;
   }
-  virtual U best_route(IPAddress, bool) = 0;
+  virtual U best_route(T, bool) = 0;
 
   virtual uint32_t get_route_metric(const U &) = 0;
 
-  uint32_t get_link_channel(T from, T to);
+  uint16_t get_link_channel(T from, T to);
   uint32_t get_link_metric(T from, T to);
   uint32_t get_link_seq(T from, T to);
   uint32_t get_link_age(T from, T to);
 
   bool valid_route(const U &);
-  Vector<T> get_neighbors(T);
-  virtual void dijkstra(bool) = 0;
+  void dijkstra(bool);
   void clear_stale();
 
   uint32_t get_host_metric_to_me(T s);
   uint32_t get_host_metric_from_me(T s);
-  Vector<IPAddress> get_hosts();
-
-  Link<T> random_link();
+  Vector<T> get_hosts();
 
   typedef HashMap<T, T> AddressTable;
   typedef typename HashMap<T, T>::const_iterator ATIter;
@@ -138,6 +86,39 @@ public:
   Timestamp dijkstra_time;
 
 protected:
+
+class AddressPair {
+  public:
+
+    T _to;
+    T _from;
+
+    AddressPair()
+	: _to(), _from() {
+    }
+
+    AddressPair(T from, T to)
+	: _to(to), _from(from) {
+    }
+
+    bool contains(T foo) const {
+	return (foo == _to) || (foo == _from);
+    }
+
+    bool other(T foo) const {
+	return (_to == foo) ? _from : _to;
+    }
+
+    inline hashcode_t hashcode() const {
+	return CLICK_NAME(hashcode)(_to) + CLICK_NAME(hashcode)(_from);
+    }
+
+    inline bool operator==(AddressPair other) const {
+	return (other._to == _to && other._from == _from);
+    }
+
+};
+
   class LinkInfo {
   public:
     T _from;
@@ -192,7 +173,7 @@ protected:
 
   class HostInfo {
   public:
-    IPAddress _address;
+    T _address;
     uint32_t _metric_from_me;
     uint32_t _metric_to_me;
 
@@ -203,7 +184,7 @@ protected:
     bool _marked_to_me;
 
     HostInfo() {
-      _address = IPAddress();
+      _address = T();
       _metric_from_me = 0;
       _metric_to_me = 0;
       _prev_from_me = T();
@@ -212,7 +193,7 @@ protected:
       _marked_to_me = false;
     }
 
-    HostInfo(IPAddress address) {
+    HostInfo(T address) {
       _address = address;
       _metric_from_me = 0;
       _metric_to_me = 0;
@@ -246,16 +227,16 @@ protected:
 
   };
 
-  typedef HashMap<IPAddress, HostInfo> HTable;
+  typedef HashMap<T, HostInfo> HTable;
   typedef typename HTable::const_iterator HTIter;
 
-  typedef HashMap<AddressPair<T>, LinkInfo> LTable;
+  typedef HashMap<AddressPair, LinkInfo> LTable;
   typedef typename LTable::const_iterator LTIter;
 
   HTable _hosts;
   LTable _links;
 
-  IPAddress _ip;
+  T _ip;
   Timestamp _stale_timeout;
   Timer _timer;
 
@@ -355,8 +336,7 @@ LinkTableBase<T,U>::update_link(T from, T to, uint32_t seq, uint32_t age, uint32
   /* make sure both the hosts exist */
   HostInfo *nfrom = _hosts.findp(from);
   if (!nfrom) {
-    HostInfo foo = HostInfo(from);
-    _hosts.insert(from, foo);
+    _hosts.insert(from, HostInfo(from));
     nfrom = _hosts.findp(from);
   }
   HostInfo *nto = _hosts.findp(to);
@@ -368,7 +348,7 @@ LinkTableBase<T,U>::update_link(T from, T to, uint32_t seq, uint32_t age, uint32
   assert(nfrom);
   assert(nto);
 
-  AddressPair<T> p = AddressPair<T>(from, to);
+  AddressPair p = AddressPair(from, to);
   LinkInfo *lnfo = _links.findp(p);
   if (!lnfo) {
     _links.insert(p, LinkInfo(from, to, seq, age, metric, channel));
@@ -379,28 +359,10 @@ LinkTableBase<T,U>::update_link(T from, T to, uint32_t seq, uint32_t age, uint32
 }
 
 template <typename T, typename U>
-Link<T>
-LinkTableBase<T,U>::random_link()
-{
-  int ndx = click_random(0, _links.size() - 1);
-  int current_ndx = 0;
-  for (LTIter iter = _links.begin(); iter.live(); iter++, current_ndx++) {
-    if (current_ndx == ndx) {
-      LinkInfo n = iter.value();
-      return Link<T>(n._from, n._to, n._seq, n._metric);
-    }
-  }
-  click_chatter("LinkTable %s: random_link overestimated number of elements\n",
-		name().c_str());
-  return Link<T>();
-
-}
-
-template <typename T, typename U>
-Vector<IPAddress>
+Vector<T>
 LinkTableBase<T,U>::get_hosts()
 {
-  Vector<IPAddress> addrs;
+  Vector<T> addrs;
   for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
     addrs.push_back(iter.key());
   }
@@ -436,7 +398,7 @@ LinkTableBase<T,U>::get_host_metric_from_me(T s)
 }
 
 template <typename T, typename U>
-uint32_t
+uint16_t
 LinkTableBase<T,U>::get_link_channel(T from, T to)
 {
   if (!from || !to) {
@@ -445,7 +407,7 @@ LinkTableBase<T,U>::get_link_channel(T from, T to)
   if (_blacklist.findp(from) || _blacklist.findp(to)) {
     return 0;
   }
-  AddressPair<T> p = AddressPair<T>(from, to);
+  AddressPair p = AddressPair(from, to);
   LinkInfo *nfo = _links.findp(p);
   if (!nfo) {
     return 0;
@@ -463,7 +425,7 @@ LinkTableBase<T,U>::get_link_metric(T from, T to)
   if (_blacklist.findp(from) || _blacklist.findp(to)) {
     return 0;
   }
-  AddressPair<T> p = AddressPair<T>(from, to);
+  AddressPair p = AddressPair(from, to);
   LinkInfo *nfo = _links.findp(p);
   if (!nfo) {
     return 0;
@@ -481,7 +443,7 @@ LinkTableBase<T,U>::get_link_seq(T from, T to)
   if (_blacklist.findp(from) || _blacklist.findp(to)) {
     return 0;
   }
-  AddressPair<T> p = AddressPair<T>(from, to);
+  AddressPair p = AddressPair(from, to);
   LinkInfo *nfo = _links.findp(p);
   if (!nfo) {
     return 0;
@@ -499,7 +461,7 @@ LinkTableBase<T,U>::get_link_age(T from, T to)
   if (_blacklist.findp(from) || _blacklist.findp(to)) {
     return 0;
   }
-  AddressPair<T> p = AddressPair<T>(from, to);
+  AddressPair p = AddressPair(from, to);
   LinkInfo *nfo = _links.findp(p);
   if (!nfo) {
     return 0;
@@ -547,8 +509,9 @@ LinkTableBase<T,U>::print_links()
   return sa.take_string();
 }
 
-static int ipaddr_sorter(const void *va, const void *vb, void *) {
-    IPAddress *a = (IPAddress *)va, *b = (IPAddress *)vb;
+template <typename T>
+static int addr_sorter(const void *va, const void *vb, void *) {
+    T *a = (T *)va, *b = (T *)vb;
     if (a->addr() == b->addr()) {
 	return 0;
     }
@@ -560,16 +523,17 @@ String
 LinkTableBase<T,U>::print_hosts()
 {
   StringAccum sa;
-  Vector<IPAddress> addrs;
+  Vector<T> addrs;
 
   for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
     addrs.push_back(iter.key());
   }
 
-  click_qsort(addrs.begin(), addrs.size(), sizeof(IPAddress), ipaddr_sorter);
+  click_qsort(addrs.begin(), addrs.size(), sizeof(T), addr_sorter<T>);
 
-  for (int x = 0; x < addrs.size(); x++)
+  for (int x = 0; x < addrs.size(); x++) {
     sa << addrs[x] << "\n";
+  }
 
   return sa.take_string();
 }
@@ -582,7 +546,7 @@ LinkTableBase<T,U>::clear_stale() {
   for (LTIter iter = _links.begin(); iter.live(); iter++) {
     LinkInfo nfo = iter.value();
     if ((unsigned) _stale_timeout.sec() >= nfo.age()) {
-      links.insert(AddressPair<T>(nfo._from, nfo._to), nfo);
+      links.insert(AddressPair(nfo._from, nfo._to), nfo);
     } else {
       if (0) {
 	click_chatter("%{element} :: %s removing link %s -> %s metric %d seq %d age %d\n",
@@ -600,20 +564,19 @@ LinkTableBase<T,U>::clear_stale() {
 
   for (LTIter iter = links.begin(); iter.live(); iter++) {
     LinkInfo nfo = iter.value();
-    _links.insert(AddressPair<T>(nfo._from, nfo._to), nfo);
+    _links.insert(AddressPair(nfo._from, nfo._to), nfo);
   }
 
 }
 
 template <typename T, typename U>
-Vector<T>
-LinkTableBase<T,U>::get_neighbors(T address)
+void
+LinkTableBase<T,U>::dijkstra(bool from_me)
 {
-
-  Vector<T> neighbors;
+  Timestamp start = Timestamp::now();
 
   typedef HashMap<T, bool> AddressMap;
-  typedef typename HashMap<T, bool>::const_iterator AMIter;
+  typedef typename AddressMap::const_iterator AMIter;
 
   AddressMap addrs;
 
@@ -622,18 +585,97 @@ LinkTableBase<T,U>::get_neighbors(T address)
   }
 
   for (AMIter i = addrs.begin(); i.live(); i++) {
-    HostInfo *neighbor = _hosts.findp(i.key());
-    assert(neighbor);
-    if (address != neighbor->_address) {
-      LinkInfo *lnfo = _links.findp(AddressPair<T>(address, neighbor->_address));
-      if (lnfo) {
-	neighbors.push_back(neighbor->_address);
+    /* clear them all initially */
+    HostInfo *n = _hosts.findp(i.key());
+    n->clear(from_me);
+  }
+  HostInfo *root_info = _hosts.findp(_ip);
+
+  assert(root_info);
+
+  if (from_me) {
+    root_info->_prev_from_me = root_info->_address;
+    root_info->_metric_from_me = 0;
+  } else {
+    root_info->_prev_to_me = root_info->_address;
+    root_info->_metric_to_me = 0;
+  }
+
+  T current_min_address = root_info->_address;
+
+  while (current_min_address) {
+    HostInfo *current_min = _hosts.findp(current_min_address);
+    assert(current_min);
+    if (from_me) {
+      current_min->_marked_from_me = true;
+    } else {
+      current_min->_marked_to_me = true;
+    }
+
+
+    for (AMIter i = addrs.begin(); i.live(); i++) {
+      HostInfo *neighbor = _hosts.findp(i.key());
+      assert(neighbor);
+      bool marked = neighbor->_marked_to_me;
+      if (from_me) {
+	marked = neighbor->_marked_from_me;
+      }
+
+      if (marked) {
+	continue;
+      }
+
+      AddressPair pair = AddressPair(neighbor->_address, current_min_address);
+      if (from_me) {
+	pair = AddressPair(current_min_address, neighbor->_address);
+      }
+      LinkInfo *lnfo = _links.findp(pair);
+      if (!lnfo || !lnfo->_metric) {
+	continue;
+      }
+      uint32_t neighbor_metric = neighbor->_metric_to_me;
+      uint32_t current_metric = current_min->_metric_to_me;
+
+      if (from_me) {
+	neighbor_metric = neighbor->_metric_from_me;
+	current_metric = current_min->_metric_from_me;
+      }
+
+
+      uint32_t adjusted_metric = current_metric + lnfo->_metric;
+      if (!neighbor_metric ||
+	  adjusted_metric < neighbor_metric) {
+	if (from_me) {
+	  neighbor->_metric_from_me = adjusted_metric;
+	  neighbor->_prev_from_me = current_min_address;
+	} else {
+	  neighbor->_metric_to_me = adjusted_metric;
+	  neighbor->_prev_to_me = current_min_address;
+	}
+
+      }
+    }
+
+    current_min_address = T();
+    uint32_t  min_metric = ~0;
+    for (AMIter i = addrs.begin(); i.live(); i++) {
+      HostInfo *nfo = _hosts.findp(i.key());
+      uint32_t metric = nfo->_metric_to_me;
+      bool marked = nfo->_marked_to_me;
+      if (from_me) {
+	metric = nfo->_metric_from_me;
+	marked = nfo->_marked_from_me;
+      }
+      if (!marked && metric &&
+	  metric < min_metric) {
+        current_min_address = nfo->_address;
+        min_metric = metric;
       }
     }
 
   }
 
-  return neighbors;
+  dijkstra_time = Timestamp::now() - start;
 
 }
 
@@ -737,7 +779,6 @@ class LinkTable : public LinkTableBase<IPAddress, Path> { public:
     String print_routes(bool, bool);
     String route_to_string(Path);
     uint32_t get_route_metric(const Path &);
-    void dijkstra(bool);
 
 };
 

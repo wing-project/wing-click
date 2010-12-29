@@ -102,6 +102,7 @@ void WINGQuerier::push(int, Packet *p_in) {
 	}
 	Timestamp now = Timestamp::now();
 	Timestamp expire = nfo->_last_switch + _time_before_switch;
+
 	if (!nfo->_best_metric || !nfo->_p.size() || expire < now) {
 		PathMulti best = _link_table->best_route(dst, true);
 		bool valid = _link_table->valid_route(best);

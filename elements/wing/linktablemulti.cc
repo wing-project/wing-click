@@ -37,8 +37,8 @@ void *
 LinkTableMulti::cast(const char *n) {
 	if (strcmp(n, "LinkTableMulti") == 0)
 		return (LinkTableMulti *) this;
-	else if (strcmp(n, "LinkTable") == 0)
-		return (LinkTable *) this;
+	else if (strcmp(n, "LinkTableBase") == 0)
+		return (LinkTableBase<NodeAddress, PathMulti> *) this;
 	else
 		return 0;
 }
@@ -46,9 +46,10 @@ LinkTableMulti::cast(const char *n) {
 int 
 LinkTableMulti::configure(Vector<String> &conf, ErrorHandler *errh) {
 	int stale_period = 120;
+	IPAddress ip;
 	String ifaces;
 	if (cp_va_kparse(conf, this, errh, 
-			"IP", cpkM, cpIPAddress, &_ip,
+			"IP", cpkM, cpIPAddress, &ip,
 			"IFACES", cpkM, cpString, &ifaces,
 			"WCETT", 0, cpBool, &_wcett, 
 			"BETA", 0, cpUnsigned, &_beta, 
@@ -56,64 +57,102 @@ LinkTableMulti::configure(Vector<String> &conf, ErrorHandler *errh) {
 			cpEnd) < 0)
 		return -1;
 
+	_ip = NodeAddress(ip, 0);
+	_hosts.insert(_ip, HostInfo(_ip));
+
 	Vector<String> args;
 	cp_spacevec(ifaces, args);
 	if (args.size() < 1) {
 		return errh->error("Error param IFACES must have > 0 arg, given %u", args.size());
-	}
-	HostInfoMulti *nfo = _hosts.findp(_ip);
-	if (!nfo) {
-		_hosts.insert(_ip, HostInfoMulti());
-		nfo = _hosts.findp(_ip);
-		nfo->_address = _ip;
 	}
 	for (int x = 0; x < args.size(); x++) {
 		int iface;
 		if (!cp_unsigned(args[x], &iface)) {
 			errh->error("argument %s should be an unsigned", args[x].c_str());
 		}
-		nfo->add_interface(iface);
+		NodeAddress node = NodeAddress(ip, iface);
+		_hosts.insert(node, HostInfo(node));
 	}
 	_stale_timeout.assign(stale_period, 0);
 	return 0;
 }
 
+Vector<int>
+LinkTableMulti::get_interfaces(NodeAddress ip) {
+	Vector<int> ifaces;
+	for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
+		if ((iter.key()._ip == ip._ip) && (iter.key()._iface != 0)) {
+			ifaces.push_back(iter.key()._iface);
+		}
+	}
+	return ifaces;
+}
+
 PathMulti 
-LinkTableMulti::best_route(IPAddress dst, bool from_me)
+LinkTableMulti::best_route(NodeAddress dst, bool from_me)
 {
 	PathMulti reverse_route;
 	if (!dst) {
 		return reverse_route;
 	}
-	HostInfoMulti *nfo = _hosts.findp(dst);
+	HostInfo *nfo = _hosts.findp(dst);
 	uint16_t prev_if = 0;
 	if (from_me) {
+		Vector<NodeAddress> raw_path;
 		while (nfo && nfo->_metric_from_me != 0) {
-			reverse_route.push_back(NodeAirport(nfo->_address, nfo->_if_from_me, prev_if));
-			prev_if = nfo->_prev_from_me._iface;
-			nfo = _hosts.findp(nfo->_prev_from_me._ip);
+			if (nfo->_address._iface != 0) {
+				raw_path.push_back(nfo->_address);
+			}
+			nfo = _hosts.findp(nfo->_prev_from_me);
 		}
-		if (nfo && nfo->_metric_from_me == 0) {
-			reverse_route.push_back(NodeAirport(nfo->_address, 0, prev_if));
+		if (raw_path.size() < 2) {
+			return reverse_route;
 		}
+		reverse_route.push_back(NodeAirport(raw_path[0]._ip, raw_path[0]._iface, 0));
+		for (int x = 1; x < raw_path.size() - 1; x++) {
+			reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x + 1]._iface, raw_path[x]._iface));
+			while ((x < raw_path.size() - 1) && (raw_path[x + 1]._ip == raw_path[x]._ip)) {
+				x++;
+			}
+		}
+		reverse_route.push_back(NodeAirport(raw_path[raw_path.size() - 1]._ip, 0, raw_path[raw_path.size() - 1]._iface));
 	} else {
+		Vector<NodeAddress> raw_path;
 		while (nfo && nfo->_metric_to_me != 0) {
-			reverse_route.push_back(NodeAirport(nfo->_address, prev_if, nfo->_if_to_me));
-			prev_if = nfo->_prev_to_me._iface;
-			nfo = _hosts.findp(nfo->_prev_to_me._ip);
+			if (nfo->_address._iface != 0) {
+				raw_path.push_back(nfo->_address);
+			}
+			nfo = _hosts.findp(nfo->_prev_to_me);
 		}
-		if (nfo && nfo->_metric_to_me == 0) {
-			reverse_route.push_back(NodeAirport(nfo->_address, prev_if, 0));
+		if (raw_path.size() < 2) {
+			return reverse_route;
 		}
+		reverse_route.push_back(NodeAirport(raw_path[0]._ip, 0, raw_path[0]._iface));
+		for (int x = 1; x < raw_path.size() - 1; x++) {
+			reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x]._iface, raw_path[x + 1]._iface));
+			while ((x < raw_path.size() - 1) && (raw_path[x + 1]._ip == raw_path[x]._ip)) {
+				x++;
+			}
+		}
+		reverse_route.push_back(NodeAirport(raw_path[raw_path.size() - 1]._ip, raw_path[raw_path.size() - 1]._iface, 0));
 	}
 	if (from_me) {
 		Vector<NodeAirport> route;
-		for (int i=reverse_route.size() - 1; i >= 0; i--) {
+		for (int i = reverse_route.size() - 1; i >= 0; i--) {
 			route.push_back(reverse_route[i]);
 		}
 		return route;
 	}
 	return reverse_route;
+}
+
+bool
+LinkTableMulti::update_link(NodeAddress from, NodeAddress to, uint32_t seq, uint32_t age, uint32_t metric, uint16_t channel) {
+	LinkTableBase<NodeAddress, PathMulti>::update_link(from, NodeAddress(from._ip, 0), Timestamp::now().sec(), 0, 1, 1);
+	LinkTableBase<NodeAddress, PathMulti>::update_link(NodeAddress(from._ip, 0), from, Timestamp::now().sec(), 0, 1, 1);
+	LinkTableBase<NodeAddress, PathMulti>::update_link(to, NodeAddress(to._ip, 0), Timestamp::now().sec(), 0, 1, 1);
+	LinkTableBase<NodeAddress, PathMulti>::update_link(NodeAddress(to._ip, 0), to, Timestamp::now().sec(), 0, 1, 1);
+	LinkTableBase<NodeAddress, PathMulti>::update_link(from, to, seq, age, metric, channel);
 }
 
 String 
@@ -132,24 +171,40 @@ LinkTableMulti::route_to_string(PathMulti p) {
 			metric += m;
 		}
 	}
-	sa << p[p.size()-1]._ip << " hops " << hops << " metric " << metric << " " << sa2;
+	sa << p[p.size()-1]._ip.unparse() << " hops " << hops << " metric " << metric << " " << sa2;
 	return sa.take_string();
 }
 
 String 
-LinkTableMulti::print_routes(bool from_me, bool)
+LinkTableMulti::print_routes(bool from_me, bool pretty)
 {
 	StringAccum sa;
-	Vector<IPAddress> ip_addrs;
+	Vector<NodeAddress> addrs;
 	for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
-		ip_addrs.push_back(iter.key());
+		if (iter.key()._iface == 0) {
+			addrs.push_back(iter.key());
+		}
 	}
-	click_qsort(ip_addrs.begin(), ip_addrs.size(), sizeof(IPAddress), ipaddr_sorter);
-	for (int x = 0; x < ip_addrs.size(); x++) {
-		IPAddress ip = ip_addrs[x];
-		PathMulti r = best_route(ip, from_me);
+	click_qsort(addrs.begin(), addrs.size(), sizeof(NodeAddress), addr_sorter<NodeAddress>);
+	for (int x = 0; x < addrs.size(); x++) {
+		NodeAddress address = addrs[x];
+		PathMulti r = best_route(address, from_me);
 		if (valid_route(r)) {
-			sa << route_to_string(r) << "\n";
+			if (pretty) {
+				sa << route_to_string(r) << "\n";
+			} else {
+				sa << r[r.size()-1] << "  ";
+				for (int a = 0; a < r.size(); a++) {
+					sa << r[a].unparse();
+					if (a != r.size()-1) {
+						NodeAddress nfrom = NodeAddress(r[a]._ip, r[a]._dep);
+						NodeAddress nto = NodeAddress(r[a+1]._ip, r[a+1]._arr);
+						sa << " " << get_link_metric(nfrom,nto);
+						sa << " (" << get_link_seq(nfrom,nto) << "," << get_link_age(nfrom,nto) << ") ";
+					}
+				}
+				sa << "\n";
+			}
 		}
 	}
 	return sa.take_string();
@@ -170,156 +225,32 @@ LinkTableMulti::get_route_metric(const PathMulti &route) {
 	return metric;
 }
 
-void 
-LinkTableMulti::dijkstra(bool from_me)
-{
-	Timestamp start = Timestamp::now();
-	typedef HashMap<IPAddress, bool> IPMap;
-	IPMap ip_addrs;
-	typedef HashMap<uint16_t, bool> IFMap;
-	for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
-		ip_addrs.insert(iter.value()._address, true);
-	}
-	for (IPMap::const_iterator iter = ip_addrs.begin(); iter.live(); iter++) {
-		/* clear them all initially */
-		HostInfoMulti *n = _hosts.findp(iter.key());
-		n->clear(from_me);
-	}
-	HostInfoMulti *root_info = _hosts.findp(_ip);
-	assert(root_info);
-	if (from_me) {
-		root_info->_prev_from_me = NodeAddress(root_info->_address,0);
-		root_info->_metric_from_me = 0;
-	} else {
-		root_info->_prev_to_me = NodeAddress(root_info->_address,0);
-		root_info->_metric_to_me = 0;
-	}
-	IPAddress current_min_ip = root_info->_address;
-	while (current_min_ip) {
-		HostInfoMulti *current_min = _hosts.findp(current_min_ip);
-		assert(current_min);
-		if (from_me) {
-			current_min->_marked_from_me = true;
-		} else {
-			current_min->_marked_to_me = true;
-		}
-		for (int i_ifcur = 0; i_ifcur < current_min->_interfaces.size(); i_ifcur++) {
-			for (IPMap::const_iterator i = ip_addrs.begin(); i.live(); i++) {
-				HostInfoMulti *neighbor = _hosts.findp(i.key());
-				for (int i_ifnei = 0; (i_ifnei < neighbor->_interfaces.size()) && (current_min_ip != i.key()); i_ifnei++) {
-					assert(neighbor);
-					bool marked = neighbor->_marked_to_me;
-					if (from_me) {
-						marked = neighbor->_marked_from_me;
-					}
-					if (marked) {
-						continue;
-					}
-					NodeAddress ifnei = NodeAddress(neighbor->_address,neighbor->_interfaces[i_ifnei]);
-					NodeAddress ifcur = NodeAddress(current_min_ip,current_min->_interfaces[i_ifcur]);
-					AddressPair<NodeAddress> pair = AddressPair<NodeAddress>(ifnei, ifcur);
-					if (from_me) {
-						pair = AddressPair<NodeAddress>(ifcur, ifnei);
-					}
-					LinkInfo *lnfo = _links.findp(pair);
-					if (!lnfo || !lnfo->_metric) {
-						continue;
-					}
-					uint32_t link_channel = (lnfo->_channel > 0) ? lnfo->_channel : neighbor->_interfaces[i_ifnei];
-					uint32_t neighbor_metric = neighbor->_metric_to_me;
-					uint32_t current_metric = current_min->_metric_to_me;
-					if (from_me) {
-						neighbor_metric = neighbor->_metric_from_me;
-						current_metric = current_min->_metric_from_me;
-					}
-					uint32_t adjusted_metric;
-					if (_wcett) {
-						uint32_t max_metric = 0;
-						uint32_t total_ett = lnfo->_metric;
-						bool ch_found = false;
-						MetricTable * metric_table;
-						if (from_me) {
-							metric_table = &(current_min->_metric_table_from_me);
-						} else {
-							metric_table = &(current_min->_metric_table_to_me);
-						}
-						for (MTIter it_metric = metric_table->begin(); it_metric.live(); it_metric++) {
-							uint32_t actual_metric = 0;
-							if (it_metric.key() == link_channel) {
-								ch_found = true;
-								actual_metric = it_metric.value() + lnfo->_metric;
-							} else {
-								actual_metric = it_metric.value();
-							}
-							if (actual_metric > max_metric) {
-								max_metric = actual_metric;
-							}
-							total_ett += it_metric.value();
-						}
-						if ((!ch_found) && (lnfo->_metric > max_metric)) {
-							max_metric = lnfo->_metric;
-						}
-						adjusted_metric = ((100 - _beta) * total_ett + _beta * max_metric) / 100;
-					} else {
-						adjusted_metric = current_metric + lnfo->_metric;
-					}
+enum { H_HOST_IP, H_HOST_INTERFACES };
 
-					if (!neighbor_metric || adjusted_metric < neighbor_metric) {
-						if (from_me) {
-							neighbor->_metric_from_me = adjusted_metric;
-							neighbor->_prev_from_me = NodeAddress(current_min_ip,current_min->_interfaces[i_ifcur]);
-							neighbor->_if_from_me = neighbor->_interfaces[i_ifnei];
-							if (_wcett) {
-								neighbor->_metric_table_from_me.clear();
-								for (MTIter it_metric = current_min->_metric_table_from_me.begin(); 
-									it_metric.live(); it_metric++) {
-									neighbor->_metric_table_from_me.insert(it_metric.key(),it_metric.value());
-								}
-								uint32_t* ch_metric = neighbor->_metric_table_from_me.findp(link_channel);
-								if (!ch_metric){
-									neighbor->_metric_table_from_me.insert(link_channel,lnfo->_metric);
-								} else {
-									*ch_metric = *ch_metric + lnfo->_metric;
-								}
-							}
-						} else {
-							neighbor->_metric_to_me = adjusted_metric;
-							neighbor->_prev_to_me = NodeAddress(current_min_ip,current_min->_interfaces[i_ifcur]);
-							neighbor->_if_to_me = neighbor->_interfaces[i_ifnei];
-							if (_wcett) {
-								neighbor->_metric_table_to_me.clear();
-								for (MTIter it_metric = current_min->_metric_table_to_me.begin(); 
-									it_metric.live(); it_metric++) {
-									neighbor->_metric_table_to_me.insert(it_metric.key(),it_metric.value());
-								}
-								uint32_t* ch_metric = neighbor->_metric_table_to_me.findp(link_channel);
-								if (!ch_metric){
-									neighbor->_metric_table_to_me.insert(link_channel,lnfo->_metric);
-								} else {
-									*ch_metric = *ch_metric + lnfo->_metric;
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-		current_min_ip = IPAddress();
-		uint32_t  min_metric = ~0;
-		for (IPMap::const_iterator i = ip_addrs.begin(); i.live(); i++) {
-			HostInfoMulti *nfo = _hosts.findp(i.key());
-			uint32_t metric = nfo->_metric_to_me;
-			bool marked = nfo->_marked_to_me;
-			if (from_me) {
-				metric = nfo->_metric_from_me;
-				marked = nfo->_marked_from_me;
-			}
-			if (!marked && metric && metric < min_metric) {	
-				current_min_ip = nfo->_address;
-				min_metric = metric;
-			}
-		}
-	}
+String 
+LinkTableMulti::read_handler(Element *e, void *thunk) {
+  LinkTableMulti *td = (LinkTableMulti *) e;
+  switch ((uintptr_t) thunk) {
+    case H_HOST_IP:  return td->_ip.unparse() + "\n";
+    case H_HOST_INTERFACES: {
+      Vector<int> ifaces = td->get_local_interfaces();
+      StringAccum sa;
+      for (int x = 0; x < ifaces.size(); x++) {
+        sa << ifaces[x] << " ";
+      }
+      sa << "\n";
+      return sa.take_string();
+    }
+    default:
+      return LinkTableBase<NodeAddress, PathMulti>::read_handler(e, thunk);
+    }
+}
+
+void
+LinkTableMulti::add_handlers() {
+	add_read_handler("ip", read_handler, H_HOST_IP);
+	add_read_handler("interfaces", read_handler, H_HOST_INTERFACES);
+	LinkTableBase<NodeAddress, PathMulti>::add_handlers();
 }
 
 EXPORT_ELEMENT(LinkTableMulti)
