@@ -81,7 +81,7 @@ void WINGMetricFlood::forward_query(int iface, Seen *s) {
 	PathMulti best = _link_table->best_route(s->_src, false);
 
 	if (_debug) {
-		click_chatter("%{element} :: %s :: forward query dst %s seq %d iface %s", 
+		click_chatter("%{element} :: %s :: forward query dst %s seq %u iface %u", 
 				this,
 				__func__, 
 				s->_dst.unparse().c_str(), 
