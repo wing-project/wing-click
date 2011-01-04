@@ -56,7 +56,7 @@ LinkTableMulti::configure(Vector<String> &conf, ErrorHandler *errh) {
         return -1;
 
     _ip = NodeAddress(ip, 0);
-    _hosts.insert(_ip, HostInfoMulti(_ip));
+    _hosts.insert(_ip, HostInfo(_ip));
 
     Vector<String> args;
     cp_spacevec(ifaces, args);
@@ -69,7 +69,7 @@ LinkTableMulti::configure(Vector<String> &conf, ErrorHandler *errh) {
             errh->error("argument %s should be an unsigned", args[x].c_str());
         }
         NodeAddress node = NodeAddress(ip, iface);
-        _hosts.insert(node, HostInfoMulti(node));
+        _hosts.insert(node, HostInfo(node));
     }
     _stale_timeout.assign(stale_period, 0);
     return 0;
@@ -93,7 +93,7 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
     if (!dst) {
         return reverse_route;
     }
-    HostInfoMulti *nfo = _hosts.findp(dst);
+    HostInfo *nfo = _hosts.findp(dst);
     if (from_me) {
         Vector<NodeAddress> raw_path;
         while (nfo && nfo->_metric_from_me != 0) {
@@ -241,147 +241,113 @@ LinkTableMulti::add_handlers() {
     LinkTableBase<NodeAddress, PathMulti>::add_handlers();
 }
 
-void LinkTableMulti::dijkstra(bool from_me)
+void
+LinkTableMulti::dijkstra(bool from_me)
 {
-    typedef HashMap<NodeAddress, bool> NodeMap;
-    typedef HashMap<uint16_t, bool> IFMap;
-    Timestamp start = Timestamp::now();
-    NodeMap addrs;
-    for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
-        addrs.insert(iter.value()._address, true);
-    }
-    for (NodeMap::const_iterator iter = addrs.begin(); iter.live(); iter++) {
-        /* clear them all initially */
-        HostInfoMulti *n = _hosts.findp(iter.key());
-        n->clear(from_me);
-    }
-    HostInfoMulti *root_info = _hosts.findp(_ip);
-    assert(root_info);
+  Timestamp start = Timestamp::now();
+
+  typedef HashMap<NodeAddress, bool> AddressMap;
+  typedef AddressMap::const_iterator AMIter;
+
+  AddressMap addrs;
+
+  for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
+    addrs.insert(iter.value()._address, true);
+  }
+
+  for (AMIter i = addrs.begin(); i.live(); i++) {
+    /* clear them all initially */
+    HostInfo *n = _hosts.findp(i.key());
+    n->clear(from_me);
+  }
+  HostInfo *root_info = _hosts.findp(_ip);
+
+  assert(root_info);
+
+  if (from_me) {
+    root_info->_prev_from_me = root_info->_address;
+    root_info->_metric_from_me = 0;
+  } else {
+    root_info->_prev_to_me = root_info->_address;
+    root_info->_metric_to_me = 0;
+  }
+
+  NodeAddress current_min_address = root_info->_address;
+
+  while (current_min_address) {
+    HostInfo *current_min = _hosts.findp(current_min_address);
+    assert(current_min);
     if (from_me) {
-        root_info->_prev_from_me = root_info->_address;
-        root_info->_metric_from_me = 0;
+      current_min->_marked_from_me = true;
     } else {
-        root_info->_prev_to_me = root_info->_address;
-        root_info->_metric_to_me = 0;
+      current_min->_marked_to_me = true;
     }
-    NodeAddress current_min_address = root_info->_address;
-    while (current_min_address) {
-        HostInfoMulti *current_min = _hosts.findp(current_min_address);
-        assert(current_min);
-        if (from_me) {
-            current_min->_marked_from_me = true;
-        } else {
-            current_min->_marked_to_me = true;
-        }
-        Vector<int> ifscur = get_interfaces(current_min->_address);
-        for (int i_ifcur = 0; i_ifcur < ifscur.size(); i_ifcur++) {
-            for (NodeMap::const_iterator i = addrs.begin(); i.live(); i++) {
-                HostInfoMulti *neighbor = _hosts.findp(i.key());
-                Vector<int> ifsnei = get_interfaces(neighbor->_address);
-                for (int i_ifnei = 0; (i_ifnei < ifsnei.size()) && (current_min_address != i.key()); i_ifnei++) {
-                    assert(neighbor);
-                    bool marked = neighbor->_marked_to_me;
-                    if (from_me) {
-                        marked = neighbor->_marked_from_me;
-                    }
-                    if (marked) {
-                        continue;
-                    }
-                    NodeAddress ifnei = NodeAddress(neighbor->_address, ifsnei[i_ifnei]);
-                    NodeAddress ifcur = NodeAddress(current_min->_address, ifscur[i_ifcur]);
-                    AddressPair pair = AddressPair(ifnei, ifcur);
-                    if (from_me) {
-                        pair = AddressPair(ifcur, ifnei);
-                    }
-                    LinkInfo *lnfo = _links.findp(pair);
-                    if (!lnfo || !lnfo->_metric) {
-                        continue;
-                    }
-                    uint32_t link_channel = (lnfo->_channel > 0) ? lnfo->_channel : ifsnei[i_ifnei];
-                    uint32_t neighbor_metric = neighbor->_metric_to_me;
-                    uint32_t current_metric = current_min->_metric_to_me;
-                    if (from_me) {
-                        neighbor_metric = neighbor->_metric_from_me;
-                        current_metric = current_min->_metric_from_me;
-                    }
-                    uint32_t max_metric = 0;
-                    uint32_t total_ett = lnfo->_metric;
-                    bool ch_found = false;
-                    MetricTable * metric_table;
-                    if (from_me) {
-                        metric_table = &(current_min->_metric_table_from_me);
-                    } else {
-                        metric_table = &(current_min->_metric_table_to_me);
-                    }
-                    for (MetricTable::const_iterator it_metric = metric_table->begin(); it_metric.live(); it_metric++) {
-                        uint32_t actual_metric = 0;
-                        if (it_metric.key() == link_channel) {
-                            ch_found = true;
-                            actual_metric = it_metric.value() + lnfo->_metric;
-                        } else {
-                            actual_metric = it_metric.value();
-                        }
-                        if (actual_metric > max_metric) {
-                            max_metric = actual_metric;
-                        }
-                        total_ett += it_metric.value();
-                    }
-                    if ((!ch_found) && (lnfo->_metric > max_metric)) {
-                        max_metric = lnfo->_metric;
-                    }
-                    uint32_t adjusted_metric = ((100 - _beta) * total_ett + _beta * max_metric) / 100;
-                    if (!neighbor_metric || adjusted_metric < neighbor_metric) {
-                        if (from_me) {
-                            neighbor->_metric_from_me = adjusted_metric;
-                            neighbor->_prev_from_me = NodeAddress(current_min->_address, ifscur[i_ifcur]);
-                            neighbor->_if_from_me = ifsnei[i_ifnei];
-                            neighbor->_metric_table_from_me.clear();
-                            for (MetricTable::const_iterator it_metric = current_min->_metric_table_from_me.begin(); 
-                                it_metric.live(); it_metric++) {
-                                neighbor->_metric_table_from_me.insert(it_metric.key(),it_metric.value());
-                            }
-                            uint32_t* ch_metric = neighbor->_metric_table_from_me.findp(link_channel);
-                            if (!ch_metric){
-                                neighbor->_metric_table_from_me.insert(link_channel,lnfo->_metric);
-                            } else {
-                                *ch_metric = *ch_metric + lnfo->_metric;
-                            }
-                        } else {
-                            neighbor->_metric_to_me = adjusted_metric;
-                            neighbor->_prev_to_me = NodeAddress(current_min->_address, ifscur[i_ifcur]);
-                            neighbor->_if_to_me = ifsnei[i_ifnei];
-                            neighbor->_metric_table_to_me.clear();
-                            for (MetricTable::const_iterator it_metric = current_min->_metric_table_to_me.begin(); 
-                                it_metric.live(); it_metric++) {
-                                neighbor->_metric_table_to_me.insert(it_metric.key(),it_metric.value());
-                            }
-                            uint32_t* ch_metric = neighbor->_metric_table_to_me.findp(link_channel);
-                            if (!ch_metric){
-                                neighbor->_metric_table_to_me.insert(link_channel,lnfo->_metric);
-                            } else {
-                                *ch_metric = *ch_metric + lnfo->_metric;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        current_min_address = NodeAddress();
-        uint32_t  min_metric = ~0;
-        for (NodeMap::const_iterator i = addrs.begin(); i.live(); i++) {
-            HostInfoMulti *nfo = _hosts.findp(i.key());
-            uint32_t metric = nfo->_metric_to_me;
-            bool marked = nfo->_marked_to_me;
-            if (from_me) {
-                metric = nfo->_metric_from_me;
-                marked = nfo->_marked_from_me;
-            }
-            if (!marked && metric && metric < min_metric) {    
-                current_min_address = nfo->_address;
-                min_metric = metric;
-            }
-        }
+
+
+    for (AMIter i = addrs.begin(); i.live(); i++) {
+      HostInfo *neighbor = _hosts.findp(i.key());
+      assert(neighbor);
+      bool marked = neighbor->_marked_to_me;
+      if (from_me) {
+	marked = neighbor->_marked_from_me;
+      }
+
+      if (marked) {
+	continue;
+      }
+
+      AddressPair pair = AddressPair(neighbor->_address, current_min_address);
+      if (from_me) {
+	pair = AddressPair(current_min_address, neighbor->_address);
+      }
+      LinkInfo *lnfo = _links.findp(pair);
+      if (!lnfo || !lnfo->_metric) {
+	continue;
+      }
+      uint32_t neighbor_metric = neighbor->_metric_to_me;
+      uint32_t current_metric = current_min->_metric_to_me;
+
+      if (from_me) {
+	neighbor_metric = neighbor->_metric_from_me;
+	current_metric = current_min->_metric_from_me;
+      }
+
+
+      uint32_t adjusted_metric = current_metric + lnfo->_metric;
+      if (!neighbor_metric ||
+	  adjusted_metric < neighbor_metric) {
+	if (from_me) {
+	  neighbor->_metric_from_me = adjusted_metric;
+	  neighbor->_prev_from_me = current_min_address;
+	} else {
+	  neighbor->_metric_to_me = adjusted_metric;
+	  neighbor->_prev_to_me = current_min_address;
+	}
+
+      }
     }
+
+    current_min_address = NodeAddress();
+    uint32_t  min_metric = ~0;
+    for (AMIter i = addrs.begin(); i.live(); i++) {
+      HostInfo *nfo = _hosts.findp(i.key());
+      uint32_t metric = nfo->_metric_to_me;
+      bool marked = nfo->_marked_to_me;
+      if (from_me) {
+	metric = nfo->_metric_from_me;
+	marked = nfo->_marked_from_me;
+      }
+      if (!marked && metric &&
+	  metric < min_metric) {
+        current_min_address = nfo->_address;
+        min_metric = metric;
+      }
+    }
+
+  }
+
+  _dijkstra_time = Timestamp::now() - start;
+
 }
 
 EXPORT_ELEMENT(LinkTableMulti)

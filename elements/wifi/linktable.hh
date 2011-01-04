@@ -77,41 +77,31 @@ public:
 
   HashMap<T, T> _blacklist;
 
-  Timestamp dijkstra_time;
-
 protected:
 
-class AddressPair {
-  public:
-
-    T _to;
-    T _from;
-
-    AddressPair()
-	: _to(), _from() {
-    }
-
-    AddressPair(T from, T to)
-	: _to(to), _from(from) {
-    }
-
-    bool contains(T foo) const {
-	return (foo == _to) || (foo == _from);
-    }
-
-    bool other(T foo) const {
-	return (_to == foo) ? _from : _to;
-    }
-
-    inline hashcode_t hashcode() const {
-	return CLICK_NAME(hashcode)(_to) + CLICK_NAME(hashcode)(_from);
-    }
-
-    inline bool operator==(AddressPair other) const {
-	return (other._to == _to && other._from == _from);
-    }
-
-};
+  class AddressPair {
+    public:
+      T _to;
+      T _from;
+      AddressPair()
+	  : _to(), _from() {
+      }
+      AddressPair(T from, T to)
+	  : _to(to), _from(from) {
+      }
+      bool contains(T foo) const {
+          return (foo == _to) || (foo == _from);
+      }
+      bool other(T foo) const {
+          return (_to == foo) ? _from : _to;
+      }
+      inline hashcode_t hashcode() const {
+          return CLICK_NAME(hashcode)(_to) + CLICK_NAME(hashcode)(_from);
+      }
+      inline bool operator==(AddressPair other) const {
+          return (other._to == _to && other._from == _from);
+      }
+  };
 
   class LinkInfo {
   public:
@@ -162,7 +152,6 @@ class AddressPair {
       _channel = channel;
       _last_updated.assign_now();
     }
-
   };
 
   class HostInfo {
@@ -218,7 +207,6 @@ class AddressPair {
 	_marked_to_me = false;
       }
     }
-
   };
 
   typedef HashMap<T, HostInfo> HTable;
@@ -233,6 +221,7 @@ class AddressPair {
   T _ip;
   Timestamp _stale_timeout;
   Timer _timer;
+  Timestamp _dijkstra_time;
 
   static int write_handler(const String &, Element *, void *, ErrorHandler *);
   static String read_handler(Element *, void *);
@@ -498,6 +487,7 @@ LinkTableBase<T,U>::print_links()
     LinkInfo n = iter.value();
     sa << n._from.unparse() << " " << n._to.unparse();
     sa << " " << n._metric;
+    sa << " " << n._channel;
     sa << " " << n._seq << " " << n.age() << "\n";
   }
   return sa.take_string();
@@ -595,7 +585,7 @@ LinkTableBase<T,U>::read_handler(Element *e, void *thunk) {
     case H_HOSTS:  return td->print_hosts();
     case H_DIJKSTRA_TIME: {
       StringAccum sa;
-      sa << td->dijkstra_time << "\n";
+      sa << td->_dijkstra_time << "\n";
       return sa.take_string();
     }
     default:

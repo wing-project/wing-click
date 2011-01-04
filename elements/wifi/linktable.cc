@@ -242,7 +242,7 @@ LinkTable::dijkstra(bool from_me)
 
   }
 
-  dijkstra_time = Timestamp::now() - start;
+  _dijkstra_time = Timestamp::now() - start;
 
 }
 

@@ -58,32 +58,6 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
 
   protected:
 
-    typedef HashMap<uint16_t, uint32_t> MetricTable;
-
-    class HostInfoMulti : public HostInfo {
-      public:
-
-      MetricTable _metric_table_from_me;
-      MetricTable _metric_table_to_me;
-
-      uint8_t _if_from_me;
-      uint8_t _if_to_me;
-
-      HostInfoMulti() : HostInfo(NodeAddress()), _if_from_me(0), _if_to_me(0) {
-      }
-
-      HostInfoMulti(NodeAddress address) : HostInfo(address), _if_from_me(0), _if_to_me(0) {
-      }
-
-      HostInfoMulti(const HostInfoMulti &p) : HostInfo(p), _if_from_me(p._if_from_me), _if_to_me(p._if_to_me) {
-      }
-
-    };
-
-    typedef HashMap<NodeAddress, HostInfoMulti> HTable;
-    typedef HTable::const_iterator HTIter;
-
-    HTable _hosts;
     uint32_t _beta;
 
     static String read_handler(Element *, void *);
