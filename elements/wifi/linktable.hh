@@ -65,7 +65,7 @@ public:
   uint32_t get_link_age(T from, T to);
 
   bool valid_route(const U &);
-  void dijkstra(bool);
+  virtual void dijkstra(bool) = 0;
   void clear_stale();
 
   uint32_t get_host_metric_to_me(T s);
@@ -563,116 +563,6 @@ LinkTableBase<T,U>::clear_stale() {
 
 }
 
-template <typename T, typename U>
-void
-LinkTableBase<T,U>::dijkstra(bool from_me)
-{
-  Timestamp start = Timestamp::now();
-
-  typedef HashMap<T, bool> AddressMap;
-  typedef typename AddressMap::const_iterator AMIter;
-
-  AddressMap addrs;
-
-  for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
-    addrs.insert(iter.value()._address, true);
-  }
-
-  for (AMIter i = addrs.begin(); i.live(); i++) {
-    /* clear them all initially */
-    HostInfo *n = _hosts.findp(i.key());
-    n->clear(from_me);
-  }
-  HostInfo *root_info = _hosts.findp(_ip);
-
-  assert(root_info);
-
-  if (from_me) {
-    root_info->_prev_from_me = root_info->_address;
-    root_info->_metric_from_me = 0;
-  } else {
-    root_info->_prev_to_me = root_info->_address;
-    root_info->_metric_to_me = 0;
-  }
-
-  T current_min_address = root_info->_address;
-
-  while (current_min_address) {
-    HostInfo *current_min = _hosts.findp(current_min_address);
-    assert(current_min);
-    if (from_me) {
-      current_min->_marked_from_me = true;
-    } else {
-      current_min->_marked_to_me = true;
-    }
-
-
-    for (AMIter i = addrs.begin(); i.live(); i++) {
-      HostInfo *neighbor = _hosts.findp(i.key());
-      assert(neighbor);
-      bool marked = neighbor->_marked_to_me;
-      if (from_me) {
-	marked = neighbor->_marked_from_me;
-      }
-
-      if (marked) {
-	continue;
-      }
-
-      AddressPair pair = AddressPair(neighbor->_address, current_min_address);
-      if (from_me) {
-	pair = AddressPair(current_min_address, neighbor->_address);
-      }
-      LinkInfo *lnfo = _links.findp(pair);
-      if (!lnfo || !lnfo->_metric) {
-	continue;
-      }
-      uint32_t neighbor_metric = neighbor->_metric_to_me;
-      uint32_t current_metric = current_min->_metric_to_me;
-
-      if (from_me) {
-	neighbor_metric = neighbor->_metric_from_me;
-	current_metric = current_min->_metric_from_me;
-      }
-
-
-      uint32_t adjusted_metric = current_metric + lnfo->_metric;
-      if (!neighbor_metric ||
-	  adjusted_metric < neighbor_metric) {
-	if (from_me) {
-	  neighbor->_metric_from_me = adjusted_metric;
-	  neighbor->_prev_from_me = current_min_address;
-	} else {
-	  neighbor->_metric_to_me = adjusted_metric;
-	  neighbor->_prev_to_me = current_min_address;
-	}
-
-      }
-    }
-
-    current_min_address = T();
-    uint32_t  min_metric = ~0;
-    for (AMIter i = addrs.begin(); i.live(); i++) {
-      HostInfo *nfo = _hosts.findp(i.key());
-      uint32_t metric = nfo->_metric_to_me;
-      bool marked = nfo->_marked_to_me;
-      if (from_me) {
-	metric = nfo->_metric_from_me;
-	marked = nfo->_marked_from_me;
-      }
-      if (!marked && metric &&
-	  metric < min_metric) {
-        current_min_address = nfo->_address;
-        min_metric = metric;
-      }
-    }
-
-  }
-
-  dijkstra_time = Timestamp::now() - start;
-
-}
-
 enum {H_BLACKLIST,
       H_BLACKLIST_CLEAR,
       H_BLACKLIST_ADD,
@@ -773,6 +663,7 @@ class LinkTable : public LinkTableBase<IPAddress, Path> { public:
     String print_routes(bool, bool);
     String route_to_string(Path);
     uint32_t get_route_metric(const Path &);
+    void dijkstra(bool);
 
 };
 
