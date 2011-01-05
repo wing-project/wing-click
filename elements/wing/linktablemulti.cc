@@ -24,7 +24,7 @@
 #include <click/straccum.hh>
 CLICK_DECLS
 
-LinkTableMulti::LinkTableMulti() : _beta(80)
+LinkTableMulti::LinkTableMulti() : _beta(20)
 {
 }
 
@@ -57,6 +57,10 @@ LinkTableMulti::configure(Vector<String> &conf, ErrorHandler *errh) {
 
     _ip = NodeAddress(ip, 0);
     _hosts.insert(_ip, HostInfo(_ip));
+
+    if (_beta > 100) {
+        return errh->error("Error param BETA must be > 100, given %u", _beta);
+    }
 
     Vector<String> args;
     cp_spacevec(ifaces, args);
@@ -213,7 +217,7 @@ LinkTableMulti::get_route_metric(const PathMulti &route) {
     return metric;
 }
 
-enum { H_HOST_IP, H_HOST_INTERFACES };
+enum { H_HOST_IP, H_HOST_INTERFACES, H_ADD_ALL };
 
 String 
 LinkTableMulti::read_handler(Element *e, void *thunk) {
@@ -229,6 +233,22 @@ LinkTableMulti::read_handler(Element *e, void *thunk) {
       sa << "\n";
       return sa.take_string();
     }
+    case H_ADD_ALL: {
+       uint32_t now = Timestamp::now().sec();
+
+       td->update_link(NodeAddress(IPAddress("10.0.0.1"), 1), NodeAddress(IPAddress("10.0.0.2"), 1), now, 0, 200, 1000);
+       td->update_link(NodeAddress(IPAddress("10.0.0.2"), 1), NodeAddress(IPAddress("10.0.0.1"), 1), now, 0, 200, 1000);
+
+       td->update_link(NodeAddress(IPAddress("10.0.0.2"), 1), NodeAddress(IPAddress("10.0.0.3"), 1), now, 0, 200, 3000);
+       td->update_link(NodeAddress(IPAddress("10.0.0.3"), 1), NodeAddress(IPAddress("10.0.0.2"), 1), now, 0, 200, 3000);
+
+       td->update_link(NodeAddress(IPAddress("10.0.0.3"), 1), NodeAddress(IPAddress("10.0.0.4"), 1), now, 0, 300, 3000);
+       td->update_link(NodeAddress(IPAddress("10.0.0.4"), 1), NodeAddress(IPAddress("10.0.0.3"), 1), now, 0, 300, 3000);
+
+       td->update_link(NodeAddress(IPAddress("10.0.0.1"), 1), NodeAddress(IPAddress("10.0.0.3"), 1), now, 0, 300, 3000);
+       td->update_link(NodeAddress(IPAddress("10.0.0.3"), 1), NodeAddress(IPAddress("10.0.0.1"), 1), now, 0, 300, 3000);
+
+    }
     default:
       return LinkTableBase<NodeAddress, PathMulti>::read_handler(e, thunk);
     }
@@ -236,14 +256,41 @@ LinkTableMulti::read_handler(Element *e, void *thunk) {
 
 void
 LinkTableMulti::add_handlers() {
+    add_read_handler("add_all", read_handler, H_ADD_ALL);
     add_read_handler("ip", read_handler, H_HOST_IP);
     add_read_handler("interfaces", read_handler, H_HOST_INTERFACES);
     LinkTableBase<NodeAddress, PathMulti>::add_handlers();
 }
 
+uint32_t
+LinkTableMulti::compute_metric(Vector<uint32_t> metrics, Vector<uint32_t> channels) {
+    if (metrics.size() != channels.size()) {
+          return 99999;
+    }
+    HashMap<uint32_t, uint32_t> mt;
+    uint32_t max = 0;
+    uint32_t ett = 0;
+    for (int x = 0; x < metrics.size(); x++) {
+        uint32_t *nc = mt.findp(channels[x]);
+       if (!nc) {
+           mt.insert(channels[x], 0);
+           nc = mt.findp(channels[x]);
+       }
+       *nc += metrics[x];
+       ett += metrics[x];
+    }
+    for (HashMap<uint32_t, uint32_t>::const_iterator iter = mt.begin(); iter.live(); iter++) {
+        if (iter.value() > max) {
+           max=iter.value();
+        }
+    }
+    return (ett * (100 - _beta) + max * _beta) / 100;
+}
+
 void
 LinkTableMulti::dijkstra(bool from_me)
 {
+
   Timestamp start = Timestamp::now();
 
   typedef HashMap<NodeAddress, bool> AddressMap;
@@ -260,8 +307,8 @@ LinkTableMulti::dijkstra(bool from_me)
     HostInfo *n = _hosts.findp(i.key());
     n->clear(from_me);
   }
-  HostInfo *root_info = _hosts.findp(_ip);
 
+  HostInfo *root_info = _hosts.findp(_ip);
   assert(root_info);
 
   if (from_me) {
@@ -275,18 +322,21 @@ LinkTableMulti::dijkstra(bool from_me)
   NodeAddress current_min_address = root_info->_address;
 
   while (current_min_address) {
+
     HostInfo *current_min = _hosts.findp(current_min_address);
     assert(current_min);
+
     if (from_me) {
       current_min->_marked_from_me = true;
     } else {
       current_min->_marked_to_me = true;
     }
 
-
     for (AMIter i = addrs.begin(); i.live(); i++) {
+
       HostInfo *neighbor = _hosts.findp(i.key());
       assert(neighbor);
+
       bool marked = neighbor->_marked_to_me;
       if (from_me) {
 	marked = neighbor->_marked_from_me;
@@ -301,21 +351,49 @@ LinkTableMulti::dijkstra(bool from_me)
 	pair = AddressPair(current_min_address, neighbor->_address);
       }
       LinkInfo *lnfo = _links.findp(pair);
-      if (!lnfo || !lnfo->_metric) {
+
+      if (!lnfo || !lnfo->_metric || !lnfo->_channel) {
 	continue;
       }
-      uint32_t neighbor_metric = neighbor->_metric_to_me;
-      uint32_t current_metric = current_min->_metric_to_me;
+
+      Vector<uint32_t> metrics;
+      Vector<uint32_t> channels;
+
+      HostInfo * thi = current_min;
 
       if (from_me) {
-	neighbor_metric = neighbor->_metric_from_me;
-	current_metric = current_min->_metric_from_me;
+          while (thi->_prev_from_me != thi->_address) {
+              AddressPair prev = AddressPair(thi->_address, thi->_prev_from_me);
+              LinkInfo *tli = _links.findp(prev);
+              if (tli) {
+                  metrics.push_back(tli->_metric);
+                  channels.push_back(tli->_channel);
+              }
+              thi = _hosts.findp(thi->_prev_from_me);
+          }
+      } else {
+          while (thi->_prev_to_me != thi->_address) {
+              AddressPair prev = AddressPair(thi->_address, thi->_prev_to_me);
+              LinkInfo *tli = _links.findp(prev);
+              if (tli) {
+                  metrics.push_back(tli->_metric);
+                  channels.push_back(tli->_channel);
+              }
+              thi = _hosts.findp(thi->_prev_to_me);
+          }
       }
 
+      metrics.push_back(lnfo->_metric);
+      channels.push_back(lnfo->_channel);
 
-      uint32_t adjusted_metric = current_metric + lnfo->_metric;
-      if (!neighbor_metric ||
-	  adjusted_metric < neighbor_metric) {
+      uint32_t neighbor_metric = neighbor->_metric_to_me;
+      if (from_me) {
+	neighbor_metric = neighbor->_metric_from_me;
+      }
+
+      uint32_t adjusted_metric = compute_metric(metrics, channels);
+
+      if (!neighbor_metric || adjusted_metric < neighbor_metric) {
 	if (from_me) {
 	  neighbor->_metric_from_me = adjusted_metric;
 	  neighbor->_prev_from_me = current_min_address;
@@ -323,7 +401,6 @@ LinkTableMulti::dijkstra(bool from_me)
 	  neighbor->_metric_to_me = adjusted_metric;
 	  neighbor->_prev_to_me = current_min_address;
 	}
-
       }
     }
 
@@ -337,18 +414,18 @@ LinkTableMulti::dijkstra(bool from_me)
 	metric = nfo->_metric_from_me;
 	marked = nfo->_marked_from_me;
       }
-      if (!marked && metric &&
-	  metric < min_metric) {
+      if (!marked && metric && metric < min_metric) {
         current_min_address = nfo->_address;
         min_metric = metric;
       }
     }
-
   }
 
   _dijkstra_time = Timestamp::now() - start;
 
 }
+
+
 
 EXPORT_ELEMENT(LinkTableMulti)
 CLICK_ENDDECLS

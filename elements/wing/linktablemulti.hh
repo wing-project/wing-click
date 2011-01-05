@@ -34,6 +34,7 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
     String route_to_string(PathMulti);
     uint32_t get_route_metric(const PathMulti &);
     void dijkstra(bool);
+    //void dijkstra();
 
     bool update_link(NodeAddress node) {	
       if (LinkTableBase<NodeAddress, PathMulti>::update_link(node, node._ip, Timestamp::now().sec(), 0, 1, 1)) {
@@ -61,6 +62,8 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
     uint32_t _beta;
 
     static String read_handler(Element *, void *);
+
+    uint32_t compute_metric(Vector<uint32_t>, Vector<uint32_t>);
 
 };
 
