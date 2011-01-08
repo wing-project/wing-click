@@ -62,6 +62,7 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
     uint32_t _beta;
 
     static String read_handler(Element *, void *);
+    static int write_handler(const String &, Element *, void *, ErrorHandler *);
 
     uint32_t compute_metric(Vector<uint32_t>, Vector<uint32_t>);
 

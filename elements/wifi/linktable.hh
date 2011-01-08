@@ -564,6 +564,7 @@ enum {H_BLACKLIST,
       H_HOSTS,
       H_CLEAR,
       H_DIJKSTRA,
+      H_UPDATE_LINK,
       H_DIJKSTRA_TIME};
 
 template <typename T, typename U>
@@ -600,6 +601,49 @@ LinkTableBase<T,U>::write_handler(const String &in_s, Element *e, void *vparam, 
   LinkTableBase *f = (LinkTableBase *) e;
   String s = cp_uncomment(in_s);
   switch ((intptr_t) vparam) {
+  case H_UPDATE_LINK: {
+
+    Vector<String> args;
+    IPAddress from;
+    IPAddress to;
+    uint32_t seq;
+    uint32_t age;
+    uint32_t metric;
+    uint32_t channel;
+    cp_spacevec(in_s, args);
+
+    if (args.size() != 6) {
+      return errh->error("Must have six arguments: currently has %d: %s", args.size(), args[0].c_str());
+    }
+
+    if (!cp_ip_address(args[0], &from)) {
+      return errh->error("Couldn't read IPAddress out of from");
+    }
+
+    if (!cp_ip_address(args[1], &to)) {
+      return errh->error("Couldn't read IPAddress out of to");
+    }
+
+    if (!cp_unsigned(args[2], &metric)) {
+      return errh->error("Couldn't read metric");
+    }
+
+    if (!cp_unsigned(args[3], &seq)) {
+      return errh->error("Couldn't read seq");
+    }
+
+    if (!cp_unsigned(args[4], &age)) {
+      return errh->error("Couldn't read age");
+    }
+
+    if (!cp_unsigned(args[5], &channel)) {
+      return errh->error("Couldn't read channel");
+    }
+
+    f->update_link(from, to, seq, age, metric, channel);
+    break;
+
+  }
   case H_BLACKLIST_CLEAR: {
     f->_blacklist.clear();
     break;
@@ -640,6 +684,7 @@ LinkTableBase<T,U>::add_handlers() {
   add_write_handler("blacklist_add", write_handler, H_BLACKLIST_ADD);
   add_write_handler("blacklist_remove", write_handler, H_BLACKLIST_REMOVE);
   add_write_handler("dijkstra", write_handler, H_DIJKSTRA);
+  add_write_handler("update_link", write_handler, H_UPDATE_LINK);
 }
 
 class LinkTable : public LinkTableBase<IPAddress, Path> { public:

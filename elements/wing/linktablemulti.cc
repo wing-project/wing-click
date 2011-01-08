@@ -24,6 +24,20 @@
 #include <click/straccum.hh>
 CLICK_DECLS
 
+bool
+cp_node_address(String s, NodeAddress *node)
+{
+	int sep = s.find_left(':');
+	IPAddress ip;
+	int iface;
+	if (!cp_ip_address(s.substring(0, sep), &ip) ||
+		!cp_integer(s.substring(sep + 1, s.length()), &iface)) {
+		return false;
+	}
+	*node = NodeAddress(ip, iface);
+	return true;
+}
+
 LinkTableMulti::LinkTableMulti() : _beta(20)
 {
 }
@@ -217,51 +231,6 @@ LinkTableMulti::get_route_metric(const PathMulti &route) {
     return metric;
 }
 
-enum { H_HOST_IP, H_HOST_INTERFACES, H_ADD_ALL };
-
-String 
-LinkTableMulti::read_handler(Element *e, void *thunk) {
-  LinkTableMulti *td = (LinkTableMulti *) e;
-  switch ((uintptr_t) thunk) {
-    case H_HOST_IP:  return td->_ip.unparse() + "\n";
-    case H_HOST_INTERFACES: {
-      Vector<int> ifaces = td->get_local_interfaces();
-      StringAccum sa;
-      for (int x = 0; x < ifaces.size(); x++) {
-        sa << ifaces[x] << " ";
-      }
-      sa << "\n";
-      return sa.take_string();
-    }
-    case H_ADD_ALL: {
-       uint32_t now = Timestamp::now().sec();
-
-       td->update_link(NodeAddress(IPAddress("10.0.0.1"), 1), NodeAddress(IPAddress("10.0.0.2"), 1), now, 0, 200, 1000);
-       td->update_link(NodeAddress(IPAddress("10.0.0.2"), 1), NodeAddress(IPAddress("10.0.0.1"), 1), now, 0, 200, 1000);
-
-       td->update_link(NodeAddress(IPAddress("10.0.0.2"), 1), NodeAddress(IPAddress("10.0.0.3"), 1), now, 0, 200, 3000);
-       td->update_link(NodeAddress(IPAddress("10.0.0.3"), 1), NodeAddress(IPAddress("10.0.0.2"), 1), now, 0, 200, 3000);
-
-       td->update_link(NodeAddress(IPAddress("10.0.0.3"), 1), NodeAddress(IPAddress("10.0.0.4"), 1), now, 0, 300, 3000);
-       td->update_link(NodeAddress(IPAddress("10.0.0.4"), 1), NodeAddress(IPAddress("10.0.0.3"), 1), now, 0, 300, 3000);
-
-       td->update_link(NodeAddress(IPAddress("10.0.0.1"), 1), NodeAddress(IPAddress("10.0.0.3"), 1), now, 0, 300, 3000);
-       td->update_link(NodeAddress(IPAddress("10.0.0.3"), 1), NodeAddress(IPAddress("10.0.0.1"), 1), now, 0, 300, 3000);
-
-    }
-    default:
-      return LinkTableBase<NodeAddress, PathMulti>::read_handler(e, thunk);
-    }
-}
-
-void
-LinkTableMulti::add_handlers() {
-    add_read_handler("add_all", read_handler, H_ADD_ALL);
-    add_read_handler("ip", read_handler, H_HOST_IP);
-    add_read_handler("interfaces", read_handler, H_HOST_INTERFACES);
-    LinkTableBase<NodeAddress, PathMulti>::add_handlers();
-}
-
 uint32_t
 LinkTableMulti::compute_metric(Vector<uint32_t> metrics, Vector<uint32_t> channels) {
     if (metrics.size() != channels.size()) {
@@ -425,7 +394,79 @@ LinkTableMulti::dijkstra(bool from_me)
 
 }
 
+enum { H_HOST_IP, H_HOST_INTERFACES };
 
+String 
+LinkTableMulti::read_handler(Element *e, void *thunk) {
+  LinkTableMulti *td = (LinkTableMulti *) e;
+  switch ((uintptr_t) thunk) {
+    case H_HOST_IP:  return td->_ip.unparse() + "\n";
+    case H_HOST_INTERFACES: {
+      Vector<int> ifaces = td->get_local_interfaces();
+      StringAccum sa;
+      for (int x = 0; x < ifaces.size(); x++) {
+        sa << ifaces[x] << " ";
+      }
+      sa << "\n";
+      return sa.take_string();
+    }
+    default:
+      return LinkTableBase<NodeAddress, PathMulti>::read_handler(e, thunk);
+    }
+}
+
+int 
+LinkTableMulti::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler * errh) {
+  LinkTableMulti *f = (LinkTableMulti *) e;
+  String s = cp_uncomment(in_s);
+  switch ((intptr_t) vparam) {
+    case H_UPDATE_LINK: {
+      Vector<String> args;
+      NodeAddress from;
+      NodeAddress to;
+      uint32_t seq;
+      uint32_t age;
+      uint32_t metric;
+      uint32_t channel;
+      cp_spacevec(in_s, args);
+      if (args.size() != 6) {
+        return errh->error("Must have six arguments: currently has %d: %s", args.size(), args[0].c_str());
+      }
+      if (!cp_node_address(args[0], &from)) {
+        return errh->error("Couldn't read NodeAddress out of from");
+      }
+      if (!cp_node_address(args[1], &to)) {
+        return errh->error("Couldn't read NodeAddress out of to");
+      }
+      if (!cp_unsigned(args[2], &metric)) {
+        return errh->error("Couldn't read metric");
+      }
+      if (!cp_unsigned(args[3], &seq)) {
+        return errh->error("Couldn't read seq");
+      }
+      if (!cp_unsigned(args[4], &age)) {
+        return errh->error("Couldn't read age");
+      }
+      if (!cp_unsigned(args[5], &channel)) {
+        return errh->error("Couldn't read channel");
+      }
+      f->update_link(from, to, seq, age, metric, channel);
+      break;
+    }
+    default: {
+      return LinkTableBase<NodeAddress, PathMulti>::write_handler(in_s, e, vparam, errh);
+    }
+  }
+  return 0;
+}
+
+void
+LinkTableMulti::add_handlers() {
+    LinkTableBase<NodeAddress, PathMulti>::add_handlers();
+    add_read_handler("ip", read_handler, H_HOST_IP);
+    add_read_handler("interfaces", read_handler, H_HOST_INTERFACES);
+    add_write_handler("update_link", write_handler, H_UPDATE_LINK);
+}
 
 EXPORT_ELEMENT(LinkTableMulti)
 CLICK_ENDDECLS
