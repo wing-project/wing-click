@@ -445,6 +445,20 @@ if test "x$have_timespec" = xyes; then
 fi
 CLICK_CHECK_POSIX_CLOCKS
 
+
+dnl
+dnl check forms of port transfer
+dnl
+
+AC_ARG_ENABLE(bound-port-transfer,
+  [[  --enable-bound-port-transfer  enable port transfer function ptr optimization]],
+  :, enable_bound_port_transfer=no)
+
+if test "$enable_bound_port_transfer" = yes; then
+  AC_DEFINE([HAVE_BOUND_PORT_TRANSFER], [1], [Define if Port::push/Port::pull should use bound function pointers.])
+  CXXFLAGS="$CXXFLAGS -Wno-pmf-conversions"
+fi
+
 AC_ARG_ENABLE(nanotimestamp, [  --enable-nanotimestamp  enable nanosecond timestamps])
 # Default to nanosecond-precision timestamps if clock_gettime is available.
 if test "x$enable_nanotimestamp" = x -a "x$have_clock_gettime" = xyes; then
@@ -490,7 +504,7 @@ dnl
 dnl headers, event detection, dynamic linking
 dnl
 
-AC_CHECK_HEADERS(termio.h netdb.h sys/event.h pwd.h grp.h)
+AC_CHECK_HEADERS(termio.h netdb.h sys/event.h pwd.h grp.h execinfo.h)
 CLICK_CHECK_POLL_H
 AC_CHECK_FUNCS(pselect sigaction)
 
@@ -1110,6 +1124,7 @@ Can't find Linux 2.6 compilation flags.
 	echo "$lCPPFLAGS $lCFLAGS $lLINUXINCLUDE $lKBUILD_CPPFLAGS $lKBUILD_CFLAGS" >conftest.dat
 	LINUX_CFLAGS="`sed -e 's,-Iinclude ',-I$linux_builddir/include' ,g' \
 	    -e 's,-Iinclude2 ',-I$linux_builddir/include2' ,g' \
+	    -e 's,-Iarch/um/include/shared',-I$linux_builddir/arch/um/include/shared',g' \
 	    -e 's, include/, '$linux_builddir/include/,g \
 	    -e s,-Iinclude/,-I${linux_srcdir}include/,g \
 	    -e s,-Wno-pointer-sign,,g \
