@@ -5,7 +5,7 @@
 #include <click/timer.hh>
 #include <click/etheraddress.hh>
 #include <click/hashmap.hh>
-#include "wingbase.hh"
+#include "pathmulti.hh"
 CLICK_DECLS
 
 /*
@@ -37,7 +37,7 @@ CLICK_DECLS
  * =a WINGForwarder
  */
 
-class WINGQuerier: public WINGBase {
+class WINGQuerier: public Element {
 public:
 
 	WINGQuerier();
@@ -56,6 +56,7 @@ public:
 	String print_routes();
 
 	void push(int, Packet *);
+	Packet * encap(Packet *, PathMulti);
 
 private:
 
@@ -71,6 +72,13 @@ private:
 		Timestamp _last_switch; // last time we picked a new best route
 		Timestamp _first_selected; // when _p was first selected as best route
 	};
+
+	IPAddress _ip; // My address.
+
+	class LinkTableMulti *_link_table;
+	class ARPTableMulti *_arp_table;
+
+	bool _debug;
 
 	typedef HashMap<IPAddress, DstInfo> DstTable;
 	DstTable _queries;

@@ -83,6 +83,8 @@ String WINGGatewayResponder::read_handler(Element *e, void *thunk) {
 	switch ((intptr_t) (thunk)) {
 	case H_IP:
 		return c->_ip.unparse() + "\n";
+	case H_DEBUG:
+		return String(c->_debug) + "\n";
 	default:
 		return "<error>\n";
 	}
@@ -106,6 +108,7 @@ int WINGGatewayResponder::write_handler(const String &in_s, Element *e,
 
 void WINGGatewayResponder::add_handlers() {
 	add_read_handler("ip", read_handler, H_IP);
+	add_read_handler("debug", read_handler, H_DEBUG);
 	add_write_handler("debug", write_handler, H_DEBUG);
 }
 

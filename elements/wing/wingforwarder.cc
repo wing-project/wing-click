@@ -112,7 +112,28 @@ void WINGForwarder::push(int, Packet *p_in)
 	_out_bytes += p->length();
 	// update pointer
 	pk->set_next(pk->next() + 1);
-	set_ethernet_header(p, pk->get_link_dep(pk->next()), pk->get_link_arr(pk->next()));
+	// set ethernet header
+	NodeAddress src = pk->get_link_dep(pk->next());
+	NodeAddress dst = pk->get_link_arr(pk->next());
+	EtherAddress eth_src = _arp_table->lookup(src);
+	if (src && eth_src.is_group()) {
+		click_chatter("%{element} :: %s :: arp lookup failed for src %s (%s)", 
+				this,
+				__func__,
+				src.unparse().c_str(),
+				eth_src.unparse().c_str());
+	}
+	EtherAddress eth_dst = _arp_table->lookup(dst);
+	if (dst && eth_dst.is_group()) {
+		click_chatter("%{element} :: %s :: arp lookup failed for dst %s (%s)", 
+				this,
+				__func__,
+				dst.unparse().c_str(),
+				eth_dst.unparse().c_str());
+
+	}
+	memcpy(eh->ether_dhost, eth_dst.data(), 6);
+	memcpy(eh->ether_shost, eth_src.data(), 6);
 	output(0).push(p);
 }
 

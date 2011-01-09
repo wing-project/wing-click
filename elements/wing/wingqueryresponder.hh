@@ -18,7 +18,34 @@ CLICK_DECLS
  * Responds to queries destined for this node.
  */
 
-class WINGQueryResponder: public WINGBase {
+// Query
+class ReplyInfo {
+public:
+	IPAddress _src;
+	PathMulti _last_response;
+	ReplyInfo() :
+		_src(IPAddress()),
+		_last_response(PathMulti()) {
+	}
+	ReplyInfo(IPAddress src, PathMulti last_response) :
+		_src(src),
+		_last_response(last_response) {
+	}
+	ReplyInfo(const ReplyInfo &e) :
+		_src(e._src) ,
+		_last_response(e._last_response) { 
+	}
+	inline bool operator==(ReplyInfo other) const {
+		return (other._src == _src && other._last_response == _last_response);
+	}
+	String unparse() const {
+		StringAccum sa;
+		sa << _src.unparse() << '(' << route_to_string(_last_response) << ')';
+		return sa.take_string();
+	}
+};
+
+class WINGQueryResponder: public WINGBase<ReplyInfo> {
 public:
 
 	WINGQueryResponder();
@@ -27,38 +54,13 @@ public:
 	const char *class_name() const { return "WINGQueryResponder"; }
 	const char *port_count() const { return "2/1"; }
 	const char *processing() const { return PUSH; }
-	const char *flow_code() const { return "#/#"; }
 
 	int configure(Vector<String> &conf, ErrorHandler *errh);
-
-	/* handler stuff */
-	void add_handlers();
 
 	void push(int, Packet *);
 	void process_query(Packet *);
 	void process_reply(Packet *);
 	void start_reply(PathMulti, uint32_t);
-
-private:
-
-	class Seen {
-	public:
-		Seen();
-		Seen(IPAddress ip, uint32_t seq) {
-			_ip = ip;
-			_seq = seq;
-		}
-		IPAddress _ip;
-		uint32_t _seq;
-		PathMulti _last_response;
-	};
-
-	DEQueue<Seen> _seen;
-
-	int _max_seen_size;
-
-	static int write_handler(const String &, Element *, void *, ErrorHandler *);
-	static String read_handler(Element *, void *);
 
 };
 

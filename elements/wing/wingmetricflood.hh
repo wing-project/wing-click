@@ -19,17 +19,42 @@ CLICK_DECLS
  * Floods a packet with previous hops based on Link Metrics.
  */
 
-class WINGMetricFlood: public WINGBase {
+// Query
+class QueryInfo {
+public:
+	IPAddress _dst;
+	IPAddress _src;
+	QueryInfo() :
+		_dst(IPAddress()),
+		_src(IPAddress()) {
+	}
+	QueryInfo(IPAddress dst, IPAddress src) :
+		_dst(dst),
+		_src(src) {
+	}
+	QueryInfo(const QueryInfo &e) :
+		_dst(e._dst) ,
+		_src(e._src) { 
+	}
+	inline bool operator==(QueryInfo other) const {
+		return (other._dst == _dst && other._src == _src);
+	}
+	String unparse() const {
+		StringAccum sa;
+		sa << _dst.unparse() << '/' << _src.unparse();
+		return sa.take_string();
+	}
+};
+
+class WINGMetricFlood: public WINGBase<QueryInfo> {
 public:
 
 	WINGMetricFlood();
 	~WINGMetricFlood();
 
 	const char *class_name() const { return "WINGMetricFlood"; }
-	void *cast(const char *);
 	const char *port_count() const { return "2/2"; }
 	const char *processing() const { return PUSH; }
-	const char *flow_code() const {	return "#/#"; }
 
 	int configure(Vector<String> &conf, ErrorHandler *errh);
 
@@ -45,31 +70,8 @@ public:
 
 private:
 
-	// List of query sequence #s that we've already seen.
-	class Seen {
-	public:
-		Seen();
-		Seen(IPAddress src, IPAddress dst, uint32_t seq) {
-			_src = src;
-			_dst = dst;
-			_seq = seq;
-			_count = 0;
-			_when = Timestamp::now();
-		}
-		IPAddress _src;
-		IPAddress _dst;
-		uint32_t _seq;
-		int _count;
-		Timestamp _when;
-		Timestamp _to_send;
-		bool _forwarded;
-	};
-
-	DEQueue<Seen> _seen;
-
 	uint32_t _seq; // Next query sequence number to use.
 	uint32_t _jitter; // msecs
-	int _max_seen_size;
 
 	void start_flood(Packet *);
 	void process_flood(Packet *);

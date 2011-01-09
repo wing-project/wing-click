@@ -24,7 +24,7 @@
 #include <click/glue.hh>
 #include <click/straccum.hh>
 #include <clicknet/ether.h>
-#include "wingforwarder.hh"
+#include "wingquerier.hh"
 #include "linktablemulti.hh"
 #include "arptablemulti.hh"
 #include "wingpacket.hh"
@@ -68,6 +68,70 @@ int WINGQuerier::configure(Vector<String> &conf, ErrorHandler *errh) {
 		return -1;
 
 	return 0;
+
+}
+
+Packet *
+WINGQuerier::encap(Packet *p_in, PathMulti best)
+{
+	if (best[0].dep()._ip != _ip) {
+		click_chatter("%{element} :: %s :: first hop %s doesn't match my ip %s", 
+				this,
+				__func__,
+				best[0].dep().unparse().c_str(), 
+				_ip.unparse().c_str());
+		p_in->kill();
+		return 0;
+	}
+
+	int hops = best.size() - 1;
+	int len = wing_data::len_wo_data(hops);
+	int data_len = p_in->length();
+
+	WritablePacket *p = p_in->push(len + sizeof(click_ether));
+	if (p == 0) {
+		click_chatter("%{element} :: %s :: cannot encap packet!", this, __func__);
+		return 0;
+	}
+
+	click_ether *eh = (click_ether *) p->data();
+	struct wing_data *pk = (struct wing_data *) (eh + 1);
+	memset(pk, '\0', len);
+
+	pk->_type = WING_PT_DATA;
+	pk->set_data_len(data_len);
+	pk->set_num_links(hops);
+
+	for (int i = 0; i < hops; i++) {
+		pk->set_link(i, best[i].dep(), best[i+1].arr(), _link_table->get_link_channel(best[i].dep(), best[i+1].arr()));
+	}
+
+	NodeAddress src = best[0].dep();
+	NodeAddress dst = best[1].arr();
+
+	EtherAddress eth_src = _arp_table->lookup(src);
+	if (src && eth_src.is_group()) {
+		click_chatter("%{element} :: %s :: arp lookup failed for src %s (%s)", 
+				this,
+				__func__,
+				src.unparse().c_str(),
+				eth_src.unparse().c_str());
+	}
+
+	EtherAddress eth_dst = _arp_table->lookup(dst);
+	if (dst && eth_dst.is_group()) {
+		click_chatter("%{element} :: %s :: arp lookup failed for dst %s (%s)", 
+				this,
+				__func__,
+				dst.unparse().c_str(),
+				eth_dst.unparse().c_str());
+
+	}
+
+	memcpy(eh->ether_dhost, eth_dst.data(), 6);
+	memcpy(eh->ether_shost, eth_src.data(), 6);
+
+	return p;
 
 }
 

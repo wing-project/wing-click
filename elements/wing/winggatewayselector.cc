@@ -30,21 +30,11 @@
 CLICK_DECLS
 
 WINGGatewaySelector::WINGGatewaySelector() :
-	_hna_index(0), _jitter(1000), _max_seen_size(100), _period(5000), _expire(30000), _timer(this) {
+	_hna_index(0), _jitter(1000), _period(5000), _expire(30000), _timer(this) {
 	_seq = Timestamp::now().usec();
 }
 
 WINGGatewaySelector::~WINGGatewaySelector() {
-}
-
-void *
-WINGGatewaySelector::cast(const char *n) {
-	if (strcmp(n, "WINGGatewaySelector") == 0)
-		return (WINGGatewaySelector *) this;
-	else if (strcmp(n, "WINGBase") == 0)
-		return (WINGBase *) this;
-	else
-		return 0;
 }
 
 int WINGGatewaySelector::configure(Vector<String> &conf, ErrorHandler *errh) {
@@ -159,12 +149,12 @@ void WINGGatewaySelector::forward_ad_hook() {
 
 void WINGGatewaySelector::forward_ad(int iface, Seen *s) {
 
-	PathMulti best = _link_table->best_route(s->_hna._gw, false);
+	PathMulti best = _link_table->best_route(s->_seen._gw, false);
 
 	if (_debug) {
 		click_chatter("%{element} :: %s :: hna %s seq %d iface %u", 
 				this, __func__,
-				s->_hna.unparse().c_str(), 
+				s->_seen.unparse().c_str(), 
 				s->_seq,
 				iface);
 	}
@@ -172,9 +162,9 @@ void WINGGatewaySelector::forward_ad(int iface, Seen *s) {
 	Packet * p = create_wing_packet(NodeAddress(_ip, iface), 
 				NodeAddress(), 
 				WING_PT_GATEWAY, 
-				s->_hna._dst, 
-				s->_hna._nm, 
-				s->_hna._gw, 
+				s->_seen._dst, 
+				s->_seen._nm, 
+				s->_seen._gw, 
 				s->_seq, 
 				best);
 
@@ -183,6 +173,7 @@ void WINGGatewaySelector::forward_ad(int iface, Seen *s) {
 	}
 
 	output(0).push(p);
+
 }
 
 IPAddress WINGGatewaySelector::best_gateway(IPAddress address) {
@@ -234,10 +225,19 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 	}
 	_link_table->dijkstra(true);
 
-	/* update hnas from the packet */
+	/* update gateways from the packet */
+	GWInfo *nfo = _gateways.findp(hna);
+	if (!nfo) {
+		_gateways.insert(hna, GWInfo(hna));
+		nfo = _gateways.findp(hna);
+	}
+	nfo->_last_update = Timestamp::now();
+	nfo->_seen++;
+
+	/* process hna */
 	int si = 0;
 	for (si = 0; si < _seen.size(); si++) {
-		if (hna == _seen[si]._hna && seq == _seen[si]._seq) {
+		if (hna == _seen[si]._seen && seq == _seen[si]._seq) {
 			_seen[si]._count++;
 			p_in->kill();
 			return;
@@ -252,13 +252,6 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 	}		
 	_seen[si]._count++;
 	_seen[si]._when = Timestamp::now();
-	GWInfo *nfo = _gateways.findp(hna);
-	if (!nfo) {
-		_gateways.insert(hna, GWInfo(hna));
-		nfo = _gateways.findp(hna);
-	}
-	nfo->_last_update = Timestamp::now();
-	nfo->_seen++;
 
 	/* schedule timer */
 	int delay = click_random(1, _jitter);
@@ -295,20 +288,21 @@ enum {
 String WINGGatewaySelector::read_handler(Element *e, void *thunk) {
 	WINGGatewaySelector *f = (WINGGatewaySelector *) e;
 	switch ((uintptr_t) thunk) {
-	case H_GATEWAY_STATS:
-		return f->print_gateway_stats();
-	case H_HNA: {
-		StringAccum sa;
-		for (int x = 0; x < f->_hnas.size(); x++) {
-			sa << f->_hnas[x].unparse().c_str() << "\n";
+		case H_GATEWAY_STATS:
+			return f->print_gateway_stats();
+		case H_HNA: {
+			StringAccum sa;
+			for (int x = 0; x < f->_hnas.size(); x++) {
+				sa << f->_hnas[x].unparse().c_str() << "\n";
+			}
+			return sa.take_string();
 		}
-		return sa.take_string();
-	}
-	case H_IS_GATEWAY: {
-		return String(f->is_gateway()) + "\n";
-	}
-	default:
-		return String();
+		case H_IS_GATEWAY: {
+			return String(f->is_gateway()) + "\n";
+		}
+		default: {
+			return WINGBase<HNAInfo>::read_handler(e, thunk);
+		}
 	}
 }
 
@@ -316,72 +310,77 @@ int WINGGatewaySelector::write_handler(const String &in_s, Element *e, void *vpa
 	WINGGatewaySelector *f = (WINGGatewaySelector *) e;
 	String s = cp_uncomment(in_s);
 	switch ((intptr_t) vparam) {
-	case H_HNA_ADD: {
-		Vector<String> args;
-		cp_spacevec(s, args);
-		if (args.size() != 1) {
-			return errh->error("expected ADDR/MASK");
-		}
-		IPAddress addr;
-		IPAddress mask;
-		if (!cp_ip_prefix(args[0], &addr, &mask)) {
-			return errh->error("error param %s: must be an ip prefix", args[0].c_str());
-		}
-		HNAInfo route = HNAInfo(addr, mask, f->_ip);
-		for (Vector<HNAInfo>::iterator it = f->_hnas.begin(); it!=f->_hnas.end(); ++it) {
-			if (*it == route) {
-				return 0;
+		case H_HNA_ADD: {
+			Vector<String> args;
+			cp_spacevec(s, args);
+			if (args.size() != 1) {
+				return errh->error("expected ADDR/MASK");
 			}
-		}
-		f->_hnas.push_back(route);
-		break;
-	}
-	case H_HNA_DEL: {
-		Vector<String> args;
-		cp_spacevec(s, args);
-		if (args.size() != 1) {
-			return errh->error("one argument expected, %u given", args.size());
-		}
-		IPAddress addr;
-		IPAddress mask;
-		if (!cp_ip_prefix(args[0], &addr, &mask)) {
-			return errh->error("error param %s: must be an ip prefix (ADDR/MASK)", args[0].c_str());
-		}
-		HNAInfo route = HNAInfo(addr, mask, f->_ip);
-		for (Vector<HNAInfo>::iterator it = f->_hnas.begin(); it != f->_hnas.end();) {
-			(*it == route) ? it = f->_hnas.erase(it) : ++it;
-		}
-		break;
-	}
-	case H_HNA_CLEAR: {
-		f->_hnas.clear();
-		break;
-	}
-	case H_IS_GATEWAY: {
-		bool b;
-		if (!cp_bool(s, &b)) {
-			return errh->error("is_gateway parameter must be boolean");
-		}
-		HNAInfo route = HNAInfo(IPAddress(), IPAddress(), f->_ip);
-		if (b) {
+			IPAddress addr;
+			IPAddress mask;
+			if (!cp_ip_prefix(args[0], &addr, &mask)) {
+				return errh->error("error param %s: must be an ip prefix", args[0].c_str());
+			}
+			HNAInfo route = HNAInfo(addr, mask, f->_ip);
 			for (Vector<HNAInfo>::iterator it = f->_hnas.begin(); it!=f->_hnas.end(); ++it) {
 				if (*it == route) {
 					return 0;
 				}
 			}
 			f->_hnas.push_back(route);
-		} else {
+			break;
+		}
+		case H_HNA_DEL: {
+			Vector<String> args;
+			cp_spacevec(s, args);
+			if (args.size() != 1) {
+				return errh->error("one argument expected, %u given", args.size());
+			}
+			IPAddress addr;
+			IPAddress mask;
+			if (!cp_ip_prefix(args[0], &addr, &mask)) {
+				return errh->error("error param %s: must be an ip prefix (ADDR/MASK)", args[0].c_str());
+			}
+			HNAInfo route = HNAInfo(addr, mask, f->_ip);
 			for (Vector<HNAInfo>::iterator it = f->_hnas.begin(); it != f->_hnas.end();) {
 				(*it == route) ? it = f->_hnas.erase(it) : ++it;
 			}
+			break;
 		}
-		break;
-	}
+		case H_HNA_CLEAR: {
+			f->_hnas.clear();
+			break;
+		}
+		case H_IS_GATEWAY: {
+			bool b;
+			if (!cp_bool(s, &b)) {
+				return errh->error("is_gateway parameter must be boolean");
+			}
+			HNAInfo route = HNAInfo(IPAddress(), IPAddress(), f->_ip);
+			if (b) {
+				for (Vector<HNAInfo>::iterator it = f->_hnas.begin(); it!=f->_hnas.end(); ++it) {
+					if (*it == route) {
+						return 0;
+					}
+				}
+				f->_hnas.push_back(route);
+			} else {
+				for (Vector<HNAInfo>::iterator it = f->_hnas.begin(); it != f->_hnas.end();) {
+					(*it == route) ? it = f->_hnas.erase(it) : ++it;
+				}
+			}
+			break;
+		}
+		default: {
+			return WINGBase<HNAInfo>::write_handler(in_s, e, vparam, errh);
+		}
+
 	}
 	return 0;
 }
 
 void WINGGatewaySelector::add_handlers() {
+	WINGBase<HNAInfo>::add_handlers();
 	add_read_handler("is_gateway", read_handler, (void *) H_IS_GATEWAY);
 	add_read_handler("gateway_stats", read_handler, (void *) H_GATEWAY_STATS);
 	add_read_handler("hna", read_handler, (void *) H_HNA);

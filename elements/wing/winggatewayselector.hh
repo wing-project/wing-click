@@ -25,14 +25,50 @@ CLICK_DECLS
  * metric and forward ads.
  */
 
-class WINGGatewaySelector: public WINGBase {
+// Host-Network Associations
+class HNAInfo {
+public:
+	IPAddress _dst;
+	IPAddress _nm;
+	IPAddress _gw;
+	HNAInfo() :
+		_dst(IPAddress()),
+		_nm(IPAddress()),
+		_gw(IPAddress()) {
+	}
+	HNAInfo(IPAddress dst, IPAddress nm, IPAddress gw) :
+		_dst(dst),
+		_nm(nm),
+		_gw(gw) {
+	}
+	HNAInfo(const HNAInfo &e) :
+		_dst(e._dst) ,
+		_nm(e._nm), 
+		_gw(e._gw) { 
+	}
+	inline bool contains(IPAddress a) const {
+		return a.matches_prefix(_dst, _nm);
+	}
+	inline uint32_t hashcode() const {
+		return CLICK_NAME(hashcode)(_dst) + CLICK_NAME(hashcode)(_nm) + CLICK_NAME(hashcode)(_gw);
+	}
+	inline bool operator==(HNAInfo other) const {
+		return (other._dst == _dst && other._nm == _nm && other._gw == _gw);
+	}
+	String unparse() const {
+		StringAccum sa;
+		sa << _dst.unparse() << ' ' << _nm.unparse() << ' ' << _gw.unparse();
+		return sa.take_string();
+	}
+};
+
+class WINGGatewaySelector : public WINGBase<HNAInfo> {
 public:
 
 	WINGGatewaySelector();
 	~WINGGatewaySelector();
 
 	const char *class_name() const { return "WINGGatewaySelector"; }
-	void *cast(const char *);
 	const char *port_count() const { return PORTS_1_1; }
 	const char *processing() const { return PUSH; }
 
@@ -65,64 +101,6 @@ public:
 	}
 
 private:
-
-	// Host-Network Associations
-	class HNAInfo {
-	public:
-		IPAddress _dst;
-		IPAddress _nm;
-		IPAddress _gw;
-		HNAInfo() :
-			_dst(IPAddress()),
-			_nm(IPAddress()),
-			_gw(IPAddress()) {
-		}
-		HNAInfo(IPAddress dst, IPAddress nm, IPAddress gw) :
-			_dst(dst),
-			_nm(nm),
-			_gw(gw) {
-		}
-		HNAInfo(const HNAInfo &e) :
-			_dst(e._dst) ,
-			_nm(e._nm), 
-			_gw(e._gw) { 
-		}
-		inline bool contains(IPAddress a) const {
-			return a.matches_prefix(_dst, _nm);
-		}
-		inline uint32_t hashcode() const {
-			return CLICK_NAME(hashcode)(_dst) + CLICK_NAME(hashcode)(_nm) + CLICK_NAME(hashcode)(_gw);
-		}
-		inline bool operator==(HNAInfo other) const {
-			return (other._dst == _dst && other._nm == _nm && other._gw == _gw);
-		}
-		String unparse() const {
-			StringAccum sa;
-			sa << _dst.unparse() << ' ' << _nm.unparse() << ' ' << _gw.unparse();
-			return sa.take_string();
-		}
-	};
-
-	// List of adv sequence numbers that we've already seen.
-	class Seen {
-	public:
-		Seen() : 
-			_hna(HNAInfo()),
-			_seq(0),
-			_count(0) {
-		}
-		Seen(HNAInfo hna, uint32_t seq) :
-			_hna(hna),
-			_seq(seq),
-			_count(0) {
-		}
-		HNAInfo _hna;
-		uint32_t _seq;
-		int _count;
-		Timestamp _when; /* when we saw the first query */
-		Timestamp _to_send;
-		bool _forwarded;
-	};
 
 	// List of gateways we already known
 	class GWInfo {
@@ -163,14 +141,12 @@ private:
 	typedef GWTable::const_iterator GWIter;
 
 	Vector<HNAInfo> _hnas;
-	DEQueue<Seen> _seen;
 	GWTable _gateways;
 
 	uint32_t _seq; // Next query sequence number to use.
 
 	int _hna_index;
 	unsigned int _jitter; // msecs
-	int _max_seen_size; 
 	unsigned int _period; // msecs
 	unsigned int _expire; // msecs
 
