@@ -21,7 +21,6 @@ public:
 
 	bool update_link_table(Packet *);
 	Packet * create_wing_packet(NodeAddress, NodeAddress, int, IPAddress, IPAddress, IPAddress, int, PathMulti);
-	void set_ethernet_header(WritablePacket *, NodeAddress src, NodeAddress dst);
 
 	/* handler stuff */
 	void add_handlers();

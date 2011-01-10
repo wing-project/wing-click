@@ -112,6 +112,7 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
         return reverse_route;
     }
     HostInfo *nfo = _hosts.findp(dst);
+
     if (from_me) {
         Vector<NodeAddress> raw_path;
         while (nfo && nfo->_metric_from_me != 0) {
@@ -120,17 +121,14 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
             }
             nfo = _hosts.findp(nfo->_prev_from_me);
         }
-        if (raw_path.size() < 2) {
+        if (raw_path.size() < 1) {
             return reverse_route;
         }
         reverse_route.push_back(NodeAirport(raw_path[0]._ip, raw_path[0]._iface, 0));
-        for (int x = 1; x < raw_path.size() - 1; x++) {
-            reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x + 1]._iface, raw_path[x]._iface));
-            while ((x < raw_path.size() - 1) && (raw_path[x + 1]._ip == raw_path[x]._ip)) {
-                x++;
-            }
+        for (int x = 1; x < raw_path.size(); x++) {
+            reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x]._iface, raw_path[x-1]._iface));
         }
-        reverse_route.push_back(NodeAirport(raw_path[raw_path.size() - 1]._ip, 0, raw_path[raw_path.size() - 1]._iface));
+        reverse_route.push_back(NodeAirport(_ip, 0, raw_path[raw_path.size() - 1]._iface));
     } else {
         Vector<NodeAddress> raw_path;
         while (nfo && nfo->_metric_to_me != 0) {
@@ -139,18 +137,16 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
             }
             nfo = _hosts.findp(nfo->_prev_to_me);
         }
-        if (raw_path.size() < 2) {
+        if (raw_path.size() < 1) {
             return reverse_route;
         }
         reverse_route.push_back(NodeAirport(raw_path[0]._ip, 0, raw_path[0]._iface));
-        for (int x = 1; x < raw_path.size() - 1; x++) {
-            reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x]._iface, raw_path[x + 1]._iface));
-            while ((x < raw_path.size() - 1) && (raw_path[x + 1]._ip == raw_path[x]._ip)) {
-                x++;
-            }
+        for (int x = 1; x < raw_path.size(); x++) {
+            reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x-1]._iface, raw_path[x]._iface));
         }
-        reverse_route.push_back(NodeAirport(raw_path[raw_path.size() - 1]._ip, raw_path[raw_path.size() - 1]._iface, 0));
+        reverse_route.push_back(NodeAirport(_ip, raw_path[raw_path.size() - 1]._iface, 0));
     }
+
     if (from_me) {
         Vector<NodeAirport> route;
         for (int i = reverse_route.size() - 1; i >= 0; i--) {
@@ -332,7 +328,7 @@ LinkTableMulti::dijkstra(bool from_me)
 
       if (from_me) {
           while (thi->_prev_from_me != thi->_address) {
-              AddressPair prev = AddressPair(thi->_address, thi->_prev_from_me);
+              AddressPair prev = AddressPair(thi->_prev_from_me, thi->_address);
               LinkInfo *tli = _links.findp(prev);
               if (tli) {
                   metrics.push_back(tli->_metric);

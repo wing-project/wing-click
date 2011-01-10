@@ -22,6 +22,7 @@
 #include <click/error.hh>
 #include <click/straccum.hh>
 CLICK_DECLS
+
 CLICK_ENDDECLS
 ELEMENT_REQUIRES(LinkTableMulti ARPTableMulti NodeAddress)
 ELEMENT_PROVIDES(WINGBase)

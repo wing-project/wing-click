@@ -43,10 +43,11 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
     }
 
     bool update_link(NodeAddress from, NodeAddress to, uint32_t seq, uint32_t age, uint32_t metric, uint16_t channel) {
-      if (update_link(from)) {
-        if (update_link(to)) {
-          return LinkTableBase<NodeAddress, PathMulti>::update_link(from, to, seq, age, metric, channel);
-        }
+      if (update_link(from) &&
+          update_link(to) && 
+          LinkTableBase<NodeAddress, PathMulti>::update_link(NodeAddress(from, 0), to, seq, age, metric, channel) &&
+          LinkTableBase<NodeAddress, PathMulti>::update_link(from, to, seq, age, metric, channel)) {
+            return true;
       }
       return false;
     }
