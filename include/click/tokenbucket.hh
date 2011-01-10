@@ -44,9 +44,8 @@ CLICK_DECLS
  of the capacity.
 
  Two special types of rate are supported.  An <em>unlimited</em> TokenRateX
- contains an infinite number of tokens.  An <em>idle</em> TokenRateX never
- refills (although an idle TokenCounter can be explicitly set to contain a
- nonzero number of tokens).
+ always refills associated counters to full capacity.  Its capacity() equals
+ token_max.  An <em>idle</em> TokenRateX never refills.
 
  Most users will be satisfied with the TokenRate type, which is equal to
  TokenRateX<TokenBucketJiffyParameters<unsigned> >.
@@ -126,7 +125,7 @@ class TokenRateX { public:
      * Returns max_tokens for unlimited rates.  Imprecise computer arithmetic
      * may cause the result to differ from the configured capacity. */
     token_type capacity() const {
-	return max_tokens / (_token_scale ? _token_scale : 1);
+	return max_tokens / _token_scale;
     }
 
     /** @brief Return the number of tokens per epoch. */
@@ -134,16 +133,9 @@ class TokenRateX { public:
 	return _tokens_per_epoch;
     }
 
-    /** @brief Return the ratio of fractional tokens to real tokens.
-     *
-     * The result is 0 for unlimited rates. */
+    /** @brief Return the ratio of fractional tokens to real tokens. */
     token_type token_scale() const {
 	return _token_scale;
-    }
-
-    /** @brief Return max(token_scale(), 1). */
-    token_type token_scale1() const {
-	return _token_scale ? _token_scale : 1;
     }
 
     /** @brief Return the number of epochs required to refill a counter to
@@ -183,22 +175,19 @@ class TokenRateX { public:
  private:
 
     token_type _tokens_per_epoch;	// 0 iff idle()
-    token_type _token_scale;		// 0 iff unlimited()
-    epoch_type _epochs_until_full;
+    token_type _token_scale;
+    epoch_type _epochs_until_full;	// 0 iff unlimited()
 
 };
-
 
 template <typename P>
 void TokenRateX<P>::assign(bool unlimited)
 {
+    _token_scale = 1;
     if (unlimited) {
-	_token_scale = 0;
 	_tokens_per_epoch = max_tokens;
 	_epochs_until_full = 0;
     } else {
-	// Give a nominal capacity of 65535.
-	_token_scale = max_tokens / 65535;
 	_tokens_per_epoch = 0;
 	_epochs_until_full = (epoch_type) -1;
     }
@@ -207,29 +196,36 @@ void TokenRateX<P>::assign(bool unlimited)
 template <typename P>
 void TokenRateX<P>::assign(token_type rate, token_type capacity)
 {
-    if (rate != 0 && capacity != 0) {
-	token_type frequency = P::epoch_frequency();
+    if (capacity == 0) {
+	rate = 0;
+	capacity = max_tokens;
+    }
 
+    token_type frequency = P::epoch_frequency();
+    if (rate != 0) {
 	// constrain capacity so _tokens_per_epoch fits in 1 limb
 	unsigned min_capacity = (rate - 1) / frequency + 1;
 	if (capacity < min_capacity)
 	    capacity = min_capacity;
+    }
+    _token_scale = max_tokens / capacity;
 
-	_token_scale = max_tokens / capacity;
+    // XXX on non-32 bit types
+    static_assert(sizeof(bigint::limb_type) == sizeof(token_type));
+    bigint::limb_type l[2] = { 0, 0 };
+    bigint::limb_type a[2] = { rate, 0 };
+    bigint::multiply_add(l, a, 2, _token_scale);
+    (void) bigint::divide(l, l, 2, frequency);
+    assert(l[1] == 0);
 
-	// XXX on non-32 bit types
-	static_assert(sizeof(bigint::limb_type) == sizeof(token_type));
-	bigint::limb_type l[2] = { 0, 0 };
-	bigint::limb_type a[2] = { rate, 0 };
-	bigint::multiply_add(l, a, 2, _token_scale);
-	(void) bigint::divide(l, l, 2, frequency);
+    if (rate != 0) {
 	// constrain _tokens_per_epoch to be at least 1
-	_tokens_per_epoch = l[0] ? l[0] : 1;
-	assert(l[1] == 0);
-
+	_tokens_per_epoch = (l[0] != 0 ? l[0] : 1);
 	_epochs_until_full = (max_tokens - 1) / _tokens_per_epoch + 1;
-    } else
-	assign(false);
+    } else {
+	_tokens_per_epoch = 0;
+	_epochs_until_full = (epoch_type) -1;
+    }
 }
 
 template <typename P>
@@ -239,9 +235,10 @@ typename P::token_type TokenRateX<P>::rate() const
     bigint::limb_type l[2] = { _tokens_per_epoch / 2, 0 };
     bigint::limb_type a[2] = { _tokens_per_epoch, 0 };
     bigint::multiply_add(l, a, 2, P::epoch_frequency());
-    (void) bigint::divide(l, l, 2, token_scale1());
+    (void) bigint::divide(l, l, 2, token_scale());
     return l[1] ? (token_type) max_tokens : l[0];
 }
+
 
 /** @class TokenCounterX include/click/tokenbucket.hh <click/tokenbucket.hh>
  @brief  Token bucket counter template.
@@ -259,6 +256,11 @@ typename P::token_type TokenRateX<P>::rate() const
 
  TokenCounterX internally maintains fractional tokens, so it should be
  relatively precise.
+
+ Idle and unlimited rates affect how TokenCounters are refilled.  For idle
+ rates, refill() is a no-op.  For unlimited rates, any refill() makes the
+ counter full(), containing max_tokens tokens.  The set(), empty(), full(),
+ remove(), and similar functions act as normal for idle and unlimited rates.
 
  Most users will be satisfied with the TokenCounter type, which is equal to
  TokenCounterX<TokenRateX<TokenBucketJiffyParameters<unsigned> > >.
@@ -303,31 +305,43 @@ class TokenCounterX { public:
      * The return value is a lower bound on the number of tokens, since
      * TokenCounterX keeps track of fractional tokens. */
     token_type size(const rate_type &rate) const {
-	if (rate.token_scale() == 0)
-	    return max_tokens;
-	else
-	    return _tokens / rate.token_scale();
+	return _tokens / rate.token_scale();
+    }
+
+    /** @brief Return the counter's fullness fraction.
+     *
+     * The return value is a number between 0 and max_tokens, where max_tokens
+     * represents full capacity. */
+    token_type fraction() const {
+	return _tokens;
     }
 
     /** @brief Test if the token counter is completely empty. */
-    bool empty(const rate_type &rate) const {
-	return _tokens == 0 && rate.token_scale() != 0;
+    bool empty() const {
+	return _tokens == 0;
     }
 
     /** @brief Test if the token counter is at full capacity. */
-    bool full(const rate_type &rate) const {
-	return _tokens == (token_type) max_tokens || rate.token_scale() == 0;
+    bool full() const {
+	return _tokens == (token_type) max_tokens;
     }
 
     /** @brief Test if the token counter has at least @a t tokens.
      * @param rate associated token rate
+     * @param t token count
      *
-     * Returns true whenever @a t is zero or @a rate is unlimited.  Returns
-     * false whenever @a t is greater than @a rate.capacity().
+     * Returns false whenever @a t is greater than <em>rate</em>.@link
+     * TokenRateX::capacity capacity()@endlink.
      *
      * @sa fast_contains */
     bool contains(const rate_type &rate, token_type t) const {
 	return t <= rate.capacity() && fast_contains(rate, t);
+    }
+
+    /** @brief Test if the token counter is above a fraction of its capacity.
+     * @param f fullness fraction, where max_tokens is full capacity */
+    bool contains_fraction(token_type f) const {
+	return f <= _tokens;
     }
 
     /** @brief Clear the token counter.
@@ -350,10 +364,16 @@ class TokenCounterX { public:
      *
      * The result will never have more tokens than the associated capacity. */
     void set(const rate_type &rate, token_type t) {
-	if (t > rate.capacity() || rate.token_scale() == 0)
+	if (t > rate.capacity())
 	    _tokens = max_tokens;
 	else
 	    _tokens = t * rate.token_scale();
+    }
+
+    /** @brief Set the token counter to a fraction of its capacity.
+     * @param f fullness fraction, where max_tokens is full capacity */
+    void set_fraction(token_type f) {
+	_tokens = f;
     }
 
     /** @brief Compensate the counter for a change of rate.
@@ -371,8 +391,8 @@ class TokenCounterX { public:
 	    static_assert(sizeof(bigint::limb_type) == sizeof(token_type));
 	    bigint::limb_type l[2] = { 0, 0 };
 	    bigint::limb_type a[2] = { _tokens, 0 };
-	    bigint::multiply_add(l, a, 2, new_rate.token_scale1());
-	    (void) bigint::divide(l, l, 2, old_rate.token_scale1());
+	    bigint::multiply_add(l, a, 2, new_rate.token_scale());
+	    (void) bigint::divide(l, l, 2, old_rate.token_scale());
 	    _tokens = l[1] ? (token_type) max_tokens : l[0];
 	}
     }
@@ -383,16 +403,30 @@ class TokenCounterX { public:
      * There are three refill() methods, useful for different methods of
      * measuring epochs.  This method calls @a rate.epoch(), which returns the
      * current epoch.  Other methods use an explicit epoch and a @a
-     * rate.epoch(U) method. */
+     * rate.epoch(U) method.
+     *
+     * @sa set_epoch */
     void refill(const rate_type &rate);
 
     /** @brief Refill the token counter for time @a epoch.
-     * @param rate associated token rate */
+     * @param rate associated token rate
+     * @param epoch new epoch */
     void refill(const rate_type &rate, epoch_type epoch);
 
     /** @brief Refill the token counter for @a time.
-     * @param rate associated token rate */
+     * @param rate associated token rate
+     * @param time new time */
     template <typename U> void refill(const rate_type &rate, U time);
+
+    /** @brief Set the token counter's internal epoch to @a epoch.
+     * @param epoch new epoch
+     *
+     * Unlike refill(), this method does not refill the counter.
+     *
+     * @sa refill */
+    void set_epoch(epoch_type epoch) {
+	_epoch = epoch;
+    }
 
     /** @brief Remove @a t tokens from the counter.
      * @param rate associated token rate
@@ -423,72 +457,108 @@ class TokenCounterX { public:
 	return t <= rate.capacity() && fast_remove_if(rate, t);
     }
 
-    /** @brief Return the number of epochs until contains(@a t) is true.
-     * @param rate associated token rate
+    /** @brief Remove a fullness fraction from the counter.
+     * @param f fullness fraction, where max_tokens is full capacity
      *
-     * Returns (epoch_type) -1 if passing time will never make contains(@a t)
+     * If the token counter is less than @a f full, the new token count is 0. */
+    void remove_fraction(token_type f) {
+	_tokens = (f <= _tokens ? _tokens - f : 0);
+    }
+
+    /** @brief Remove a fullness fraction from the counter if it is full enough.
+     * @param f fullness fraction, where max_tokens is full capacity
+     * @return true if @a f was removed, false otherwise
+     *
+     * If fraction() is at least @a f, calls remove_fraction(@a f) and returns
+     * true.  Otherwise, returns false without removing any tokens. */
+    bool remove_fraction_if(token_type f) {
+	if (f <= _tokens) {
+	    _tokens -= f;
+	    return true;
+	} else
+	    return false;
+    }
+
+    /** @brief Return the number of epochs until @link contains()
+     * contains(<em>rate</em>, <em>t</em>)@endlink.
+     *
+     * @param rate associated token rate
+     * @param t token count
+     *
+     * Returns (epoch_type) -1 if passing time will never make
+     * @link contains() contains(<em>rate</em>, <em>t</em>)@endlink
      * true. */
     epoch_type epochs_until_contains(const rate_type &rate,
 				     token_type t) const {
-	if (t <= rate.capacity()) {
-	    t *= rate.token_scale();
-	    if (t <= _tokens)
-		return 0;
-	    else if (rate.tokens_per_epoch() == 0)
-		return (epoch_type) -1;
-	    else
-		return (t - _tokens - 1) / rate.tokens_per_epoch() + 1;
-	} else
+	if (t <= rate.capacity())
+	    return epochs_until_contains_fraction(rate, t * rate.token_scale());
+	else
 	    return (epoch_type) -1;
+    }
+
+    /** @brief Return the number of epochs until @link contains_fraction()
+     * contains_fraction(<em>f</em>)@endlink.
+     * @param rate associated token rate
+     * @param f fullness fraction, where max_tokens is full capacity
+     *
+     * Returns (epoch_type) -1 if passing time will never make
+     * @link contains_fraction() contains_fraction(<em>f</em>)@endlink
+     * true. */
+    epoch_type epochs_until_contains_fraction(const rate_type &rate,
+					      token_type f) const {
+	if (f <= _tokens || rate.epochs_until_full() == 0)
+	    return 0;
+	else if (rate.tokens_per_epoch() == 0)
+	    return (epoch_type) -1;
+	else
+	    return (f - _tokens - 1) / rate.tokens_per_epoch() + 1;
     }
 
 
     /** @brief Return true iff the token counter has at least @a t tokens.
      * @param rate associated token rate
-     * @pre @a t <= @a rate.capacity()
+     * @param t token count
+     * @pre @a t <= <em>rate</em>.@link TokenRateX::capacity capacity()@endlink
      *
      * Returns true whenever @a t is zero or @a rate is unlimited.
      *
-     * Consider using fast_contains() when you know that @a t <= @a
-     * rate.capacity(); it is slightly faster than contains(). */
+     * Consider using fast_contains() when you know that @a t <=
+     * <em>rate</em>.@link TokenRateX::capacity capacity()@endlink; it
+     * is slightly faster than contains(). */
     bool fast_contains(const rate_type &rate, token_type t) const {
-	return t * rate.token_scale() <= _tokens;
+	return contains_fraction(t * rate.token_scale());
     }
 
     /** @brief Remove @a t tokens from the counter.
      * @param rate associated token rate
      * @param t number of tokens
-     * @pre @a t <= @a rate.capacity()
+     * @pre @a t <= <em>rate</em>.@link TokenRateX::capacity capacity()@endlink
      *
      * If the token counter contains less than @a t tokens, the new token
      * count is 0.
      *
-     * Consider using fast_remove() when you know that @a t <= @a
-     * rate.capacity(); it is slightly faster than remove(). */
+     * Consider using fast_remove() when you know that @a t <=
+     * <em>rate</em>.@link TokenRateX::capacity capacity()@endlink; it
+     * is slightly faster than remove(). */
     void fast_remove(const rate_type &rate, token_type t) {
-	t *= rate.token_scale();
-	_tokens = (t <= _tokens ? _tokens - t : 0);
+	remove_fraction(t * rate.token_scale());
     }
 
     /** @brief Remove @a t tokens from the counter if it contains @a t tokens.
      * @param rate associated token rate
      * @param t number of tokens
-     * @pre @a t <= @a rate.capacity()
+     * @pre @a t <= <em>rate</em>.@link TokenRateX::capacity capacity()@endlink
      * @return true if @a t tokens were removed, false otherwise
      *
      * If the counter contains @a t or more tokens, calls remove(@a t)
      * and returns true.  If it contains less than @a t tokens, returns false
      * without removing any tokens.
      *
-     * Consider using fast_remove() when you know that @a t <= @a
-     * rate.capacity(); it is slightly faster than remove_if(). */
+     * Consider using fast_remove() when you know that @a t <=
+     * <em>rate</em>.@link TokenRateX::capacity capacity()@endlink; it
+     * is slightly faster than remove_if(). */
     bool fast_remove_if(const rate_type &rate, token_type t) {
-	t *= rate.token_scale();
-	if (t <= _tokens) {
-	    _tokens -= t;
-	    return true;
-	} else
-	    return false;
+	return remove_fraction_if(t * rate.token_scale());
     }
 
   private:
@@ -595,7 +665,7 @@ class TokenBucketJiffyParameters { public:
 };
 
 
-/** @class TokenBucket include/click/tokenbucket.hh <click/tokenbucket.hh>
+/** @class TokenBucketX include/click/tokenbucket.hh <click/tokenbucket.hh>
  @brief  Token bucket rate limiter.
 
  The TokenBucketX class implements a token bucket rate limiter.  It is
@@ -727,14 +797,22 @@ class TokenBucketX { public:
 	return _bucket.size(_rate);
     }
 
+    /** @brief Return the bucket's fullness fraction.
+     *
+     * The return value is a number between 0 and max_tokens, where max_tokens
+     * represents full capacity. */
+    token_type fraction() const {
+	return _bucket.fraction();
+    }
+
     /** @brief Test if the token bucket is completely empty. */
     bool empty() const {
-	return _bucket.empty(_rate);
+	return _bucket.empty();
     }
 
     /** @brief Test if the token bucket is at full capacity. */
     bool full() const {
-	return _bucket.full(_rate);
+	return _bucket.full();
     }
 
     /** @brief Test if the token bucket has at least @a t tokens.
@@ -745,6 +823,12 @@ class TokenBucketX { public:
      * @sa fast_contains */
     bool contains(token_type t) const {
 	return _bucket.contains(_rate, t);
+    }
+
+    /** @brief Test if the token bucket is above a fraction of its capacity.
+     * @param f fullness fraction, where max_tokens is full capacity */
+    bool contains_fraction(token_type f) const {
+	return _bucket.contains_fraction(f);
     }
 
     /** @brief Clear the token bucket.
@@ -769,12 +853,20 @@ class TokenBucketX { public:
 	_bucket.set(_rate, t);
     }
 
+    /** @brief Set the token bucket to a fraction of its capacity.
+     * @param f fullness fraction, where max_tokens is full capacity */
+    void set_fraction(token_type f) {
+	_bucket.set_fraction(f);
+    }
+
     /** @brief Refill the token bucket to time P::epoch().
      *
      * There are three refill() methods, useful for different methods of
      * measuring epochs.  This method call parameter_type::epoch(), which
      * returns the current epoch.  Other methods use an explicit epoch and a
-     * parameter_type::epoch(U) method. */
+     * parameter_type::epoch(U) method.
+     *
+     * @sa set_epoch */
     void refill() {
 	_bucket.refill(_rate);
     }
@@ -787,6 +879,16 @@ class TokenBucketX { public:
     /** @brief Refill the token bucket for time P::epoch(@a time). */
     template <typename U> void refill(U time) {
 	_bucket.refill(_rate, time);
+    }
+
+    /** @brief Set the token bucket's internal epoch to @a epoch.
+     * @param epoch number of epochs
+     *
+     * Unlike refill(), this method does not refill the counter.
+     *
+     * @sa refill */
+    void set_epoch(epoch_type epoch) {
+	_bucket.set_epoch(epoch);
     }
 
     /** @brief Remove @a t tokens from the bucket.
@@ -813,12 +915,38 @@ class TokenBucketX { public:
 	return _bucket.remove_if(_rate, t);
     }
 
-    /** @brief Return the number of epochs until contains(@a t) is true.
+    /** @brief Remove a fullness fraction from the bucket.
+     * @param f fullness fraction, where max_tokens is full capacity
+     *
+     * If the token counter is less than @a f full, the new token count is 0. */
+    void remove_fraction(token_type f) {
+	_bucket.remove_fraction(f);
+    }
+
+    /** @brief Remove a fullness fraction from the bucket if it is full enough.
+     * @param f fullness fraction, where max_tokens is full capacity
+     * @return true if @a f was removed, false otherwise
+     *
+     * If fraction() is at least @a f, calls remove_fraction(@a f) and returns
+     * true.  Otherwise, returns false without removing any tokens. */
+    bool remove_fraction_if(token_type f) {
+	return _bucket.remove_fraction_if(f);
+    }
+
+    /** @brief Return the number of epochs until contains(@a t).
      *
      * Returns (epoch_type) -1 if passing time will never make contains(@a t)
      * true. */
     epoch_type epochs_until_contains(token_type t) const {
 	return _bucket.epochs_until_contains(_rate, t);
+    }
+
+    /** @brief Return the number of epochs until contains_fraction(@a f).
+     *
+     * Returns (epoch_type) -1 if passing time will never make
+     * contains_fraction(@a f) true. */
+    epoch_type epochs_until_contains_fraction(token_type f) const {
+	return _bucket.epochs_until_contains_fraction(_rate, f);
     }
 
 
@@ -868,16 +996,28 @@ class TokenBucketX { public:
 
 };
 
-/** @brief Default token bucket rate.
- * @relates TokenRateX */
+/** @class TokenRate include/click/tokenbucket.hh <click/tokenbucket.hh>
+ * @brief Jiffy-based token bucket rate
+ *
+ * Equivalent to
+ * @link TokenRateX TokenRateX<TokenBucketJiffyParameters<unsigned> >@endlink.
+ * @sa TokenRateX, TokenBucketJiffyParameters */
 typedef TokenRateX<TokenBucketJiffyParameters<unsigned> > TokenRate;
 
-/** @brief Default token counter.
- * @relates TokenCounterX */
+/** @class TokenCounter include/click/tokenbucket.hh <click/tokenbucket.hh>
+ * @brief Jiffy-based token counter
+ *
+ * Equivalent to
+ * @link TokenCounterX TokenCounterX<TokenRate>@endlink.
+ * @sa TokenCounterX, TokenRate */
 typedef TokenCounterX<TokenRate> TokenCounter;
 
-/** @brief Default token bucket rate limiter.
- * @relates TokenBucketX */
+/** @class TokenBucket include/click/tokenbucket.hh <click/tokenbucket.hh>
+ * @brief Jiffy-based token bucket rate limiter
+ *
+ * Equivalent to
+ * @link TokenBucketX TokenBucketX<TokenBucketJiffyParameters<unsigned> >@endlink.
+ * @sa TokenBucketX, TokenBucketJiffyParameters */
 typedef TokenBucketX<TokenBucketJiffyParameters<unsigned> > TokenBucket;
 
 CLICK_ENDDECLS
