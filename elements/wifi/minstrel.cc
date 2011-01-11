@@ -340,5 +340,5 @@ void Minstrel::add_handlers() {
 }
 
 CLICK_ENDDECLS
-EXPORT_ELEMENT(AutoRateFallback)
+EXPORT_ELEMENT(Minstrel)
 
