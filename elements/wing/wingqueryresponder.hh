@@ -62,6 +62,9 @@ public:
 	void process_reply(Packet *);
 	void start_reply(PathMulti, uint32_t);
 
+protected:
+
+	void forward_seen(int, Seen *);
 };
 
 CLICK_ENDDECLS

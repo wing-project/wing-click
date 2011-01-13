@@ -30,7 +30,7 @@
 CLICK_DECLS
 
 WINGGatewaySelector::WINGGatewaySelector() :
-	_hna_index(0), _jitter(1000), _period(5000), _expire(30000), _timer(this) {
+	_hna_index(0), _period(5000), _expire(30000), _timer(this) {
 	_seq = Timestamp::now().usec();
 }
 
@@ -45,7 +45,6 @@ int WINGGatewaySelector::configure(Vector<String> &conf, ErrorHandler *errh) {
 				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
 				"DEBUG", 0, cpBool, &_debug, 
 				"PERIOD", 0, cpUnsigned, &_period, 
-				"JITTER", 0, cpUnsigned, &_jitter, 
 				"EXPIRE", 0, cpUnsigned, &_expire, 
 				cpEnd) < 0)
 		return -1;
@@ -99,9 +98,7 @@ void WINGGatewaySelector::run_timer(Timer *) {
 }
 
 void WINGGatewaySelector::start_ad(int iface) {
-
 	HNAInfo hna = _hnas[_hna_index];
-
 	if (_debug) {
 		click_chatter("%{element} :: %s :: hna %s seq %d iface %u", 
 				this, 
@@ -110,7 +107,6 @@ void WINGGatewaySelector::start_ad(int iface) {
 				_seq,
 				iface);
 	}
-
 	Packet * p = create_wing_packet(NodeAddress(_ip, iface), 
 				NodeAddress(), 
 				WING_PT_GATEWAY, 
@@ -119,38 +115,15 @@ void WINGGatewaySelector::start_ad(int iface) {
 				hna._gw, 
 				_seq, 
 				PathMulti());
-
 	if (!p) {
 		return;
 	}
-
-	if (_seen.size() >= _max_seen_size) {
-		_seen.pop_front();
-	}
-	_seen.push_back(Seen(hna, _seq));
-
+	append_seen(hna, _seq);
 	output(0).push(p);
-
 }
 
-void WINGGatewaySelector::forward_ad_hook() {
-	Timestamp now = Timestamp::now();
-	Vector<int> ifs = _link_table->get_local_interfaces();
-	for (int x = 0; x < _seen.size(); x++) {
-		if (_seen[x]._to_send < now && !_seen[x]._forwarded) {
-			_link_table->dijkstra(false);
-			for (int i = 0; i < ifs.size(); i++) {	
-				forward_ad(ifs[i], &_seen[x]);
-			}
-			_seen[x]._forwarded = true;
-		}
-	}
-}
-
-void WINGGatewaySelector::forward_ad(int iface, Seen *s) {
-
+void WINGGatewaySelector::forward_seen(int iface, Seen *s) {
 	PathMulti best = _link_table->best_route(s->_seen._gw, false);
-
 	if (_debug) {
 		click_chatter("%{element} :: %s :: hna %s seq %d iface %u", 
 				this, __func__,
@@ -158,7 +131,6 @@ void WINGGatewaySelector::forward_ad(int iface, Seen *s) {
 				s->_seq,
 				iface);
 	}
-
 	Packet * p = create_wing_packet(NodeAddress(_ip, iface), 
 				NodeAddress(), 
 				WING_PT_GATEWAY, 
@@ -167,13 +139,10 @@ void WINGGatewaySelector::forward_ad(int iface, Seen *s) {
 				s->_seen._gw, 
 				s->_seq, 
 				best);
-
 	if (!p) {
 		return;
 	}
-
 	output(0).push(p);
-
 }
 
 IPAddress WINGGatewaySelector::best_gateway(IPAddress address) {
@@ -235,31 +204,7 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 	nfo->_seen++;
 
 	/* process hna */
-	int si = 0;
-	for (si = 0; si < _seen.size(); si++) {
-		if (hna == _seen[si]._seen && seq == _seen[si]._seq) {
-			_seen[si]._count++;
-			p_in->kill();
-			return;
-		}
-	}
-	if (si == _seen.size()) {
-		if (_seen.size() >= _max_seen_size) {
-			_seen.pop_front();
-			si--;
-		}
-		_seen.push_back(Seen(hna, seq));
-	}		
-	_seen[si]._count++;
-	_seen[si]._when = Timestamp::now();
-
-	/* schedule timer */
-	int delay = click_random(1, _jitter);
-	_seen[si]._to_send = _seen[si]._when + Timestamp::make_msec(delay);
-	_seen[si]._forwarded = false;
-	Timer *t = new Timer(static_forward_ad_hook, (void *) this);
-	t->initialize(this);
-	t->schedule_after_msec(delay);
+	process_seen(hna, seq);
 	p_in->kill();
 	return;
 }

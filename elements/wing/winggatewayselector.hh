@@ -96,10 +96,6 @@ public:
 		return false;
 	}
 
-	static void static_forward_ad_hook(Timer *t, void *e) {
-		delete t; ((WINGGatewaySelector *) e)->forward_ad_hook();
-	}
-
 private:
 
 	// List of gateways we already known
@@ -146,7 +142,6 @@ private:
 	uint32_t _seq; // Next query sequence number to use.
 
 	int _hna_index;
-	unsigned int _jitter; // msecs
 	unsigned int _period; // msecs
 	unsigned int _expire; // msecs
 
@@ -154,8 +149,7 @@ private:
 
 	void start_ad(int);
 	void send(WritablePacket *);
-	void forward_ad(int, Seen *);
-	void forward_ad_hook();
+	void forward_seen(int, Seen *);
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);

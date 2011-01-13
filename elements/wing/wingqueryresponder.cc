@@ -36,6 +36,10 @@ WINGQueryResponder::WINGQueryResponder() :
 WINGQueryResponder::~WINGQueryResponder() {
 }
 
+void WINGQueryResponder::forward_seen(int iface, Seen *s) {
+
+}
+
 int WINGQueryResponder::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	if (cp_va_kparse(conf, this, errh, 

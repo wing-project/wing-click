@@ -19,9 +19,6 @@ public:
 	const char *class_name() const { return "WINGBase"; }
 	const char *processing() const { return AGNOSTIC; }
 
-	bool update_link_table(Packet *);
-	Packet * create_wing_packet(NodeAddress, NodeAddress, int, IPAddress, IPAddress, IPAddress, int, PathMulti);
-
 	/* handler stuff */
 	void add_handlers();
 
@@ -51,21 +48,91 @@ protected:
 
 	DEQueue<Seen> _seen;
 
+	unsigned int _jitter; // msecs
 	int _max_seen_size; 
 	bool _debug;
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);
 
+	bool update_link_table(Packet *);
+	Packet * create_wing_packet(NodeAddress, NodeAddress, int, IPAddress, IPAddress, IPAddress, int, PathMulti);
+
+	virtual void forward_seen(int, Seen *) = 0;
+
+	bool process_seen(T, int);
+	void append_seen(T, int);
+	void forward_seen_hook();
+
+	static void static_forward_seen_hook(Timer *t, void *e) {
+		delete t; ((WINGBase *) e)->forward_seen_hook();
+	}
+
 };
 
 template <typename T>
 WINGBase<T>::WINGBase() :
-	_link_table(0), _arp_table(0), _max_seen_size(100), _debug(false) {
+	_link_table(0), _arp_table(0), _max_seen_size(100), _jitter(1000), _debug(false) {
 }
 
 template <typename T>
 WINGBase<T>::~WINGBase() {
+}
+
+template <typename T>
+void
+WINGBase<T>::forward_seen_hook() {
+	Timestamp now = Timestamp::now();
+	Vector<int> ifs = _link_table->get_local_interfaces();
+	_link_table->dijkstra(false);
+	for (int x = 0; x < _seen.size(); x++) {
+		if (_seen[x]._to_send < now && !_seen[x]._forwarded) {
+			for (int i = 0; i < ifs.size(); i++) {	
+				forward_seen(ifs[i], &_seen[x]);
+			}
+			_seen[x]._forwarded = true;
+		}
+	}
+}
+
+template <typename T>
+void
+WINGBase<T>::append_seen(T seen, int seq) {
+	if (_seen.size() >= _max_seen_size) {
+		_seen.pop_front();
+	}
+	_seen.push_back(Seen(seen, seq));
+}
+
+template <typename T>
+bool
+WINGBase<T>::process_seen(T seen, int seq) {
+
+	int si = 0;
+	for (si = 0; si < _seen.size(); si++) {
+		if (seen == _seen[si]._seen && seq == _seen[si]._seq) {
+			_seen[si]._count++;
+			return false;
+		}
+	}
+	if (si == _seen.size()) {
+		if (_seen.size() >= _max_seen_size) {
+			_seen.pop_front();
+			si--;
+		}
+		_seen.push_back(Seen(seen, seq));
+	}		
+	_seen[si]._count++;
+	_seen[si]._when = Timestamp::now();
+
+	/* schedule timer */
+	int delay = click_random(1, _jitter);
+	_seen[si]._to_send = _seen[si]._when + Timestamp::make_msec(delay);
+	_seen[si]._forwarded = false;
+	Timer *t = new Timer(static_forward_seen_hook, (void *) this);
+	t->initialize(this);
+	t->schedule_after_msec(delay);
+
 }
 
 template <typename T>

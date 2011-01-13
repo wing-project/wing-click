@@ -60,25 +60,17 @@ public:
 
 	/* handler stuff */
 	void add_handlers();
-
 	void push(int, Packet *);
-
-	static void static_forward_query_hook(Timer *t, void *e) {
-		delete t;
-		((WINGMetricFlood *) e)->forward_query_hook();
-	}
 
 private:
 
 	uint32_t _seq; // Next query sequence number to use.
-	uint32_t _jitter; // msecs
 
 	void start_flood(Packet *);
 	void process_flood(Packet *);
 
 	void start_query(IPAddress, int);
-	void forward_query(int, Seen *);
-	void forward_query_hook();
+	void forward_seen(int, Seen *);
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);

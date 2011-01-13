@@ -30,7 +30,7 @@
 CLICK_DECLS
 
 WINGMetricFlood::WINGMetricFlood() :
-	WINGBase<QueryInfo>(), _jitter(1000) {
+	WINGBase<QueryInfo>() {
 	_seq = Timestamp::now().usec();
 }
 
@@ -44,7 +44,6 @@ int WINGMetricFlood::configure(Vector<String> &conf, ErrorHandler *errh) {
 				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
 				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
 				"DEBUG", 0, cpBool, &_debug, 
-				"JITTER", 0, cpUnsigned, &_jitter, 
 				cpEnd) < 0)
 		return -1;
 
@@ -52,33 +51,16 @@ int WINGMetricFlood::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 }
 
-void WINGMetricFlood::forward_query_hook() {
-	Timestamp now = Timestamp::now();
-	Vector<int> ifs = _link_table->get_local_interfaces();
-	for (int x = 0; x < _seen.size(); x++) {
-		_link_table->dijkstra(false);
-		if (_seen[x]._to_send < now && !_seen[x]._forwarded) {
-			for (int i = 0; i < ifs.size(); i++) {
-				forward_query(ifs[i], &_seen[x]);
-			}
-			_seen[x]._forwarded = true;
-		}
-	}
-}
-
-void WINGMetricFlood::forward_query(int iface, Seen *s) {
-
+void WINGMetricFlood::forward_seen(int iface, Seen *s) {
 	PathMulti best = _link_table->best_route(s->_seen._src, false);
-
 	if (_debug) {
-		click_chatter("%{element} :: %s :: forward query dst %s seq %u iface %u", 
+		click_chatter("%{element} :: %s :: query %s seq %u iface %u", 
 				this,
 				__func__, 
 				s->_seen._dst.unparse().c_str(), 
 				s->_seq,
 				iface);
 	}
-
 	Packet * p = create_wing_packet(NodeAddress(_ip, iface),
 				NodeAddress(),
 				WING_PT_QUERY, 
@@ -87,13 +69,10 @@ void WINGMetricFlood::forward_query(int iface, Seen *s) {
 				s->_seen._src, 
 				s->_seq, 
 				best);
-
 	if (!p) {
 		return;
 	}
-
 	output(0).push(p);
-
 }
 
 void WINGMetricFlood::process_flood(Packet *p_in) {
@@ -134,40 +113,13 @@ void WINGMetricFlood::process_flood(Packet *p_in) {
 	}
 
 	/* process query */
-	int si = 0;
-	for (si = 0; si < _seen.size(); si++) {
-		if (query == _seen[si]._seen && seq == _seen[si]._seq) {
-			/* query already processed */
-			_seen[si]._count++;
-			p_in->kill();
-			return;
-		}
-	}
-	if (si == _seen.size()) {
-		if (_seen.size() >= _max_seen_size) {
-			_seen.pop_front();
-			si--;
-		}
-		_seen.push_back(Seen(query, seq));
-	}
-	_seen[si]._count++;
-	_seen[si]._when = Timestamp::now();
-
-	/* schedule timer */
-	int delay = click_random(1, _jitter);
-	_seen[si]._to_send = _seen[si]._when + Timestamp::make_msec(delay);
-	_seen[si]._forwarded = false;
-	Timer *t = new Timer(static_forward_query_hook, (void *) this);
-	t->initialize(this);
-	t->schedule_after_msec(delay);
+	process_seen(query, seq);
 	p_in->kill();
 	return;
 }
 
 void WINGMetricFlood::start_query(IPAddress dst, int iface) {
-
         QueryInfo query = QueryInfo(dst, _ip);
-
 	if (_debug) {
 		click_chatter("%{element} :: %s :: start query %s seq %d iface %u", 
 				this, 
@@ -176,7 +128,6 @@ void WINGMetricFlood::start_query(IPAddress dst, int iface) {
 				_seq,
 				iface);
 	}
-
 	Packet * p = create_wing_packet(NodeAddress(_ip, iface), 
 				NodeAddress(), 
 				WING_PT_GATEWAY, 
@@ -185,18 +136,11 @@ void WINGMetricFlood::start_query(IPAddress dst, int iface) {
 				query._src, 
 				_seq, 
 				PathMulti());
-
 	if (!p) {
 		return;
 	}
-
-	if (_seen.size() >= _max_seen_size) {
-		_seen.pop_front();
-	}
-	_seen.push_back(Seen(query, _seq));
-
+	append_seen(query, _seq);
 	output(0).push(p);
-
 }
 
 void WINGMetricFlood::start_flood(Packet *p_in) {
