@@ -64,7 +64,7 @@ public:
 
 protected:
 
-	void forward_seen(int, Seen *);
+	void forward_seen(int, Seen *) {}
 };
 
 CLICK_ENDDECLS

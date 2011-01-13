@@ -30,7 +30,8 @@ protected:
 		Seen() : 
 			_seen(T()),
 			_seq(0),
-			_count(0) {
+			_count(0),
+			_forwarded(false) {
 		}
 		Seen(T seen, uint32_t seq) : _seen(seen), _seq(seq), _count(0), _when(Timestamp::now()) {}
 		T _seen;
@@ -60,7 +61,7 @@ protected:
 
 	virtual void forward_seen(int, Seen *) = 0;
 
-	bool process_seen(T, int);
+	bool process_seen(T, int, bool);
 	void append_seen(T, int);
 	void forward_seen_hook();
 
@@ -106,7 +107,7 @@ WINGBase<T>::append_seen(T seen, int seq) {
 
 template <typename T>
 bool
-WINGBase<T>::process_seen(T seen, int seq) {
+WINGBase<T>::process_seen(T seen, int seq, bool schedule) {
 
 	int si = 0;
 	for (si = 0; si < _seen.size(); si++) {
@@ -126,12 +127,14 @@ WINGBase<T>::process_seen(T seen, int seq) {
 	_seen[si]._when = Timestamp::now();
 
 	/* schedule timer */
-	int delay = click_random(1, _jitter);
-	_seen[si]._to_send = _seen[si]._when + Timestamp::make_msec(delay);
-	_seen[si]._forwarded = false;
-	Timer *t = new Timer(static_forward_seen_hook, (void *) this);
-	t->initialize(this);
-	t->schedule_after_msec(delay);
+	if (schedule) {
+		int delay = click_random(1, _jitter);
+		_seen[si]._to_send = _seen[si]._when + Timestamp::make_msec(delay);
+		_seen[si]._forwarded = false;
+		Timer *t = new Timer(static_forward_seen_hook, (void *) this);
+		t->initialize(this);
+		t->schedule_after_msec(delay);
+	}
 
 }
 

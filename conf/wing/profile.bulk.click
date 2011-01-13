@@ -11,7 +11,6 @@ es :: LinkStat($debug);
 
 gw :: WINGGatewaySelector(IP $ip, 
                          PERIOD 15000,
-                         JITTER 1000,
                          EXPIRE 30000,
                          LT lt, 
                          ARP arp,

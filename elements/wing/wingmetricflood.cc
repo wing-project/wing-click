@@ -113,7 +113,7 @@ void WINGMetricFlood::process_flood(Packet *p_in) {
 	}
 
 	/* process query */
-	process_seen(query, seq);
+	process_seen(query, seq, true);
 	p_in->kill();
 	return;
 }

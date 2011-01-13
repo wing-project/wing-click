@@ -51,21 +51,19 @@ int WINGForwarder::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 }
 
-void WINGForwarder::push(int, Packet *p_in)
-{
+void WINGForwarder::push(int, Packet *p_in) {
 	WritablePacket *p = p_in->uniqueify();
 	if (!p) {
 		return;
 	}
-	click_ether *eh = (click_ether *) p->data();
+	click_ether *eh = (click_ether *) p_in->data();
 	struct wing_data *pk = (struct wing_data *) (eh+1);
 	if (pk->_type != WING_PT_DATA ) {
-		click_chatter("%{element} :: %s :: bad packet_type %04x",
-			      this, 
-			      __func__,
-			      _ip.unparse().c_str(), 
-			      pk->_type);
-		p->kill();
+		click_chatter("%{element} :: %s :: bad packet_type %04x", 
+				this,
+				__func__, 
+				pk->_type);
+		p_in->kill();
 		return;
 	}
 	if (pk->get_link_arr(pk->next())._ip != _ip) {
@@ -87,8 +85,6 @@ void WINGForwarder::push(int, Packet *p_in)
 		p->kill();
 		return;
 	}
-	const click_ip *ip = reinterpret_cast<const click_ip *>(pk->data());
-	p->set_ip_header(ip, sizeof(click_ip));
 	if (pk->next() >= pk->num_links()) {
 		click_chatter("%{element} :: %s :: strange next=%d, nhops=%d", 
 				this,
@@ -98,7 +94,10 @@ void WINGForwarder::push(int, Packet *p_in)
 		p_in->kill();
 		return;
 	}
-	// update incoming packets
+	/* set the ip header pointer */
+	const click_ip *ip = reinterpret_cast<const click_ip *>(pk->data());
+	p->set_ip_header(ip, sizeof(click_ip));
+	/* update incoming packets */
 	_inc_packets++;
 	_inc_bytes += p->length();
 	if (pk->next() == (pk->num_links()-1)){
@@ -130,7 +129,6 @@ void WINGForwarder::push(int, Packet *p_in)
 				__func__,
 				dst.unparse().c_str(),
 				eth_dst.unparse().c_str());
-
 	}
 	memcpy(eh->ether_dhost, eth_dst.data(), 6);
 	memcpy(eh->ether_shost, eth_src.data(), 6);

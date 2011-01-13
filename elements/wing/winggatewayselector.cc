@@ -204,7 +204,7 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 	nfo->_seen++;
 
 	/* process hna */
-	process_seen(hna, seq);
+	process_seen(hna, seq, true);
 	p_in->kill();
 	return;
 }

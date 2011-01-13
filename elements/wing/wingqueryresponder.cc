@@ -36,10 +36,6 @@ WINGQueryResponder::WINGQueryResponder() :
 WINGQueryResponder::~WINGQueryResponder() {
 }
 
-void WINGQueryResponder::forward_seen(int iface, Seen *s) {
-
-}
-
 int WINGQueryResponder::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	if (cp_va_kparse(conf, this, errh, 
@@ -123,32 +119,15 @@ void WINGQueryResponder::process_query(Packet *p_in) {
 		return;
 	}
 	/* process query */
-	int si = 0;
-	for (si = 0; si < _seen.size(); si++) {
-		if (reply == _seen[si]._seen && seq == _seen[si]._seq) {
-			/* query already processed */
-			_seen[si]._count++;
-			p_in->kill();
-			return;
-		}
+	if (process_seen(reply, seq, false)) {
+		/* start reply */
+		start_reply(best, seq);
 	}
-	if (si == _seen.size()) {
-		if (_seen.size() >= _max_seen_size) {
-			_seen.pop_front();
-			si--;
-		}
-		_seen.push_back(Seen(reply, seq));
-	}
-	_seen[si]._count++;
-	_seen[si]._when = Timestamp::now();
-	/* start reply */
-	start_reply(best, seq);
 	p_in->kill();
 	return;
 }
 
 void WINGQueryResponder::process_reply(Packet *p_in) {
-
 	WritablePacket *p = p_in->uniqueify();
 	if (!p) {
 		return;
@@ -164,17 +143,22 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 		return;
 	}
 	if (pk->get_link_dep(pk->next())._ip != _ip) {
-		// It's not for me. these are supposed to be unicast, so how did this get to me?
-		click_chatter("%{element} :: %s :: reply not for me %s hop %d/%d node %s eth %s (%s)", 
-				this,
-				__func__, 
-				_ip.unparse().c_str(),
-				pk->next(), 
-				pk->num_links(), 
-				pk->get_link_arr(pk->next()).unparse().c_str(),
-				EtherAddress(eh->ether_dhost).unparse().c_str(),
-				route_to_string(pk->get_path()).c_str());
-		p_in->kill();
+		if (!EtherAddress(eh->ether_dhost).is_group()) {
+			/* 
+			 * If the arp doesn't have a ethernet address, it
+			 * will broadcast the packet. In this case,
+			 * don't complain. But otherwise, something's up.
+			 */
+			click_chatter("%{element} :: %s :: data not for me %s hop %d/%d node %s eth %s",
+					this, 
+					__func__,
+					_ip.unparse().c_str(), 
+					pk->next(), 
+					pk->num_links(),
+					pk->get_link_arr(pk->next()).unparse().c_str(), 
+					EtherAddress(eh->ether_dhost).unparse().c_str());
+		}
+		p->kill();
 		return;
 	}
 	if (pk->next() >= pk->num_links()) {
@@ -186,16 +170,14 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 		p_in->kill();
 		return;
 	}
-
 	/* update the metrics from the packet */
 	if (!update_link_table(p_in)) {
 		p_in->kill();
 		return;
 	}
 	_link_table->dijkstra(true);
-
-	/* I'm the ultimate consumer of this reply. */
 	if (pk->next() == 0) {
+		/* I'm the ultimate consumer of this reply. */
 		NodeAddress dst = pk->qdst();
 		if (_debug) {
 			click_chatter("%{element} :: %s :: got reply %s < %s seq %u (%s)", 
@@ -209,25 +191,11 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 		p_in->kill();
 		return;
 	}
-
 	/* Update pointer. */
 	pk->set_next(pk->next() - 1);
-
-	/* Forward the reply. */
-	if (_debug) {
-		click_chatter("%{element} :: %s :: forward reply %s < %s seq %u next %u (%s)", 
-				this,
-				__func__, 
-				pk->get_link_dep(0)._ip.unparse().c_str(),
-				pk->get_link_arr(pk->num_links() - 1)._ip.unparse().c_str(),
-				pk->seq(),
-				pk->next(),
-				route_to_string(pk->get_path()).c_str());
-	}
-
+	// set ethernet header
 	NodeAddress src = pk->get_link_arr(pk->next());
 	NodeAddress dst = pk->get_link_dep(pk->next());
-
 	EtherAddress eth_src = _arp_table->lookup(src);
 	if (src && eth_src.is_group()) {
 		click_chatter("%{element} :: %s :: arp lookup failed for src %s (%s)", 
@@ -236,7 +204,6 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 				src.unparse().c_str(),
 				eth_src.unparse().c_str());
 	}
-
 	EtherAddress eth_dst = _arp_table->lookup(dst);
 	if (dst && eth_dst.is_group()) {
 		click_chatter("%{element} :: %s :: arp lookup failed for dst %s (%s)", 
@@ -244,14 +211,10 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 				__func__,
 				dst.unparse().c_str(),
 				eth_dst.unparse().c_str());
-
 	}
-
 	memcpy(eh->ether_dhost, eth_dst.data(), 6);
 	memcpy(eh->ether_shost, eth_src.data(), 6);
-
 	output(0).push(p);
-
 }
 
 void WINGQueryResponder::push(int port, Packet *p_in) {
