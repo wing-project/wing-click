@@ -33,9 +33,9 @@ protected:
 			_count(0),
 			_forwarded(false) {
 		}
-		Seen(T seen, uint32_t seq) : _seen(seen), _seq(seq), _count(0), _when(Timestamp::now()) {}
+		Seen(T seen, int seq) : _seen(seen), _seq(seq), _count(0), _when(Timestamp::now()) {}
 		T _seen;
-		uint32_t _seq;
+		int _seq;
 		int _count;
 		Timestamp _when;
 		Timestamp _to_send;
@@ -73,7 +73,7 @@ protected:
 
 template <typename T>
 WINGBase<T>::WINGBase() :
-	_link_table(0), _arp_table(0), _max_seen_size(100), _jitter(1000), _debug(false) {
+	_link_table(0), _arp_table(0), _jitter(1000), _max_seen_size(100), _debug(false) {
 }
 
 template <typename T>
@@ -108,7 +108,6 @@ WINGBase<T>::append_seen(T seen, int seq) {
 template <typename T>
 bool
 WINGBase<T>::process_seen(T seen, int seq, bool schedule) {
-
 	int si = 0;
 	for (si = 0; si < _seen.size(); si++) {
 		if (seen == _seen[si]._seen && seq == _seen[si]._seq) {
@@ -125,7 +124,6 @@ WINGBase<T>::process_seen(T seen, int seq, bool schedule) {
 	}		
 	_seen[si]._count++;
 	_seen[si]._when = Timestamp::now();
-
 	/* schedule timer */
 	if (schedule) {
 		int delay = click_random(1, _jitter);
@@ -135,7 +133,7 @@ WINGBase<T>::process_seen(T seen, int seq, bool schedule) {
 		t->initialize(this);
 		t->schedule_after_msec(delay);
 	}
-
+	return true;
 }
 
 template <typename T>
