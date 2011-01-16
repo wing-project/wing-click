@@ -57,7 +57,7 @@ protected:
 	static String read_handler(Element *, void *);
 
 	bool update_link_table(Packet *);
-	Packet * create_wing_packet(NodeAddress, NodeAddress, int, IPAddress, IPAddress, IPAddress, int, PathMulti);
+	Packet * create_wing_packet(NodeAddress, NodeAddress, int, IPAddress, IPAddress, IPAddress, int, PathMulti, int);
 
 	virtual void forward_seen(int, Seen *) = 0;
 
@@ -138,7 +138,7 @@ WINGBase<T>::process_seen(T seen, int seq, bool schedule) {
 
 template <typename T>
 Packet *
-WINGBase<T>::create_wing_packet(NodeAddress src, NodeAddress dst, int type, IPAddress qdst, IPAddress netmask, IPAddress qsrc, int seq, PathMulti best) {
+WINGBase<T>::create_wing_packet(NodeAddress src, NodeAddress dst, int type, IPAddress qdst, IPAddress netmask, IPAddress qsrc, int seq, PathMulti best, int next) {
 
 	if (!src) {
 		click_chatter("%{element} :: %s :: bad source address",
@@ -174,6 +174,7 @@ WINGBase<T>::create_wing_packet(NodeAddress src, NodeAddress dst, int type, IPAd
 	pk->set_netmask(netmask);
 	pk->set_qsrc(qsrc);
 	pk->set_seq(seq);
+	pk->set_next(next);
 	pk->set_num_links(hops);
 
 	for (int i = 0; i < hops; i++) {

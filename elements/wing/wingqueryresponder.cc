@@ -61,7 +61,7 @@ void WINGQueryResponder::start_reply(PathMulti best, uint32_t seq) {
 				this,
 				__func__, 
 				best[0].dep().unparse().c_str(),
-				best[hops - 1].arr()._ip.unparse().c_str(),
+				best[hops].arr()._ip.unparse().c_str(),
 				seq,
 				hops - 1,
 				route_to_string(best).c_str());
@@ -74,7 +74,8 @@ void WINGQueryResponder::start_reply(PathMulti best, uint32_t seq) {
 			NodeAddress(), 
 			NodeAddress(), 
 			seq, 
-			best);
+			best,
+			hops - 1);
 
 	if (!p) {
 		return;
@@ -149,14 +150,14 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 			 * will broadcast the packet. In this case,
 			 * don't complain. But otherwise, something's up.
 			 */
-			click_chatter("%{element} :: %s :: data not for me %s hop %d/%d node %s eth %s",
+			click_chatter("%{element} :: %s :: data not for me %s hop %d/%d node %s route %s",
 					this, 
 					__func__,
 					_ip.unparse().c_str(), 
 					pk->next(), 
 					pk->num_links(),
-					pk->get_link_arr(pk->next()).unparse().c_str(), 
-					EtherAddress(eh->ether_dhost).unparse().c_str());
+					pk->get_link_dep(pk->next()).unparse().c_str(), 
+					route_to_string(pk->get_path()).c_str());
 		}
 		p->kill();
 		return;
@@ -194,8 +195,8 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 	/* Update pointer. */
 	pk->set_next(pk->next() - 1);
 	// set ethernet header
-	NodeAddress src = pk->get_link_arr(pk->next());
-	NodeAddress dst = pk->get_link_dep(pk->next());
+	NodeAddress src = pk->get_link_dep(pk->next());
+	NodeAddress dst = pk->get_link_arr(pk->next());
 	EtherAddress eth_src = _arp_table->lookup(src);
 	if (src && eth_src.is_group()) {
 		click_chatter("%{element} :: %s :: arp lookup failed for src %s (%s)", 

@@ -114,7 +114,8 @@ void WINGGatewaySelector::start_ad(int iface) {
 				hna._nm, 
 				hna._gw, 
 				_seq, 
-				PathMulti());
+				PathMulti(),
+				0);
 	if (!p) {
 		return;
 	}
@@ -138,7 +139,8 @@ void WINGGatewaySelector::forward_seen(int iface, Seen *s) {
 				s->_seen._nm, 
 				s->_seen._gw, 
 				s->_seq, 
-				best);
+				best,
+				0);
 	if (!p) {
 		return;
 	}

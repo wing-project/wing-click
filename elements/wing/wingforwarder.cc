@@ -73,14 +73,14 @@ void WINGForwarder::push(int, Packet *p_in) {
 			 * will broadcast the packet. In this case,
 			 * don't complain. But otherwise, something's up.
 			 */
-			click_chatter("%{element} :: %s :: data not for me %s hop %d/%d node %s eth %s",
+			click_chatter("%{element} :: %s :: data not for me %s hop %d/%d node %s route %s",
 					this, 
 					__func__,
 					_ip.unparse().c_str(), 
 					pk->next(), 
 					pk->num_links(),
 					pk->get_link_arr(pk->next()).unparse().c_str(), 
-					EtherAddress(eh->ether_dhost).unparse().c_str());
+					route_to_string(pk->get_path()).c_str());
 		}
 		p->kill();
 		return;

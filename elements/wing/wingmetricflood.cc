@@ -68,7 +68,8 @@ void WINGMetricFlood::forward_seen(int iface, Seen *s) {
 				NodeAddress(), 
 				s->_seen._src, 
 				s->_seq, 
-				best);
+				best,
+				0);
 	if (!p) {
 		return;
 	}
@@ -130,12 +131,13 @@ void WINGMetricFlood::start_query(IPAddress dst, int iface) {
 	}
 	Packet * p = create_wing_packet(NodeAddress(_ip, iface), 
 				NodeAddress(), 
-				WING_PT_GATEWAY, 
+				WING_PT_QUERY, 
 				query._dst, 
 				NodeAddress(), 
 				query._src, 
 				_seq, 
-				PathMulti());
+				PathMulti(),
+				0);
 	if (!p) {
 		return;
 	}
