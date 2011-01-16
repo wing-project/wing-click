@@ -107,17 +107,15 @@ void WINGQueryResponder::process_query(Packet *p_in) {
 		p_in->kill();
 		return;
 	}
-	_link_table->dijkstra(false);
 	PathMulti best = _link_table->best_route(pk->qsrc(), false);
         ReplyInfo reply = ReplyInfo(pk->qsrc(), best);
 	uint32_t seq = pk->seq();
-	if (!_link_table->valid_route(best)) {
-		click_chatter("%{element} :: %s :: invalid route for %s", 
-				this,
-				__func__, 
-				reply.unparse().c_str());
-		p_in->kill();
-		return;
+	if (_debug) {
+		click_chatter("%{element} :: %s :: got query from %s seq %d", 
+				this, 
+				__func__,
+				reply.unparse().c_str(), 
+				seq);
 	}
 	/* process query */
 	if (process_seen(reply, seq, false)) {
@@ -150,7 +148,7 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 			 * will broadcast the packet. In this case,
 			 * don't complain. But otherwise, something's up.
 			 */
-			click_chatter("%{element} :: %s :: data not for me %s hop %d/%d node %s route %s",
+			click_chatter("%{element} :: %s :: data not for me %s hop %d/%d node %s (%s)",
 					this, 
 					__func__,
 					_ip.unparse().c_str(), 

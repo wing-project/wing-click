@@ -88,11 +88,10 @@ void WINGMetricFlood::process_flood(Packet *p_in) {
 		p_in->kill();
 		return;
 	}
-
         QueryInfo query = QueryInfo(pk->qsrc(), pk->qdst());
 	uint32_t seq = pk->seq();
 	if (_debug) {
-		click_chatter("%{element} :: %s :: got query %s seq %d", 
+		click_chatter("%{element} :: %s :: forwarding query %s seq %d", 
 				this, 
 				__func__,
 				query.unparse().c_str(), 
