@@ -52,6 +52,13 @@ int WINGQueryResponder::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 void WINGQueryResponder::start_reply(PathMulti best, uint32_t seq) {
 
+	if (!_link_table->valid_route(best)) {
+		click_chatter("%{element} :: %s :: invalid route %s", 
+				this,
+				__func__, 
+				route_to_string(best).c_str());
+		return;
+	}
 	int hops = best.size() - 1;
 	NodeAddress src = best[hops].arr();
 	NodeAddress dst = best[hops - 1].dep();

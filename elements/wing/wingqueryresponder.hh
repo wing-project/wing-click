@@ -40,7 +40,12 @@ public:
 	}
 	String unparse() const {
 		StringAccum sa;
-		sa << _src.unparse() << '(' << route_to_string(_last_response) << ')';
+		sa << _src.unparse();
+		if (_last_response.size() == 0) {
+			sa << "empty route";
+		} else {
+			sa << " (" << route_to_string(_last_response) << ")";
+		}
 		return sa.take_string();
 	}
 };
