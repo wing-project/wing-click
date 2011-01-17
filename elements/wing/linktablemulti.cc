@@ -395,7 +395,7 @@ String
 LinkTableMulti::read_handler(Element *e, void *thunk) {
   LinkTableMulti *td = (LinkTableMulti *) e;
   switch ((uintptr_t) thunk) {
-    case H_HOST_IP:  return td->_ip.unparse() + "\n";
+    case H_HOST_IP:  return td->_ip._ip.unparse() + "\n";
     case H_HOST_INTERFACES: {
       Vector<int> ifaces = td->get_local_interfaces();
       StringAccum sa;

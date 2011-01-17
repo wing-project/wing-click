@@ -59,6 +59,7 @@ void WINGQueryResponder::start_reply(PathMulti best, uint32_t seq) {
 				route_to_string(best).c_str());
 		return;
 	}
+
 	int hops = best.size() - 1;
 	NodeAddress src = best[hops].arr();
 	NodeAddress dst = best[hops - 1].dep();
