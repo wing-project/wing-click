@@ -89,6 +89,8 @@ sub expand_array_initializer ($$$) {
     return $text . "#else\n#error \"fixincludes.pl needs updating\"\n#endif\n";
 }
 
+my($click_cxx_protect) = "#if defined(__cplusplus) && !CLICK_CXX_PROTECTED\n# error \"missing #include <click/cxxprotect.h>\"\n#endif\n";
+
 sub one_includeroot ($$) {
     my($includeroot, $outputroot) = @_;
     my(@dirs, $d, $dd, $f);
@@ -172,6 +174,9 @@ sub one_includeroot ($$) {
 	    s{\bnew\b}{new_value}g;
 	    s{\band\b}{and_value}g;
 	    s{\bswap\b}{linux_swap}g;
+	    # including "P[new]" in inline assembly string (look for
+	    # protected version)
+	    1 while (s{(asm.*\333)\356\345\367\335}{$1\356\345\367\337\366\341\354\365\345\335}g);
 
 	    # "sizeof" isn't nice to the preprocessor
 	    s{sizeof(?:\s+(?:unsigned\s+)?long|\s*\(\s*(?:unsigned\s+)?long\s*\))}{(BITS_PER_LONG/8 /*=BITS_PER_BYTE*/)}g;
@@ -207,6 +212,22 @@ sub one_includeroot ($$) {
 	    }
 	    if ($d eq "sched.h") {
 		s<^(extern char ___assert_task_state)((?:.*?\n)*?.*?\;.*)$><\#ifndef __cplusplus\n$1$2\n\#endif>mg;
+	    }
+	    if ($d eq "kobject.h") {
+		s<(^#include[\000-\377]*)(^enum kobj_ns_type\s+\{[\000-\377]*?\}.*\n)><$2$1>mg;
+	    }
+	    if ($d eq "netdevice.h") {
+		1 while (s<(^struct net_device \{[\000-\377]*)^\tenum( \{[^}]*\}) (\w+)><enum net_device_$3$2;\n$1\tenum net_device_$3 $3>mg);
+	    }
+
+	    # CLICK_CXX_PROTECTED check
+	    if (m<\A[\s\200-\377]*\z>) {
+		# empty file, do nothing
+	    } elsif (m<(\A[\s\200-\377]*^\#ifndef.*\n)>m
+		     || m<(\A[\s\200-\377]*^\#if\s+!\s*defined.*\n)>m) {
+		$_ = $1 . $click_cxx_protect . substr($_, length($1));
+	    } elsif ($d ne "version.h" && $d ne "autoconf.h") {
+		$_ = $click_cxx_protect . $_;
 	    }
 
 	    # unquote.
