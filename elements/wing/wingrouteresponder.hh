@@ -1,5 +1,5 @@
-#ifndef CLICK_WINGFORWARDER_HH
-#define CLICK_WINGFORWARDER_HH
+#ifndef CLICK_WINGROUTERESPONDER_HH
+#define CLICK_WINGROUTERESPONDER_HH
 #include <click/element.hh>
 #include <click/glue.hh>
 #include <click/timer.hh>
@@ -9,7 +9,7 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGForwarder(ETHERTYPE, IP, ETH, ARPTable element)
+ * WINGRouteResponder(ETHERTYPE, IP, ETH, ARPTable element)
  * =s Wifi, Wireless Routing
  * Forwards source-routed packets.
  * =d
@@ -20,41 +20,30 @@ CLICK_DECLS
  *
  */
 
-class WINGForwarder: public Element {
+class WINGRouteResponder: public Element {
 public:
 
-	WINGForwarder();
-	~WINGForwarder();
+	WINGRouteResponder();
+	~WINGRouteResponder();
 
-	const char *class_name() const { return "WINGForwarder"; }
-	const char *port_count() const { return "1/2"; }
+	const char *class_name() const { return "WINGRouteResponder"; }
+	const char *port_count() const { return "1/0-1"; }
 	const char *processing() const { return PUSH; }
 
 	int configure(Vector<String> &, ErrorHandler *);
 
+	void push(int, Packet *);
+
 	/* handler stuff */
 	void add_handlers();
-	int inc_packets() { return _inc_packets; }
-	int inc_bytes() { return _inc_bytes; }
-	int out_packets() { return _out_packets; }
-	int out_bytes() { return _out_bytes; }
-	String print_stats();
-
-	void push(int, Packet *);
 
 private:
 
 	IPAddress _ip; // My address.
-
-	class ARPTableMulti *_arp_table;
-
 	bool _debug;
 
-	/* statistics for handlers */
-	int _inc_packets;
-	int _inc_bytes;
-	int _out_packets;
-	int _out_bytes;
+	class ARPTableMulti *_arp_table;
+	class LinkTableMulti *_link_table;
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);

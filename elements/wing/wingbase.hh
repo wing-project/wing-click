@@ -307,13 +307,13 @@ WINGBase<T>::write_handler(const String &in_s, Element *e,
 	WINGBase<T> *f = (WINGBase<T> *) e;
 	String s = cp_uncomment(in_s);
 	switch ((intptr_t) vparam) {
-	case H_BASE_DEBUG: {
-		bool debug;
-		if (!cp_bool(s, &debug))
-			return errh->error("debug parameter must be boolean");
-		f->_debug = debug;
-		break;
-	}
+		case H_BASE_DEBUG: {
+			bool debug;
+			if (!cp_bool(s, &debug))
+				return errh->error("debug parameter must be boolean");
+			f->_debug = debug;
+			break;
+		}
 	}
 	return 0;
 }
