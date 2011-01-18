@@ -211,6 +211,11 @@ cat $LS_FILE
 
 echo "control :: ControlSocket(\"TCP\", 7777);
 
+err :: WifiDupeFilter() 
+  -> WifiDecap() 
+  -> HostEtherFilter($addr, DROP_OTHER true, DROP_OWN true) 
+  -> Discard();
+
 // has one input and one output
 // takes and spits out ip packets
 elementclass LinuxIPHost {
@@ -273,6 +278,6 @@ for i in $(seq 1 1 $NB_INTERFACES); do
 -> Paint($((i-1)))
 -> cl;
 "
-	echo "tx_filter_$i[1] -> [1] rc_$i;
+	echo "tx_filter_$i[1] -> [1] rc_$i [1] -> err;
 "
 done
