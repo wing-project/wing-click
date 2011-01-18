@@ -397,6 +397,8 @@ WINGLinkStat::simple_action(Packet *p) {
 		_link_metric->update_link(node, neighbor, rates, fwd, rev, entry->seq(), entry->channel());
 		ptr += entry->num_rates() * sizeof(struct link_info);
 	}
+	_link_table->dijkstra(true);
+	_link_table->dijkstra(false);
 	p->kill();
 	return 0;
 }

@@ -24,7 +24,6 @@ set_gateway :: WINGSetGateway(SEL gw);
 
 
 forwarder :: WINGForwarder(IP $ip, 
-                          LT lt, 
                           ARP arp,
                           DEBUG $debug);
 

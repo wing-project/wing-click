@@ -194,7 +194,6 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 		p_in->kill();
 		return;
 	}
-	_link_table->dijkstra(true);
 
 	/* update gateways from the packet */
 	GWInfo *nfo = _gateways.findp(hna);

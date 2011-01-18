@@ -46,7 +46,6 @@ private:
 
 	IPAddress _ip; // My address.
 
-	class LinkTableMulti *_link_table;
 	class ARPTableMulti *_arp_table;
 
 	bool _debug;

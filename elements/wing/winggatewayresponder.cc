@@ -62,7 +62,6 @@ int WINGGatewayResponder::initialize(ErrorHandler *) {
 void WINGGatewayResponder::run_timer(Timer *) {
 	if (!_gw_sel->is_gateway()) {
 		IPAddress gateway = _gw_sel->best_gateway();
-		_link_table->dijkstra(false);
 		PathMulti best = _link_table->best_route(gateway, false);
 		if (_link_table->valid_route(best)) {
 			_responder->start_reply(best, 0);

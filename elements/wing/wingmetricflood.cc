@@ -103,7 +103,6 @@ void WINGMetricFlood::process_flood(Packet *p_in) {
 		p_in->kill();
 		return;
 	}
-	_link_table->dijkstra(true);
 
 	if (pk->qdst() == _ip) {
 		/* don't forward queries for me */

@@ -277,6 +277,8 @@ WINGBase<T>::update_link_table(Packet *p) {
 					a.unparse().c_str());
 		}
 	}
+	_link_table->dijkstra(true);
+	_link_table->dijkstra(false);
 	return true;
 }
 

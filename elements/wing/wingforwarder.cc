@@ -41,7 +41,6 @@ int WINGForwarder::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	if (cp_va_kparse(conf, this, errh, 
 				"IP", cpkM, cpIPAddress, &_ip, 
-				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
 				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
 				"DEBUG", 0, cpBool, &_debug, 
 				cpEnd) < 0)

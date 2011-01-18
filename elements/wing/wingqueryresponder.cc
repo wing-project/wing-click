@@ -52,14 +52,6 @@ int WINGQueryResponder::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 void WINGQueryResponder::start_reply(PathMulti best, uint32_t seq) {
 
-	if (!_link_table->valid_route(best)) {
-		click_chatter("%{element} :: %s :: invalid route %s", 
-				this,
-				__func__, 
-				route_to_string(best).c_str());
-		return;
-	}
-
 	int hops = best.size() - 1;
 	NodeAddress src = best[hops].arr();
 	NodeAddress dst = best[hops - 1].dep();
@@ -116,10 +108,18 @@ void WINGQueryResponder::process_query(Packet *p_in) {
 		return;
 	}
 	PathMulti best = _link_table->best_route(pk->qsrc(), false);
+	if (!_link_table->valid_route(best)) {
+		click_chatter("%{element} :: %s :: invalid route %s", 
+				this,
+				__func__, 
+				route_to_string(best).c_str());
+		p_in->kill();
+		return;
+	}
         ReplyInfo reply = ReplyInfo(pk->qsrc(), best);
 	uint32_t seq = pk->seq();
 	if (_debug) {
-		click_chatter("%{element} :: %s :: got query from %s seq %d", 
+		click_chatter("%{element} :: %s :: generating reply %s seq %d", 
 				this, 
 				__func__,
 				reply.unparse().c_str(), 
@@ -182,7 +182,6 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 		p_in->kill();
 		return;
 	}
-	_link_table->dijkstra(true);
 	if (pk->next() == 0) {
 		/* I'm the ultimate consumer of this reply. */
 		NodeAddress dst = pk->qdst();
