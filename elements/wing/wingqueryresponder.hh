@@ -42,7 +42,7 @@ public:
 		StringAccum sa;
 		sa << _src.unparse();
 		if (_last_response.size() == 0) {
-			sa << "empty route";
+			sa << " (empty route)";
 		} else {
 			sa << " (" << route_to_string(_last_response) << ")";
 		}

@@ -190,8 +190,8 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 			click_chatter("%{element} :: %s :: got reply %s < %s seq %u (%s)", 
 					this,
 					__func__, 
-					pk->get_link_dep(pk->next())._ip.unparse().c_str(),
-					pk->get_link_arr(pk->num_links() - 1)._ip.unparse().c_str(),
+					pk->get_link_dep(0).unparse().c_str(),
+					pk->get_link_arr(pk->num_links() - 1).unparse().c_str(),
 					pk->seq(),
 					route_to_string(pk->get_path()).c_str());
 		}
@@ -200,9 +200,18 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 	}
 	/* Update pointer. */
 	pk->set_next(pk->next() - 1);
-	// set ethernet header
-	NodeAddress src = pk->get_link_dep(pk->next());
-	NodeAddress dst = pk->get_link_arr(pk->next());
+	if (_debug) {
+		click_chatter("%{element} :: %s :: forwarding reply %s < %s seq %u (%s)", 
+				this,
+				__func__, 
+				pk->get_link_dep(pk->next()).unparse().c_str(),
+				pk->get_link_arr(pk->next()).unparse().c_str(),
+				pk->seq(),
+				route_to_string(pk->get_path()).c_str());
+	}
+	/* set ethernet header */
+	NodeAddress src = pk->get_link_arr(pk->next());
+	NodeAddress dst = pk->get_link_dep(pk->next());
 	EtherAddress eth_src = _arp_table->lookup(src);
 	if (src && eth_src.is_group()) {
 		click_chatter("%{element} :: %s :: arp lookup failed for src %s (%s)", 

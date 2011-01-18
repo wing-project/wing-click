@@ -60,11 +60,16 @@ int WINGGatewayResponder::initialize(ErrorHandler *) {
 }
 
 void WINGGatewayResponder::run_timer(Timer *) {
+
+click_chatter("run");
+
 	if (!_gw_sel->is_gateway()) {
+click_chatter("is gw");
 		IPAddress gateway = _gw_sel->best_gateway();
 		_link_table->dijkstra(false);
 		PathMulti best = _link_table->best_route(gateway, false);
 		if (_link_table->valid_route(best)) {
+click_chatter("starting");
 			_responder->start_reply(best, 0);
 		}
 	}
