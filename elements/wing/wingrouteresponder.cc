@@ -24,6 +24,7 @@
 #include <click/straccum.hh>
 #include <click/packet_anno.hh>
 #include <clicknet/ether.h>
+#include <clicknet/wifi.h>
 #include "arptablemulti.hh"
 #include "wingrouteresponder.hh"
 #include "wingpacket.hh"
@@ -54,8 +55,20 @@ void
 WINGRouteResponder::push(int, Packet *p_in) {
 	click_ether *eh = (click_ether *) p_in->data();
 	struct wing_data *pk = (struct wing_data *) (eh+1);
-	if (pk->_type == WING_PT_DATA ) {
+	struct click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p_in);
+	bool success = !(ceh->flags & WIFI_EXTRA_TX_FAIL);
+	if (pk->_type == WING_PT_DATA && !success) {
 		/* do something cool */
+		if (_debug) {
+			click_chatter("%{element} :: %s :: forwarding failed after %u retries at node %s hop %u/%u of route %s", 
+					this,
+					__func__,
+					ceh->retries + 1,
+					_ip.unparse().c_str(), 
+					pk->next(), 
+					pk->num_links(),
+					route_to_string(pk->get_path()).c_str());
+		}
 	}
 	if (noutputs() == 1) {
 		output(0).push(p_in);
