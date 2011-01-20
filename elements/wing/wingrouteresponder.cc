@@ -56,7 +56,7 @@ WINGRouteResponder::push(int, Packet *p_in) {
 	click_ether *eh = (click_ether *) p_in->data();
 	struct wing_data *pk = (struct wing_data *) (eh+1);
 	struct click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p_in);
-	bool success = !(ceh->flags & WIFI_EXTRA_TX_FAIL);
+	int success = !(ceh->flags & WIFI_EXTRA_TX_FAIL);
 	if (pk->_type == WING_PT_DATA && !success) {
 		/* do something cool */
 		if (_debug) {

@@ -213,7 +213,6 @@ echo "control :: ControlSocket(\"TCP\", 7777);
 
 err :: WifiDupeFilter() 
   -> WifiDecap() 
-  -> HostEtherFilter($addr, DROP_OTHER true, DROP_OWN true) 
   -> WINGCheckHeader()
   -> WINGRouteResponder(IP $XR_IP, LT lt, ARP arp, DEBUG true)
   -> Discard();
