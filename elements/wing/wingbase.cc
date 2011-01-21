@@ -24,5 +24,5 @@
 CLICK_DECLS
 
 CLICK_ENDDECLS
-ELEMENT_REQUIRES(LinkTableMulti ARPTableMulti NodeAddress)
+ELEMENT_REQUIRES(LinkTableMulti ARPTableMulti NodeAddress PathMulti)
 ELEMENT_PROVIDES(WINGBase)
