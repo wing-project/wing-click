@@ -9,7 +9,7 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGForwarder(ETHERTYPE, IP, ETH, ARPTable element)
+ * WINGForwarder(IP, ARP ARPTableMulti element, [DEBUG])
  * =s Wifi, Wireless Routing
  * Forwards source-routed packets.
  * =d

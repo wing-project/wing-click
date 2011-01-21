@@ -7,9 +7,9 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGCheckHeader()
+ * WINGCheckHeader([CHECKSUM])
  * =s Wifi, Wireless Routing
- * Check the Source Route header of a packet.
+ * Check the Source Route Header of a packet.
  * =d
  * Expects Wing packets as input. Checks that the packet's 
  * length is reasonable, and that the Wing header length, 

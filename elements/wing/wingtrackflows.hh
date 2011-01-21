@@ -16,7 +16,9 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGTrackFlows()
+ * WINGTrackFlows([PERIOD], [DEBUG])
+ * =s Wifi, Wireless Routing
+ * Tracks a TCP flow current default route.
  * =d
  * This element marks the gateway for a packet to be sent to.
  */

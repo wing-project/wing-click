@@ -12,11 +12,8 @@ CLICK_DECLS
  * =c
  * WINGETXMetric
  * =s Wifi
- * Estimated Transmission Count metric (ETX).
- * 
- * =io
- * None
- *
+ * Estimated Transmission Count (ETX) metric
+ * =a WINGETTMetric, WINGHopCountMetric
  */
 
 class WINGETXMetric: public WINGLinkMetric {

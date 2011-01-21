@@ -148,9 +148,9 @@ WINGBase<T>::create_wing_packet(NodeAddress src, NodeAddress dst, int type, IPAd
 	}
 
 	if ((best.size() > 0) && !_link_table->valid_route(best)) {
-		click_chatter("%{element} :: %s :: invalid route %s", 
+		click_chatter("%{element} :: %s :: invalid route %s",
 				this,
-				__func__, 
+				__func__,
 				route_to_string(best).c_str());
 		return 0;
 	}

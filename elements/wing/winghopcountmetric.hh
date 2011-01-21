@@ -12,11 +12,8 @@ CLICK_DECLS
  * =c
  * WINGHopCountMetric
  * =s Wifi
- * Hop Count metric.
- * 
- * =io
- * None
- *
+ * Estimated Transmission Time (ETT) metric
+ * =a WINGETXMetric, WINGETTMetric
  */
 
 class WINGHopCountMetric: public WINGLinkMetric {

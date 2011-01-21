@@ -13,11 +13,10 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGGatewaySelector(IP, ETH, ETHTYPE, LinkTable element, ARPTable element,  
- *                    [PERIOD timeout], [GW is_gateway])
+ * WINGGatewaySelector(IP, LT LinkTableMulti element, ARP ARPTableMulti element, [PERIOD], [EXPIRE], [DEBUG])
  * =s Wifi, Wireless Routing
- * Select a gateway to send a packet to based on TCP connection
- * state and metric to gateway.
+ * Select a gateway to send a packet to based on TCP 
+ * connection state and metric to gateway.
  * =d
  * This element provides proactive gateway selection.  
  * Each gateway broadcasts an ad every PERIOD msec.  

@@ -61,9 +61,9 @@ int WINGQuerier::configure(Vector<String> &conf, ErrorHandler *errh) {
 				"IP", cpkM, cpIPAddress, &_ip, 
 				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
 				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
-				"DEBUG", 0, cpBool, &_debug, 
 				"TIME_BEFORE_SWITCH", 0, cpTimestamp, &_time_before_switch,
 				"QUERY_WAIT", 0, cpTimestamp, &_query_wait, 
+				"DEBUG", 0, cpBool, &_debug, 
 				cpEnd) < 0)
 		return -1;
 

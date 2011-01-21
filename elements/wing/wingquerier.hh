@@ -10,7 +10,7 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGQuerier(WINGForwarder element, LinkTable element)
+ * WINGQuerier(IP, LT LinkTableMulti element, ARP ARPTableMulti element, [TIME_BEFORE_SWITCH], [QUERY_WAIT], [DEBUG])
  * =s Wifi, Wireless Routing
  * 
  * Set the Source Route for packet's destination inside the source route
@@ -18,23 +18,11 @@ CLICK_DECLS
  * found for a given packet and no valid route is found in the cache a
  * route request message is generated.
  *
- * Regular Arguments:
- * =over 8
- * =item IP IPAddress
- * =item WINGForwarder element
- * =back 8
- *
- * =h clear write
- * Removes all routes from this element
- * =h routes read
- * Prints routes 
- * 
- * =h set_route write
- * Writing "0 5.0.0.1 1 1 5.0.0.2 0" to this element will make all packets 
- * destined for 5.0.0.2 from 5.0.0.1 to use the first wireless interface
+ * =h add write
+ * Writing "0:6.0.0.1;1 1:6.0.0.2:0" to this element will make all packets 
+ * destined for 6.0.0.2 from 6.0.0.1 to use the first wireless interface
  * on both nodes.
  * 
- * =a WINGForwarder
  */
 
 class WINGQuerier: public Element {

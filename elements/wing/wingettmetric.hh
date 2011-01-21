@@ -13,13 +13,8 @@ CLICK_DECLS
  * WINGETTMetric
  * =s Wifi
  * Estimated Transmission Time (ETT) metric
- * 
- * =io
- * None
- *
+ * =a WINGETXMetric, WINGHopCountMetric
  */
-
-
 
 class WINGETTMetric: public WINGLinkMetric {
 

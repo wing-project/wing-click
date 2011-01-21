@@ -9,14 +9,9 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGRouteResponder(ETHERTYPE, IP, ETH, ARPTable element)
+ * WINGRouteResponder(IP, ARP ARPTableMulti element, LT LinkTableMulti, [DEBUG])
  * =s Wifi, Wireless Routing
- * Forwards source-routed packets.
- * =d
- * DSR-inspired ad-hoc routing protocol.
- * Input 0: packets that I receive off the wire
- * Output 0: Outgoing ethernet packets that I forward
- * Output 1: packets that were addressed to me.
+ * Generates route error messages.
  *
  */
 

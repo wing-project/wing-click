@@ -43,9 +43,9 @@ int WINGGatewaySelector::configure(Vector<String> &conf, ErrorHandler *errh) {
 				"IP", cpkM, cpIPAddress, &_ip, 
 				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
 				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
-				"DEBUG", 0, cpBool, &_debug, 
 				"PERIOD", 0, cpUnsigned, &_period, 
 				"EXPIRE", 0, cpUnsigned, &_expire, 
+				"DEBUG", 0, cpBool, &_debug, 
 				cpEnd) < 0)
 		return -1;
 

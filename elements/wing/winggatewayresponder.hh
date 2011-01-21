@@ -8,10 +8,10 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGGatewayResponder(ETHTYPE, IP, ETH, PERIOD, LinkTable element, 
- * ARPTable element, GatewaySelector element)
+ * WINGGatewayResponder(IP, LT LinkTableMulti, SEL WINGGatewaySelector, RESPONDER WINGQueryResponder, [PERIOD], [DEBUG])
  * =s Wifi, Wireless Routing
- * Responds to queries destined for this node.
+ * Periodically generates route reply message addressed 
+ * to this node current best gateway
  */
 
 class WINGGatewayResponder: public Element {

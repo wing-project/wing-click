@@ -13,7 +13,7 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGQueryResponder(ETHERTYPE, IP, ETH, LinkTable element, ARPTable element)
+ * WINGQueryResponder(IP, LT LinkTableMulti element, ARP ARPTableMulti element, [DEBUG])
  * =s Wifi, Wireless Routing
  * Responds to queries destined for this node.
  */
@@ -41,11 +41,7 @@ public:
 	String unparse() const {
 		StringAccum sa;
 		sa << _src.unparse();
-		if (_last_response.size() == 0) {
-			sa << " (empty route)";
-		} else {
-			sa << " (" << route_to_string(_last_response) << ")";
-		}
+		sa << _last_response;
 		return sa.take_string();
 	}
 };

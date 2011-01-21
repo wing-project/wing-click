@@ -16,7 +16,7 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGSetGateway([GW ipaddress], [SEL GatewaySelector element])
+ * WINGSetGateway([GW ipaddress], [SEL WINGGatewaySelector element], [DEBUG])
  * =d
  * This element marks the gateway for a packet to be sent to.
  * Either manually specifiy an gw using the GW keyword

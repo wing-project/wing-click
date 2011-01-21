@@ -44,8 +44,8 @@ int WINGGatewayResponder::configure(Vector<String> &conf, ErrorHandler *errh) {
 				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
 				"SEL", cpkM, cpElementCast, "WINGGatewaySelector", &_gw_sel, 
 				"RESPONDER", cpkM, cpElementCast, "WINGQueryResponder", &_responder, 
-				"DEBUG", 0, cpBool, &_debug, 
 				"PERIOD", 0, cpUnsigned, &_period, 
+				"DEBUG", 0, cpBool, &_debug, 
 				cpEnd) < 0)
 		return -1;
 

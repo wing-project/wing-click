@@ -13,10 +13,10 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGMetricFlood(ETHERTYPE, IP, ETH, LinkTable element, ARPTable element)
+ * WINGMetricFlood(IP, LT LinkTable element, ARP ARPTable element, [DEBUG])
  * =s Wifi, Wireless Routing
  * =d
- * Floods a packet with previous hops based on Link Metrics.
+ * Floods route request messages
  */
 
 // Query
