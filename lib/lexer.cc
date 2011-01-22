@@ -6,7 +6,7 @@
  * Copyright (c) 1999-2000 Massachusetts Institute of Technology
  * Copyright (c) 2000 Mazu Networks, Inc.
  * Copyright (c) 2001-2003 International Computer Science Institute
- * Copyright (c) 2004-2007 Regents of the University of California
+ * Copyright (c) 2004-2011 Regents of the University of California
  * Copyright (c) 2008 Meraki, Inc.
  * Copyright (c) 2010 Intel Corporation
  *
@@ -29,6 +29,7 @@
 #include <click/glue.hh>
 #include <click/straccum.hh>
 #include <click/variableenv.hh>
+#include <click/bitvector.hh>
 #include <click/standard/errorelement.hh>
 #if CLICK_USERLEVEL
 # include <click/userutils.hh>
@@ -137,7 +138,8 @@ class Lexer::Compound : public Element { public:
 	return landmark_string(_element_filenames[e], _element_linenos[e]);
     }
 
-  void finish(Lexer *, ErrorHandler *);
+    int check_pseudoelement(int e, bool isoutput, const char *name, ErrorHandler *errh) const;
+    void finish(Lexer *, ErrorHandler *);
 
   inline int assign_arguments(const Vector<String> &args, Vector<String> *values) const;
   int resolve(Lexer *, int etype, int ninputs, int noutputs, Vector<String> &, ErrorHandler *, const String &landmark);
@@ -240,51 +242,34 @@ Lexer::Compound::connect(int from_idx, int from_port, int to_idx, int to_port)
     _element_nports[1][from_idx] = from_port + 1;
 }
 
+int
+Lexer::Compound::check_pseudoelement(int which, bool isoutput, const char *name, ErrorHandler *errh) const
+{
+    static const char * const names[2] = {"input", "output"};
+    Bitvector used(_element_nports[1-isoutput][which]);
+    for (const Connection *it = _conn.begin(); it != _conn.end(); ++it)
+	if ((*it)[1-isoutput].idx == which)
+	    used[(*it)[1-isoutput].port] = true;
+    if (_element_nports[isoutput][which])
+	errh->error("%<%s%> pseudoelement %<%s%> may only be used as %s", name, names[isoutput], names[1-isoutput]);
+    for (int i = 0; i < used.size(); i++)
+	if (!used[i])
+	    errh->error("%<%s%> %s %d missing", name, names[isoutput], i);
+    return used.size();
+}
+
 void
 Lexer::Compound::finish(Lexer *lexer, ErrorHandler *errh)
 {
-  assert(_element_names[0] == "input" && _element_names[1] == "output");
+    assert(_element_names[0] == "input" && _element_names[1] == "output");
+    LandmarkErrorHandler lerrh(errh, _landmark);
+    _ninputs = check_pseudoelement(0, false, printable_name_c_str(), &lerrh);
+    _noutputs = check_pseudoelement(1, true, printable_name_c_str(), &lerrh);
 
-  // count numbers of inputs and outputs
-  Vector<int> from_in, to_out;
-  bool to_in = false, from_out = false;
-  for (int i = 0; i < _conn.size(); i++) {
-    const Connection &c = _conn[i];
-
-    if (c[1].idx == 0) {
-      if (from_in.size() <= c[1].port)
-	from_in.resize(c[1].port + 1, 0);
-      from_in[c[1].port] = 1;
-    } else if (c[1].idx == 1)
-      from_out = true;
-
-    if (c[0].idx == 1) {
-      if (to_out.size() <= c[0].port)
-	to_out.resize(c[0].port + 1, 0);
-      to_out[c[0].port] = 1;
-    } else if (c[0].idx == 0)
-      to_in = true;
-  }
-
-  // store information
-  _ninputs = from_in.size();
-  if (to_in)
-    errh->lerror(_landmark, "%<%s%> pseudoelement %<input%> may only be used as output", printable_name_c_str());
-  for (int i = 0; i < from_in.size(); i++)
-    if (!from_in[i])
-      errh->lerror(_landmark, "compound element %<%s%> input %d unused", printable_name_c_str(), i);
-
-  _noutputs = to_out.size();
-  if (from_out)
-    errh->lerror(_landmark, "%<%s%> pseudoelement %<output%> may only be used as input", printable_name_c_str());
-  for (int i = 0; i < to_out.size(); i++)
-    if (!to_out[i])
-      errh->lerror(_landmark, "compound element %<%s%> output %d unused", printable_name_c_str(), i);
-
-  // deanonymize element names
-  for (int i = 0; i < _elements.size(); i++)
-    if (_element_names[i][0] == ';')
-      _element_names[i] = lexer->deanonymize_element_name(_element_names[i], i);
+    // deanonymize element names
+    for (int i = 0; i < _elements.size(); i++)
+	if (_element_names[i][0] == ';')
+	    _element_names[i] = lexer->deanonymize_element_name(_element_names[i], i);
 }
 
 inline Lexer::Compound *
@@ -468,6 +453,7 @@ Lexer::begin_parse(const String &data, const String &filename,
   _compact_config = false;
 
   _c = new Compound("", "", 0);
+  _group_depth = 0;
 
   _lextra = lextra;
   _errh = (errh ? errh : ErrorHandler::default_handler());
@@ -711,6 +697,9 @@ Lexer::FileState::next_lexeme(Lexer *lexer)
     if (*s == '-' && s[1] == '>') {
       _pos = s + 2;
       return Lexeme(lexArrow, _big_string.substring(s, s + 2));
+    } else if (*s == '=' && s[1] == '>') {
+      _pos = s + 2;
+      return Lexeme(lex2Arrow, _big_string.substring(s, s + 2));
     } else if (*s == ':' && s[1] == ':') {
       _pos = s + 2;
       return Lexeme(lex2Colon, _big_string.substring(s, s + 2));
@@ -766,28 +755,19 @@ Lexer::FileState::lex_config(Lexer *lexer)
 String
 Lexer::lexeme_string(int kind)
 {
+    static const char names[] = "identifier\0variable\0'->'\0'=>'\0"
+	"'::'\0'||'\0'...'\0'elementclass'\0'require'\0'provide'\0"
+	"'define'";
+    static const uint8_t offsets[] = {
+	0, 11, 20, 25, 30, 35, 40, 46, 61, 71, 81, 90
+    };
+    static_assert(sizeof(names) == 90);
+
     char buf[14];
-    if (kind == lexIdent)
-	return String::make_stable("identifier", 10);
-    else if (kind == lexVariable)
-	return String::make_stable("variable", 8);
-    else if (kind == lexArrow)
-	return String::make_stable("'->'", 4);
-    else if (kind == lex2Colon)
-	return String::make_stable("'::'", 4);
-    else if (kind == lex2Bar)
-	return String::make_stable("'||'", 4);
-    else if (kind == lex3Dot)
-	return String::make_stable("'...'", 5);
-    else if (kind == lexElementclass)
-	return String::make_stable("'elementclass'", 14);
-    else if (kind == lexRequire)
-	return String::make_stable("'require'", 9);
-    else if (kind == lexProvide)
-	return String::make_stable("'provide'", 9);
-    else if (kind == lexDefine)
-	return String::make_stable("'define'", 8);
-    else if (kind >= 32 && kind < 127) {
+    if (kind >= lexIdent && kind < lexIdent + (int) sizeof(offsets) - 1) {
+	const uint8_t *op = offsets + (kind - lexIdent);
+	return String::make_stable(names + op[0], op[1] - op[0] - 1);
+    } else if (kind >= 32 && kind < 127) {
 	sprintf(buf, "'%c'", kind);
 	return buf;
     } else {
@@ -1043,22 +1023,25 @@ Lexer::anon_element_name(const String &class_name) const
 String
 Lexer::deanonymize_element_name(const String &ename, int eidx)
 {
-  // This function uses _element_map.
-  assert(ename && ename[0] == ';');
-  String name = ename.substring(1);
-  if (_element_map[name] >= 0) {
-    int at_pos = name.find_right('@');
-    assert(at_pos >= 0);
-    String prefix = name.substring(0, at_pos + 1);
-    int anonymizer;
-    cp_integer(name.substring(at_pos + 1), &anonymizer);
-    do {
-      anonymizer++;
-      name = prefix + String(anonymizer);
-    } while (_element_map[name] >= 0);
-  }
-  _element_map.set(name, eidx);
-  return name;
+    // This function uses _element_map.
+    assert(ename && ename[0] == ';');
+    String name = ename.substring(1);
+    if (_element_map[name] >= 0) {
+	int at_pos = name.find_right('@');
+	assert(at_pos >= 0);
+	String prefix = name.substring(0, at_pos + 1);
+	const char *abegin = name.begin() + at_pos + 1, *aend = abegin;
+	while (aend < name.end() && isdigit((unsigned char) *aend))
+	    ++aend;
+	int anonymizer;
+	cp_integer(abegin, aend, 10, &anonymizer);
+	do {
+	    anonymizer++;
+	    name = prefix + String(anonymizer);
+	} while (_element_map[name] >= 0);
+    }
+    _element_map.set(name, eidx);
+    return name;
 }
 
 String
@@ -1096,208 +1079,404 @@ Lexer::element_landmark(int eid) const
 // PARSING
 
 bool
-Lexer::yport(int &port)
+Lexer::yport(Vector<int> &ports)
 {
-  if (!expect('[', true))
-    return false;
+    if (!expect('[', true))
+	return false;
 
-  Lexeme tword = lex();
-  if (tword.is(lexIdent)) {
-    if (!cp_integer(tword.string(), &port)) {
-      lerror("syntax error: port number should be integer");
-      port = 0;
+    int nports = ports.size();
+    while (1) {
+	Lexeme t = lex();
+	if (t.is(lexIdent)) {
+	    int port;
+	    if (!cp_integer(t.string(), &port)) {
+		lerror("syntax error: port number should be integer");
+		port = 0;
+	    }
+	    ports.push_back(port);
+	} else if (t.is(']')) {
+	    if (nports == ports.size())
+		ports.push_back(0);
+	    ports.push_back(-1);
+	    return true;
+	} else {
+	    lerror("syntax error: expected port number");
+	    unlex(t);
+	    return ports.size() != nports;
+	}
+
+	t = lex();
+	if (t.is(']'))
+	    return true;
+	else if (!t.is(',')) {
+	    lerror("syntax error: expected ','");
+	    unlex(t);
+	}
     }
-    expect(']');
-    return true;
-  } else if (tword.is(']')) {
-    lerror("syntax error: expected port number");
-    port = 0;
-    return true;
-  } else {
-    lerror("syntax error: expected port number");
-    unlex(tword);
-    return false;
-  }
 }
 
-bool
-Lexer::yelement(int &element, bool comma_ok)
-{
-  Lexeme t = lex();
-  String name;
-  int etype;
-
-  if (t.is(lexIdent)) {
-    name = t.string();
-    etype = element_type(name);
-  } else if (t.is('{')) {
-    etype = ycompound();
-    name = _element_types[etype].name;
-  } else {
-    unlex(t);
-    return false;
-  }
-
-  String configuration, filename;
-  unsigned lineno = 0;
-  if (expect('(', true)) {
-    filename = _file._filename;	// report landmark from before config string
-    lineno = _file._lineno;
-    if (etype < 0)
-      etype = force_element_type(name);
-    configuration = lex_config();
-    expect(')');
-  }
-
-  if (etype >= 0)
-    element = get_element(anon_element_name(name), etype, configuration, filename, lineno);
-  else {
-    Lexeme t2colon = lex();
-    unlex(t2colon);
-    if (t2colon.is(lex2Colon) || (t2colon.is(',') && comma_ok))
-      ydeclaration(name);
-    if ((element = _element_map[name]) < 0) {
-      lerror("undeclared element %<%s%>, assuming element class", name.c_str());
-      etype = force_element_type(name, false);
-      element = get_element(anon_element_name(name), etype, configuration, filename, lineno);
+namespace {
+struct ElementState {
+    String name;
+    int type;
+    int decl_type;
+    bool bare;
+    String configuration;
+    String filename;
+    unsigned lineno;
+    ElementState *next;
+    ElementState(const String &name_, int type_, bool bare_,
+		 const String &filename_, unsigned lineno_,
+		 ElementState **&tail)
+	: name(name_), type(type_), decl_type(-1), bare(bare_),
+	  filename(filename_), lineno(lineno_), next(0) {
+	*tail = this;
+	tail = &next;
     }
-  }
+};
+}
 
-  return true;
+// Returned result is a vector listing all elements and port references.
+// The vector is a concatenated series of groups, each of which looks like:
+// group[0] element index
+// group[1] number of input ports
+// group[2] number of output ports
+// group[3...3+group[1]] input ports
+// group[3+group[1]...3+group[1]+group[2]] output ports
+bool
+Lexer::yelement(Vector<int> &result, bool in_allowed)
+{
+    ElementState *head = 0, **tail = &head;
+    Vector<int> res;
+    bool any_implicit = false, any_ports = false;
+
+    // parse lists of names (which might include classes)
+    Lexeme t;
+    while (1) {
+	int esize = res.size();
+	res.push_back(-1);
+	res.push_back(0);
+	res.push_back(0);
+	bool this_implicit = false;
+
+	// initial port
+	yport(res);
+	res[esize + 1] = res.size() - (esize + 3);
+
+	// element name or class
+	String name;
+	int type;
+
+	t = lex();
+	if (t.is(lexIdent)) {
+	    name = t.string();
+	    type = element_type(name);
+	} else if (t.is('{')) {
+	    type = ycompound();
+	    name = _element_types[type].name;
+	} else if (t.is('(')) {
+	    name = anon_element_name("");
+	    type = -1;
+	    int group_nports[2];
+	    ygroup(name, group_nports);
+
+	    // an anonymous group has implied, overridable port
+	    // specifications on both sides for all inputs & outputs
+	    for (int k = 0; k < 2; ++k)
+		if (res[esize + 1 + k] == 0) {
+		    res[esize + 1 + k] = group_nports[k];
+		    for (int i = 0; i < group_nports[k]; ++i)
+			res.push_back(i);
+		}
+	} else {
+	    bool nested = _c->depth() || _group_depth;
+	    if (nested && (t.is(lexArrow) || t.is(lex2Arrow)))
+		this_implicit = !in_allowed && (res[esize + 1] || !esize);
+	    else if (nested && t.is(','))
+		this_implicit = !!res[esize + 1];
+	    else if (nested && !t.is(lex2Colon))
+		this_implicit = in_allowed && (res[esize + 1] || !esize);
+	    if (this_implicit) {
+		any_implicit = true;
+		name = (in_allowed ? "output" : "input");
+		type = element_type(name);
+		if (!in_allowed)
+		    click_swap(res[esize+1], res[esize+2]);
+		unlex(t);
+	    } else {
+		if (res[esize + 1])
+		    lerror("stranded port ignored");
+		res.resize(esize);
+		if (esize == 0) {
+		    if (in_allowed)
+			unlex(t);
+		    else
+			lerror("syntax error near %<%#s%>", t.string().c_str());
+		    return false;
+		}
+		break;
+	    }
+	}
+
+	ElementState *e = new ElementState(name, type, t.is(lexIdent), _file._filename, _file._lineno, tail);
+
+	// ":: CLASS" declaration
+	t = lex();
+	if (t.is(lex2Colon) && !this_implicit) {
+	    t = lex();
+	    if (t.is(lexIdent))
+		e->decl_type = force_element_type(t.string());
+	    else if (t.is('{'))
+		e->decl_type = ycompound();
+	    else {
+		lerror("missing element type in declaration");
+		e->decl_type = force_element_type(e->name);
+		unlex(t);
+	    }
+	    e->bare = false;
+	    t = lex();
+	}
+
+	// configuration string
+	if (t.is('(') && !this_implicit) {
+	    if (_element_map[e->name] >= 0)
+		lerror("configuration string ignored on element reference");
+	    e->configuration = lex_config();
+	    expect(')');
+	    e->bare = false;
+	    t = lex();
+	}
+
+	// final port
+	if (t.is('[') && !this_implicit) {
+	    unlex(t);
+	    if (res[esize + 2])	// delete any implied ports
+		res.resize(esize + 3 + res[esize + 1]);
+	    yport(res);
+	    res[esize + 2] = res.size() - (esize + 3 + res[esize + 1]);
+	    t = lex();
+	}
+	any_ports = any_ports || res[esize + 1] || res[esize + 2];
+
+	if (!t.is(','))
+	    break;
+    }
+
+    unlex(t);
+
+    // maybe complain about implicits
+    if (any_implicit && in_allowed && (t.is(lexArrow) || t.is(lex2Arrow)))
+	lerror("implicit ports used in the middle of a chain");
+
+    // maybe spread class and configuration for standalone
+    // multiple-element declaration
+    if (head->next && !in_allowed && !(t.is(lexArrow) || t.is(lex2Arrow))
+	&& !any_ports && !any_implicit) {
+	ElementState *last = head;
+	while (last->next && last->bare)
+	    last = last->next;
+	if (!last->next && last->decl_type)
+	    for (ElementState *e = head; e->next; e = e->next) {
+		e->decl_type = last->decl_type;
+		e->configuration = last->configuration;
+	    }
+    }
+
+    // add elements
+    int *resp = res.begin();
+    while (ElementState *e = head) {
+	if (e->type >= 0 || (*resp = _element_map[e->name]) < 0) {
+	    if (e->decl_type >= 0 && e->type >= 0)
+		_errh->lerror(Compound::landmark_string(e->filename, e->lineno), "class %<%s%> used as element name", e->name.c_str());
+	    else if (e->decl_type < 0 && e->type < 0) {
+		_errh->lerror(Compound::landmark_string(e->filename, e->lineno), "undeclared element %<%s%>, assuming element class", e->name.c_str());
+		e->type = force_element_type(e->name, false);
+	    }
+	    if (e->type >= 0)
+		e->name = anon_element_name(e->name);
+	    *resp = get_element(e->name, e->type >= 0 ? e->type : e->decl_type, e->configuration, e->filename, e->lineno);
+	} else if (e->decl_type >= 0) {
+	    _errh->lerror(Compound::landmark_string(e->filename, e->lineno), "redeclaration of element %<%s%>", e->name.c_str());
+	    if (_c->_elements[*resp] != TUNNEL_TYPE)
+		_errh->lerror(_c->element_landmark(*resp), "element %<%s%> previously declared here", e->name.c_str());
+	}
+
+	resp += 3 + resp[1] + resp[2];
+	head = e->next;
+	delete e;
+    }
+
+    result.swap(res);
+    return true;
 }
 
 void
-Lexer::ydeclaration(const String &first_element)
+Lexer::yconnection_check_useless(const Vector<int> &x, bool isoutput)
 {
-  Vector<String> decls;
-  Lexeme t;
+    for (const int *it = x.begin(); it != x.end(); it += 3 + it[1] + it[2])
+	if (it[isoutput ? 2 : 1] > 0) {
+	    lerror(isoutput ? "output ports ignored at end of chain" : "input ports ignored at start of chain");
+	    break;
+	}
+}
 
-  if (first_element) {
-    decls.push_back(first_element);
-    goto midpoint;
-  }
-
-  while (true) {
-    t = lex();
-    if (!t.is(lexIdent))
-      lerror("syntax error: expected element name");
-    else
-      decls.push_back(t.string());
-
-   midpoint:
-    Lexeme tsep = lex();
-    if (tsep.is(','))
-      /* do nothing */;
-    else if (tsep.is(lex2Colon))
-      break;
-    else {
-      lerror("syntax error: expected %<::%> or %<,%>");
-      unlex(tsep);
-      return;
+void
+Lexer::yconnection_analyze_ports(const Vector<int> &x, bool isoutput,
+				 int &min_ports, int &expandable)
+{
+    min_ports = expandable = 0;
+    for (const int *it = x.begin(); it != x.end(); it += 3 + it[1] + it[2]) {
+	int n = it[isoutput ? 2 : 1];
+	if (n <= 1)
+	    min_ports += 1;
+	else if (it[3 + (isoutput ? it[1] : 0) + n - 1] == -1) {
+	    min_ports += n - 1;
+	    ++expandable;
+	} else
+	    min_ports += n;
     }
-  }
+}
 
-  String filename = _file._filename;
-  unsigned lineno = _file._lineno;
-  int etype;
-  t = lex();
-  if (t.is(lexIdent))
-    etype = force_element_type(t.string());
-  else if (t.is('{'))
-    etype = ycompound();
-  else {
-    lerror("missing element type in declaration");
-    return;
-  }
+void
+Lexer::yconnection_connect_all(Vector<int> &outputs, Vector<int> &inputs,
+			       int connector)
+{
+    int minp[2];
+    int expandable[2];
+    yconnection_analyze_ports(outputs, true, minp[1], expandable[1]);
+    yconnection_analyze_ports(inputs, false, minp[0], expandable[0]);
 
-  String configuration;
-  if (expect('(', true)) {
-    configuration = lex_config();
-    expect(')');
-  }
+    if (expandable[0] + expandable[1] > 1) {
+	lerror("at most one expandable port allowed per connection");
+	expandable[minp[0] < minp[1]] = 0;
+    }
 
-  for (int i = 0; i < decls.size(); i++) {
-    String name = decls[i];
-    if (_element_map[name] >= 0) {
-      int e = _element_map[name];
-      lerror("redeclaration of element %<%s%>", name.c_str());
-      if (_c->_elements[e] != TUNNEL_TYPE)
-	_errh->lerror(_c->element_landmark(e), "element %<%s%> previously declared here", name.c_str());
-    } else if (element_type(name) >= 0)
-      lerror("%<%s%> is an element class", name.c_str());
-    else
-      get_element(name, etype, configuration, filename, lineno);
-  }
+    if (connector == lex2Arrow)
+	// '=>' can interpret missing ports as expandable ports
+	for (int k = 0; k < 2; ++k) {
+	    Vector<int> &myvec(k ? outputs : inputs);
+	    if (minp[k] == 1 && minp[1-k] > 1 && myvec[1+k] == 0)
+		expandable[k] = 1;
+	}
+
+    bool step[2];
+    int nexpandable[2];
+    for (int k = 0; k < 2; ++k) {
+	step[k] = minp[k] > 1 || expandable[k];
+	nexpandable[k] = expandable[k] ? minp[1-k] - minp[k] : 0;
+    }
+
+    if (step[0] && step[1]) {
+	if (connector != lex2Arrow)
+	    lerror("syntax error: many-to-many connections require %<=>%>");
+	if (!expandable[0] && !expandable[1] && minp[0] != minp[1])
+	    lerror("connection mismatch: %d outputs connected to %d inputs", minp[1], minp[0]);
+	else if (!expandable[0] && minp[0] < minp[1])
+	    lerror("connection mismatch: %d or more outputs connected to %d inputs", minp[1], minp[0]);
+	else if (!expandable[1] && minp[1] < minp[0])
+	    lerror("connection mismatch: %d outputs connected to %d or more inputs", minp[1], minp[0]);
+    } else if (!step[0] && !step[1])
+	step[0] = true;
+
+    const int *it[2] = {inputs.begin(), outputs.begin()};
+    int ppos[2] = {0, 0}, port[2] = {-1, -1};
+    while (it[0] != inputs.end() && it[1] != outputs.end()) {
+	for (int k = 0; k < 2; ++k)
+	    if (port[k] < 0) {
+		int np = it[k][1+k];
+		port[k] = np ? it[k][3 + (k ? it[k][1] : 0)] : 0;
+	    }
+
+	_c->connect(it[1][0], port[1], it[0][0], port[0]);
+
+	for (int k = 0; k < 2; ++k)
+	    if (step[k]) {
+		int np = it[k][1+k];
+		const int *pvec = it[k] + 3 + (k ? it[k][1] : 0);
+		++ppos[k];
+		if (ppos[k] < np && pvec[ppos[k]] >= 0)
+		    // port list
+		    port[k] = pvec[ppos[k]];
+		else if (np && pvec[np-1] == -1 && nexpandable[k] > 0) {
+		    // expandable port
+		    port[k] = pvec[np-2] + ppos[k] - (np-2);
+		    --nexpandable[k];
+		} else if (np == 0 && minp[k] == 1 && nexpandable[k] > 0) {
+		    // missing port interpreted as expandable port
+		    port[k] = ppos[k];
+		    --nexpandable[k];
+		} else {
+		    // next element in comma-separated list
+		    port[k] = -1;
+		    ppos[k] = 0;
+		    it[k] += 3 + it[k][1] + it[k][2];
+		}
+	    }
+    }
 }
 
 bool
 Lexer::yconnection()
 {
-    int element1 = -1, port1 = -1;
+    Vector<int> elements1, elements2;
+    int connector = 0;
     Lexeme t;
 
     while (true) {
-	int element2, port2 = -1;
+	// get element
+	elements2.clear();
+	if (!yelement(elements2, !elements1.empty())) {
+	    yconnection_check_useless(elements1, true);
+	    return !elements1.empty();
+	}
 
-    // get element
-    yport(port2);
-    if (!yelement(element2, element1 < 0)) {
-      if (port1 >= 0)
-	lerror("output port useless at end of chain");
-      return element1 >= 0;
+	if (elements1.empty())
+	    yconnection_check_useless(elements2, false);
+	else
+	    yconnection_connect_all(elements1, elements2, connector);
+
+    relex:
+	t = lex();
+	switch (t.kind()) {
+
+	case ',':
+	case lex2Colon:
+	    lerror("syntax error before %<%#s%>", t.string().c_str());
+	    goto relex;
+
+	case lexArrow:
+	case lex2Arrow:
+	    connector = t.kind();
+	    break;
+
+	case lexIdent:
+	case '{':
+	case '}':
+	case '[':
+	case ')':
+	case lex2Bar:
+	case lexElementclass:
+	case lexRequire:
+	case lexProvide:
+	case lexDefine:
+	    unlex(t);
+	    // FALLTHRU
+	case ';':
+	case lexEOF:
+	    yconnection_check_useless(elements2, true);
+	    return true;
+
+	default:
+	    lerror("syntax error near %<%#s%>", t.string().c_str());
+	    if (t.kind() >= lexIdent)	// save meaningful tokens
+		unlex(t);
+	    return true;
+
+	}
+
+	// have 'x ->'
+	elements1.swap(elements2);
     }
-
-    if (element1 >= 0)
-      _c->connect(element1, port1, element2, port2);
-    else if (port2 >= 0)
-      lerror("input port useless at start of chain");
-
-    port1 = -1;
-
-   relex:
-    t = lex();
-    switch (t.kind()) {
-
-     case ',':
-     case lex2Colon:
-      lerror("syntax error before %<%#s%>", t.string().c_str());
-      goto relex;
-
-     case lexArrow:
-      break;
-
-     case '[':
-      unlex(t);
-      yport(port1);
-      goto relex;
-
-     case lexIdent:
-     case '{':
-     case '}':
-     case lex2Bar:
-     case lexElementclass:
-     case lexRequire:
-     case lexProvide:
-     case lexDefine:
-      unlex(t);
-      // FALLTHRU
-     case ';':
-     case lexEOF:
-      if (port1 >= 0)
-	lerror("output port useless at end of chain", port1);
-      return true;
-
-     default:
-      lerror("syntax error near %<%#s%>", t.string().c_str());
-      if (t.kind() >= lexIdent)	// save meaningful tokens
-	unlex(t);
-      return true;
-
-    }
-
-    // have 'x ->'
-    element1 = element2;
-  }
 }
 
 void
@@ -1411,7 +1590,7 @@ Lexer::ycompound(String name)
     _anonymous_offset = 2;
 
     ycompound_arguments(ct);
-    while (ystatement(true))
+    while (ystatement('}'))
       /* nada */;
 
     _anonymous_offset = old_offset;
@@ -1439,6 +1618,36 @@ Lexer::ycompound(String name)
   if (extension)
     last->set_overload_type(extension);
   return ADD_ELEMENT_TYPE(name, compound_element_factory, (uintptr_t) first, true);
+}
+
+void
+Lexer::ygroup(String name, int group_nports[2])
+{
+    String name_slash = name + "/";
+    add_tunnel(name, name_slash + "input");
+    add_tunnel(name_slash + "output", name);
+    int new_input = _element_map[name_slash + "input"];
+    int new_output = _element_map[name_slash + "output"];
+
+    int old_input = _element_map["input"];
+    int old_output = _element_map["output"];
+    _element_map["input"] = new_input;
+    _element_map["output"] = new_output;
+    ++_group_depth;
+
+    while (ystatement(')'))
+	/* nada */;
+    expect(')');
+
+    // check that all inputs and outputs are used
+    LandmarkErrorHandler lerrh(_errh, _file.landmark());
+    const char *printable_name = (name[0] == ';' ? "<anonymous group>" : name.c_str());
+    group_nports[0] = _c->check_pseudoelement(new_input, false, printable_name, &lerrh);
+    group_nports[1] = _c->check_pseudoelement(new_output, true, printable_name, &lerrh);
+
+    --_group_depth;
+    _element_map["input"] = old_input;
+    _element_map["output"] = old_output;
 }
 
 void
@@ -1476,7 +1685,7 @@ Lexer::yrequire_library(const String &value)
 
     FileState old_file(_file);
     _file = FileState(data, fn);
-    while (ystatement(false))
+    while (ystatement(0))
 	/* do nothing */;
     _file = old_file;
 #else
@@ -1568,7 +1777,7 @@ Lexer::yvar()
 }
 
 bool
-Lexer::ystatement(bool nested)
+Lexer::ystatement(int nested)
 {
   Lexeme t = lex();
   switch (t.kind()) {
@@ -1576,6 +1785,9 @@ Lexer::ystatement(bool nested)
    case lexIdent:
    case '[':
    case '{':
+   case '(':
+   case lexArrow:
+   case lex2Arrow:
     unlex(t);
     yconnection();
     return true;
@@ -1597,14 +1809,20 @@ Lexer::ystatement(bool nested)
 
    case '}':
    case lex2Bar:
-    if (!nested)
+    if (nested != '}')
+      goto syntax_error;
+    unlex(t);
+    return false;
+
+   case ')':
+    if (nested != ')')
       goto syntax_error;
     unlex(t);
     return false;
 
    case lexEOF:
     if (nested)
-      lerror("expected %<}%>");
+	lerror("expected %<%c%>", nested);
     return false;
 
    default:

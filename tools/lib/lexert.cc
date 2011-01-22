@@ -6,7 +6,7 @@
  * Copyright (c) 1999-2000 Massachusetts Institute of Technology
  * Copyright (c) 2000 Mazu Networks, Inc.
  * Copyright (c) 2001-2003 International Computer Science Institute
- * Copyright (c) 2004-2007 Regents of the University of California
+ * Copyright (c) 2004-2011 Regents of the University of California
  * Copyright (c) 2008 Meraki, Inc.
  * Copyright (c) 2010 Intel Corporation
  *
@@ -103,6 +103,7 @@ LexerT::clear()
     _base_type_map.clear();
     _anonymous_offset = 0;
     _anonymous_class_count = 0;
+    _group_depth = 0;
     _libraries.clear();
 }
 
@@ -328,6 +329,9 @@ LexerT::FileState::next_lexeme(LexerT *lexer)
     if (*s == '-' && s[1] == '>') {
       _pos = s + 2;
       return Lexeme(lexArrow, _big_string.substring(s, s + 2), word_pos);
+    } else if (*s == '=' && s[1] == '>') {
+      _pos = s + 2;
+      return Lexeme(lex2Arrow, _big_string.substring(s, s + 2), word_pos);
     } else if (*s == ':' && s[1] == ':') {
       _pos = s + 2;
       return Lexeme(lex2Colon, _big_string.substring(s, s + 2), word_pos);
@@ -386,28 +390,19 @@ LexerT::FileState::lex_config(LexerT *lexer)
 String
 LexerT::lexeme_string(int kind)
 {
+    static const char names[] = "identifier\0variable\0'->'\0'=>'\0"
+	"'::'\0'||'\0'...'\0'elementclass'\0'require'\0'provide'\0"
+	"'define'";
+    static const uint8_t offsets[] = {
+	0, 11, 20, 25, 30, 35, 40, 46, 61, 71, 81, 90
+    };
+    static_assert(sizeof(names) == 90);
+
     char buf[14];
-    if (kind == lexIdent)
-	return String::make_stable("identifier", 10);
-    else if (kind == lexVariable)
-	return String::make_stable("variable", 8);
-    else if (kind == lexArrow)
-	return String::make_stable("'->'", 4);
-    else if (kind == lex2Colon)
-	return String::make_stable("'::'", 4);
-    else if (kind == lex2Bar)
-	return String::make_stable("'||'", 4);
-    else if (kind == lex3Dot)
-	return String::make_stable("'...'", 5);
-    else if (kind == lexElementclass)
-	return String::make_stable("'elementclass'", 14);
-    else if (kind == lexRequire)
-	return String::make_stable("'require'", 9);
-    else if (kind == lexProvide)
-	return String::make_stable("'provide'", 9);
-    else if (kind == lexDefine)
-	return String::make_stable("'define'", 8);
-    else if (kind >= 32 && kind < 127) {
+    if (kind >= lexIdent && kind < lexIdent + (int) sizeof(offsets) - 1) {
+	const uint8_t *op = offsets + (kind - lexIdent);
+	return String::make_stable(names + op[0], op[1] - op[0] - 1);
+    } else if (kind >= 32 && kind < 127) {
 	sprintf(buf, "'%c'", kind);
 	return buf;
     } else {
@@ -573,221 +568,418 @@ LexerT::connect(int element1, int port1, int port2, int element2, const char *po
 // PARSING
 
 bool
-LexerT::yport(int &port, const char *&pos1, const char *&pos2)
+LexerT::yport(Vector<int> &ports, const char *pos[2])
 {
     Lexeme tlbrack = lex();
-    pos1 = tlbrack.pos1();
+    pos[0] = tlbrack.pos1();
     if (!tlbrack.is('[')) {
 	unlex(tlbrack);
-	pos2 = pos1;
+	pos[1] = pos[0];
 	return false;
     }
 
-    Lexeme tword = lex();
-    if (tword.is(lexIdent)) {
-	String p = tword.string();
-	const char *ps = p.c_str();
-	if (isdigit((unsigned char) ps[0]) || ps[0] == '-')
-	    port = strtol(ps, (char **)&ps, 0);
-	if (*ps != 0) {
-	    lerror(tword, "syntax error: port number should be integer");
-	    port = 0;
+    int nports = ports.size();
+    while (1) {
+	Lexeme t = lex();
+	if (t.is(lexIdent)) {
+	    String p = t.string();
+	    const char *ps = p.c_str();
+	    int port = 0;
+	    if (isdigit((unsigned char) ps[0]) || ps[0] == '-')
+		port = strtol(ps, (char **)&ps, 0);
+	    if (*ps != 0) {
+		lerror(t, "syntax error: port number should be integer");
+		port = 0;
+	    }
+	    ports.push_back(port);
+	} else if (t.is(']')) {
+	    if (nports == ports.size())
+		ports.push_back(0);
+	    ports.push_back(-1);
+	    pos[1] = t.pos2();
+	    return true;
+	} else {
+	    lerror(t, "syntax error: expected port number");
+	    unlex(t);
+	    return ports.size() != nports;
 	}
-	expect(']');
-	pos2 = next_pos();
-	return true;
-    } else if (tword.is(']')) {
-	lerror(tword, "syntax error: expected port number");
-	port = 0;
-	pos2 = tword.pos2();
-	return true;
-    } else {
-	lerror(tword, "syntax error: expected port number");
-	unlex(tword);
-	return false;
+
+	t = lex();
+	if (t.is(']')) {
+	    pos[1] = t.pos2();
+	    return true;
+	} else if (!t.is(',')) {
+	    lerror(t, "syntax error: expected ','");
+	    unlex(t);
+	}
     }
 }
 
-bool
-LexerT::yelement(int &element, bool comma_ok)
-{
-    Lexeme tname = lex();
+namespace {
+struct ElementState {
     String name;
-    ElementClassT *etype;
-    const char *decl_pos2 = 0;
-
-    if (tname.is(lexIdent)) {
-	etype = element_type(tname);
-	name = tname.string();
-	decl_pos2 = tname.pos2();
-    } else if (tname.is('{')) {
-	etype = ycompound(String(), tname.pos1(), tname.pos1());
-	name = etype->name();
-	decl_pos2 = next_pos();
-    } else {
-	unlex(tname);
-	return false;
+    ElementClassT *type;
+    ElementClassT *decl_type;
+    bool bare;
+    String configuration;
+    Lexeme decl_lexeme;
+    const char *decl_pos2;
+    ElementState *next;
+    ElementState(const String &name_, ElementClassT *type_, bool bare_,
+		 const Lexeme &decl_lexeme_, const char *decl_pos2_,
+		 ElementState **&tail)
+	: name(name_), type(type_), decl_type(0), bare(bare_),
+	  decl_lexeme(decl_lexeme_), decl_pos2(decl_pos2_), next(0) {
+	*tail = this;
+	tail = &next;
     }
+};
+}
 
-    Lexeme configuration;
-    if (expect('(', true)) {
-	if (!etype)
-	    etype = force_element_type(tname);
-	configuration = lex_config();
-	expect(')');
-	decl_pos2 = next_pos();
-    }
+// Returned result is a vector listing all elements and port references.
+// The vector is a concatenated series of groups, each of which looks like:
+// group[0] element index
+// group[1] number of input ports
+// group[2] number of output ports
+// group[3...3+group[1]] input ports
+// group[3+group[1]...3+group[1]+group[2]] output ports
+// epos is used to store character positions.
+// epos[0], [1] is beginning & end of first input port specification
+// epos[2] is beginning of first element name
+// epos[3], [4] is beginning & end of last output port specification
+bool
+LexerT::yelement(Vector<int> &result, bool in_allowed, const char *epos[5])
+{
+    ElementState *head = 0, **tail = &head;
+    Vector<int> res;
+    const char *xport_pos[2];
+    bool any_implicit = false, any_ports = false;
 
-    if (etype)
-	element = make_anon_element(tname, decl_pos2, etype, configuration.string());
-    else {
-	Lexeme t2colon = lex();
-	unlex(t2colon);
-	if (t2colon.is(lex2Colon) || (t2colon.is(',') && comma_ok)) {
-	    ydeclaration(tname);
-	    element = _router->eindex(name);
+    // parse list of names (which might include classes)
+    Lexeme t;
+    while (1) {
+	int esize = res.size();
+	res.push_back(-1);
+	res.push_back(0);
+	res.push_back(0);
+	bool this_implicit = false;
+
+	// initial port
+	const char **inpos = head ? xport_pos : epos;
+	yport(res, inpos);
+	res[esize + 1] = res.size() - (esize + 3);
+
+	// element name or class
+	String name;
+	ElementClassT *type;
+
+	if (!head)
+	    epos[2] = next_pos();
+	t = lex();
+	const char *decl_pos2 = t.pos2();
+	if (t.is(lexIdent)) {
+	    name = t.string();
+	    type = element_type(t);
+	} else if (t.is('{')) {
+	    type = ycompound(String(), t.pos1(), t.pos1());
+	    name = type->name();
+	    decl_pos2 = next_pos();
+	} else if (t.is('(')) {
+	    name = anon_element_name("");
+	    type = 0;
+	    int group_nports[2];
+	    ygroup(name, group_nports, landmarkt(t.pos1(), t.pos2()));
+
+	    // an anonymous group has implied, overridable port
+	    // specifications on both sides for all inputs & outputs
+	    for (int k = 0; k < 2; ++k)
+		if (res[esize + 1 + k] == 0) {
+		    res[esize + 1 + k] = group_nports[k];
+		    for (int i = 0; i < group_nports[k]; ++i)
+			res.push_back(i);
+		}
 	} else {
-	    element = _router->eindex(name);
-	    if (element < 0) {
-		// assume it's an element type
-		etype = force_element_type(tname);
-		element = make_anon_element(tname, tname.pos2(), etype, configuration.string());
-	    } else
-		_lexinfo->notify_element_reference(_router->element(element), tname.pos1(), tname.pos2());
+	    bool nested = _router->scope().depth() || _group_depth;
+	    if (nested && (t.is(lexArrow) || t.is(lex2Arrow)))
+		this_implicit = !in_allowed && (res[esize + 1] || !esize);
+	    else if (nested && t.is(','))
+		this_implicit = !!res[esize + 1];
+	    else if (nested && !t.is(lex2Colon))
+		this_implicit = in_allowed && (res[esize + 1] || !esize);
+	    if (this_implicit) {
+		any_implicit = true;
+		name = (in_allowed ? "output" : "input");
+		type = 0;
+		if (!in_allowed)
+		    click_swap(res[esize+1], res[esize+2]);
+		unlex(t);
+	    } else {
+		if (res[esize + 1])
+		    lerror(t, "stranded port ignored");
+		res.resize(esize);
+		if (esize == 0) {
+		    if (in_allowed)
+			unlex(t);
+		    else
+			lerror(t, "syntax error near %<%#s%>", t.string().c_str());
+		    return false;
+		}
+		break;
+	    }
 	}
+
+	ElementState *e = new ElementState(name, type, t.is(lexIdent), t, decl_pos2, tail);
+
+	// ":: CLASS" declaration
+	t = lex();
+	if (t.is(lex2Colon) && !this_implicit) {
+	    t = lex();
+	    if (t.is(lexIdent))
+		e->decl_type = force_element_type(t);
+	    else if (t.is('{'))
+		e->decl_type = ycompound(String(), t.pos1(), t.pos1());
+	    else {
+		lerror(t, "missing element type in declaration");
+		e->decl_type = force_element_type(e->decl_lexeme);
+		unlex(t);
+	    }
+	    e->bare = false;
+	    t = lex();
+	}
+
+	// configuration string
+	if (t.is('(') && !this_implicit) {
+	    if (_router->element(e->name))
+		lerror(t, "configuration string ignored on element reference");
+	    e->configuration = lex_config().string();
+	    expect(')');
+	    e->decl_pos2 = next_pos();
+	    e->bare = false;
+	    t = lex();
+	}
+
+	// final port
+	if (t.is('[') && !this_implicit) {
+	    unlex(t);
+	    if (res[esize + 2])	// delete any implied ports
+		res.resize(esize + 3 + res[esize + 1]);
+	    yport(res, epos + 3);
+	    res[esize + 2] = res.size() - (esize + 3 + res[esize + 1]);
+	    t = lex();
+	}
+	any_ports = any_ports || res[esize + 1] || res[esize + 2];
+
+	if (!t.is(','))
+	    break;
     }
 
+    unlex(t);
+
+    // maybe complain about implicits
+    if (any_implicit && in_allowed && (t.is(lexArrow) || t.is(lex2Arrow)))
+	lerror(t, "implicit ports used in the middle of a chain");
+
+    // maybe spread class and configuration for standalone
+    // multiple-element declaration
+    if (head->next && !in_allowed && !(t.is(lexArrow) || t.is(lex2Arrow))
+	&& !any_ports && !any_implicit) {
+	ElementState *last = head;
+	while (last->next && last->bare)
+	    last = last->next;
+	if (!last->next && last->decl_type)
+	    for (ElementState *e = head; e->next; e = e->next) {
+		e->decl_type = last->decl_type;
+		e->configuration = last->configuration;
+		e->decl_pos2 = last->decl_pos2;
+	    }
+    }
+
+    // add elements
+    int *resp = res.begin();
+    while (ElementState *e = head) {
+	if (e->type || (*resp = _router->eindex(e->name)) < 0) {
+	    if (e->decl_type && (e->type || e->name == e->decl_type->name()))
+		lerror(e->decl_lexeme, "class %<%s%> used as element name", e->name.c_str());
+	    else if (!e->decl_type && !e->type)
+		e->type = force_element_type(e->decl_lexeme);
+	    if (e->type)
+		e->name = anon_element_name(e->type->name());
+	    *resp = make_element(e->name, e->decl_lexeme, e->decl_pos2, e->type ? e->type : e->decl_type, e->configuration);
+	} else {
+	    if (e->decl_type)
+		ElementT::redeclaration_error(_errh, "element", e->name, _file.landmark(), _router->element(*resp)->landmark());
+	    _lexinfo->notify_element_reference(_router->element(*resp), e->decl_lexeme.pos1(), e->decl_lexeme.pos2());
+	}
+
+	resp += 3 + resp[1] + resp[2];
+	head = e->next;
+	delete e;
+    }
+
+    result.swap(res);
     return true;
 }
 
 void
-LexerT::ydeclaration(const Lexeme &first_element)
+LexerT::yconnection_check_useless(const Vector<int> &x, bool isoutput, const char *epos[2])
 {
-    Vector<Lexeme> decls;
-    Lexeme t;
-
-    if (first_element) {
-	decls.push_back(first_element);
-	goto midpoint;
-    }
-
-    while (true) {
-	t = lex();
-	if (!t.is(lexIdent))
-	    lerror(t, "syntax error: expected element name");
-	else
-	    decls.push_back(t);
-
-      midpoint:
-	Lexeme tsep = lex();
-	if (tsep.is(','))
-	    /* do nothing */;
-	else if (tsep.is(lex2Colon))
+    for (const int *it = x.begin(); it != x.end(); it += 3 + it[1] + it[2])
+	if (it[isoutput ? 2 : 1] > 0) {
+	    lerror(epos[0], epos[1], isoutput ? "output ports ignored at end of chain" : "input ports ignored at start of chain");
 	    break;
-	else {
-	    lerror(tsep, "syntax error: expected %<::%> or %<,%>");
-	    unlex(tsep);
-	    return;
 	}
+}
+
+void
+LexerT::yconnection_analyze_ports(const Vector<int> &x, bool isoutput,
+				  int &min_ports, int &expandable)
+{
+    min_ports = 0;
+    expandable = 0;
+    for (const int *it = x.begin(); it != x.end(); it += 3 + it[1] + it[2]) {
+	int n = it[isoutput ? 2 : 1];
+	if (n <= 1)
+	    min_ports += 1;
+	else if (it[3 + (isoutput ? it[1] : 0) + n - 1] == -1) {
+	    min_ports += n - 1;
+	    ++expandable;
+	} else
+	    min_ports += n;
+    }
+}
+
+void
+LexerT::yconnection_connect_all(Vector<int> &outputs, Vector<int> &inputs,
+				int connector,
+				const char *pos1, const char *pos2)
+{
+    int minp[2];
+    int expandable[2];
+    yconnection_analyze_ports(outputs, true, minp[1], expandable[1]);
+    yconnection_analyze_ports(inputs, false, minp[0], expandable[0]);
+
+    if (expandable[0] + expandable[1] > 1) {
+	lerror(pos1, pos2, "at most one expandable port allowed per connection");
+	expandable[minp[0] < minp[1]] = 0;
     }
 
-    ElementClassT *etype;
-    Lexeme etypet = lex();
-    if (etypet.is(lexIdent))
-	etype = force_element_type(etypet);
-    else if (etypet.is('{'))
-	etype = ycompound(String(), etypet.pos1(), etypet.pos1());
-    else {
-	lerror(etypet, "missing element type in declaration");
-	return;
+    if (connector == lex2Arrow)
+	// '=>' can interpret missing ports as expandable ports
+	for (int k = 0; k < 2; ++k) {
+	    Vector<int> &myvec(k ? outputs : inputs);
+	    if (minp[k] == 1 && minp[1-k] > 1 && myvec[1+k] == 0)
+		expandable[k] = 1;
+	}
+
+    bool step[2];
+    int nexpandable[2];
+    for (int k = 0; k < 2; ++k) {
+	step[k] = minp[k] > 1 || expandable[k];
+	nexpandable[k] = expandable[k] ? minp[1-k] - minp[k] : 0;
     }
 
-    Lexeme configuration;
-    if (expect('(', true)) {
-	configuration = lex_config();
-	expect(')');
-    }
+    if (step[0] && step[1]) {
+	if (connector != lex2Arrow)
+	    lerror(pos1, pos2, "syntax error: many-to-many connections require %<=>%>");
+	if (!expandable[0] && !expandable[1] && minp[0] != minp[1])
+	    lerror(pos1, pos2, "connection mismatch: %d outputs connected to %d inputs", minp[1], minp[0]);
+	else if (!expandable[0] && minp[0] < minp[1])
+	    lerror(pos1, pos2, "connection mismatch: %d or more outputs connected to %d inputs", minp[1], minp[0]);
+	else if (!expandable[1] && minp[1] < minp[0])
+	    lerror(pos1, pos2, "connection mismatch: %d outputs connected to %d or more inputs", minp[1], minp[0]);
+    } else if (!step[0] && !step[1])
+	step[0] = true;
 
-    const char *decl_pos2 = (decls.size() == 1 ? next_pos() : 0);
+    const int *it[2] = {inputs.begin(), outputs.begin()};
+    int ppos[2] = {0, 0}, port[2] = {-1, -1};
+    while (it[0] != inputs.end() && it[1] != outputs.end()) {
+	for (int k = 0; k < 2; ++k)
+	    if (port[k] < 0) {
+		int np = it[k][1+k];
+		port[k] = np ? it[k][3 + (k ? it[k][1] : 0)] : 0;
+	    }
 
-    for (int i = 0; i < decls.size(); i++) {
-	String name = decls[i].string();
-	if (ElementT *old_e = _router->element(name))
-	    ElementT::redeclaration_error(_errh, "element", name, _file.landmark(), old_e->landmark());
-	else if (_router->declared_type(name) || _base_type_map.get(name))
-	    lerror(decls[i], "class %<%s%> used as element name", name.c_str());
-	else
-	    make_element(name, decls[i], decl_pos2, etype, configuration.string());
+	connect(it[1][0], port[1], port[0], it[0][0], pos1, pos2);
+
+	for (int k = 0; k < 2; ++k)
+	    if (step[k]) {
+		int np = it[k][1+k];
+		const int *pvec = it[k] + 3 + (k ? it[k][1] : 0);
+		++ppos[k];
+		if (ppos[k] < np && pvec[ppos[k]] >= 0)
+		    // port list
+		    port[k] = pvec[ppos[k]];
+		else if (np && pvec[np-1] == -1 && nexpandable[k] > 0) {
+		    // expandable port
+		    port[k] = pvec[np-2] + ppos[k] - (np-2);
+		    --nexpandable[k];
+		} else if (np == 0 && minp[k] == 1 && nexpandable[k] > 0) {
+		    // missing port interpreted as expandable port
+		    port[k] = ppos[k];
+		    --nexpandable[k];
+		} else {
+		    // next element in comma-separated list
+		    port[k] = -1;
+		    ppos[k] = 0;
+		    it[k] += 3 + it[k][1] + it[k][2];
+		}
+	    }
     }
 }
 
 bool
 LexerT::yconnection()
 {
-    int element1 = -1, port1 = -1;
-    const char *last_element_pos = next_pos(), *port1_pos1 = 0, *port1_pos2 = 0;
+    Vector<int> elements1, elements2;
+    int connector = 0;
+    const char *epos[5], *last_element_pos = next_pos();
     Lexeme t;
 
     while (true) {
-	int element2, port2 = -1;
-	const char *port2_pos1, *port2_pos2, *next_element_pos;
-
 	// get element
-	yport(port2, port2_pos1, port2_pos2);
-	next_element_pos = next_pos();
-	if (!yelement(element2, element1 < 0)) {
-	    if (port1 >= 0)
-		lerror(port1_pos1, port1_pos2, "output port useless at end of chain");
-	    return element1 >= 0;
+	elements2.clear();
+	if (!yelement(elements2, !elements1.empty(), epos)) {
+	    yconnection_check_useless(elements1, true, epos + 3);
+	    return !elements1.empty();
 	}
 
-	if (element1 >= 0)
-	    connect(element1, port1, port2, element2, last_element_pos, next_pos());
-	else if (port2 >= 0)
-	    lerror(port2_pos1, port2_pos2, "input port useless at start of chain");
+	if (elements1.empty())
+	    yconnection_check_useless(elements2, false, epos);
+	else
+	    yconnection_connect_all(elements1, elements2, connector, last_element_pos, next_pos());
 
-	port1 = -1;
-	port1_pos1 = port1_pos2 = 0;
-	last_element_pos = next_element_pos;
-
-      relex:
+    relex:
 	t = lex();
 	switch (t.kind()) {
 
-	  case ',':
-	  case lex2Colon:
-	    if (router()->element(element2)->name_unassigned())
-		// type used as name
-		lerror(t, "class %<%s%> used as element name", router()->etype_name(element2).c_str());
-	    else
-		lerror(t, "syntax error before %<%s%>", t.string().c_str());
+	case ',':
+	case lex2Colon:
+	    lerror(t, "syntax error before %<%s%>", t.string().c_str());
 	    goto relex;
 
-	  case lexArrow:
+	case lexArrow:
+	case lex2Arrow:
+	    connector = t.kind();
 	    break;
 
-	  case '[':
-	    unlex(t);
-	    yport(port1, port1_pos1, port1_pos2);
-	    goto relex;
-
-	  case lexIdent:
-	  case '{':
-	  case '}':
-	  case lex2Bar:
-	  case lexElementclass:
-	  case lexRequire:
-	  case lexProvide:
-	  case lexDefine:
+	case lexIdent:
+	case '{':
+	case '}':
+	case '[':
+	case ')':
+	case lex2Bar:
+	case lexElementclass:
+	case lexRequire:
+	case lexProvide:
+	case lexDefine:
 	    unlex(t);
 	    // FALLTHRU
-	  case ';':
-	  case lexEOF:
-	    if (port1 >= 0)
-		lerror(port1_pos1, port1_pos2, "output port useless at end of chain", port1);
+	case ';':
+	case lexEOF:
+	    yconnection_check_useless(elements2, true, epos + 3);
 	    return true;
 
-	  default:
+	default:
 	    lerror(t, "syntax error near %<%#s%>", t.string().c_str());
 	    if (t.kind() >= lexIdent)	// save meaningful tokens
 		unlex(t);
@@ -796,7 +988,7 @@ LexerT::yconnection()
 	}
 
 	// have 'x ->'
-	element1 = element2;
+	elements1.swap(elements2);
     }
 }
 
@@ -945,7 +1137,7 @@ LexerT::ycompound(String name, const char *decl_pos1, const char *name_pos1)
 	_anonymous_offset = 2;
 
 	ycompound_arguments(compound_class);
-	while (ystatement(true))
+	while (ystatement('}'))
 	    /* nada */;
 
 	compound_class->finish_type(_errh);
@@ -974,6 +1166,35 @@ LexerT::ycompound(String name, const char *decl_pos1, const char *name_pos1)
     old_router->add_declared_type(first, anonymous);
     _lexinfo->notify_class_declaration(first, anonymous, decl_pos1, name_pos1, pos2);
     return first;
+}
+
+void
+LexerT::ygroup(String name, int group_nports[2], const LandmarkT &landmark)
+{
+    LandmarkErrorHandler lerrh(_errh, _file.landmark());
+    String name_slash = name + "/";
+    _router->add_tunnel(name, name_slash + "input", landmark, &lerrh);
+    _router->add_tunnel(name_slash + "output", name, landmark, &lerrh);
+    ElementT *new_input = _router->element(name_slash + "input");
+    ElementT *new_output = _router->element(name_slash + "output");
+
+    int old_input = _router->__map_element_name("input", new_input->eindex());
+    int old_output = _router->__map_element_name("output", new_output->eindex());
+    ++_group_depth;
+
+    while (ystatement(')'))
+	/* nada */;
+    expect(')');
+
+    // check that all inputs and outputs are used
+    lerrh.set_landmark(_file.landmark());
+    const char *printable_name = (name[0] == ';' ? "<anonymous group>" : name.c_str());
+    group_nports[0] = _router->check_pseudoelement(new_input, false, printable_name, &lerrh);
+    group_nports[1] = _router->check_pseudoelement(new_output, true, printable_name, &lerrh);
+
+    --_group_depth;
+    _router->__map_element_name("input", old_input);
+    _router->__map_element_name("output", old_output);
 }
 
 void
@@ -1009,7 +1230,7 @@ LexerT::yrequire_library(const Lexeme &lexeme, const String &value)
 
     FileState old_file(_file);
     _file = FileState(data, fn);
-    while (ystatement(false))
+    while (ystatement(0))
 	/* do nothing */;
     _file = old_file;
 }
@@ -1094,7 +1315,7 @@ LexerT::yvar()
 }
 
 bool
-LexerT::ystatement(bool nested)
+LexerT::ystatement(int nested)
 {
   Lexeme t = lex();
   switch (t.kind()) {
@@ -1102,6 +1323,9 @@ LexerT::ystatement(bool nested)
    case lexIdent:
    case '[':
    case '{':
+   case '(':
+   case lexArrow:
+   case lex2Arrow:
     unlex(t);
     yconnection();
     return true;
@@ -1123,14 +1347,20 @@ LexerT::ystatement(bool nested)
 
    case '}':
    case lex2Bar:
-    if (!nested)
+    if (nested != '}')
+      goto syntax_error;
+    unlex(t);
+    return false;
+
+   case ')':
+    if (nested != ')')
       goto syntax_error;
     unlex(t);
     return false;
 
    case lexEOF:
     if (nested)
-      lerror(t, "expected %<}%>");
+      lerror(t, "expected %<%c%>", nested);
     return false;
 
    default:

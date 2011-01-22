@@ -15,10 +15,11 @@ class ArchiveElement;
 
 enum {
     lexEOF = 0,
-    lexIdent = 256,
+    lexIdent = 256,		// see also LexerT::lexeme_string
     lexVariable,
     lexConfig,
     lexArrow,
+    lex2Arrow,
     lex2Colon,
     lex2Bar,
     lex3Dot,
@@ -78,16 +79,16 @@ class LexerT { public:
     String landmark() const;
     inline LandmarkT landmarkt(const char *pos1, const char *pos2) const;
 
-    bool yport(int &port, const char *&pos1, const char *&pos2);
-    bool yelement(int &element, bool comma_ok);
-    void ydeclaration(const Lexeme &first_element = Lexeme());
+    bool yport(Vector<int> &ports, const char *pos[2]);
+    bool yelement(Vector<int> &result, bool in_allowed, const char *epos[5]);
     bool yconnection();
     void ycompound_arguments(RouterT *);
     void yelementclass(const char *pos1);
     ElementClassT *ycompound(String, const char *decl_pos1, const char *name_pos1);
+    void ygroup(String name, int group_nports[2], const LandmarkT &landmark);
     void yrequire();
     void yvar();
-    bool ystatement(bool nested = false);
+    bool ystatement(int nested = 0);
 
     RouterT *router() const		{ return _router; }
     RouterT *finish(const VariableEnvironment &global_scope);
@@ -151,6 +152,7 @@ class LexerT { public:
 
     int _anonymous_offset;
     int _anonymous_class_count;
+    int _group_depth;
 
     Vector<String> _libraries;
 
@@ -175,6 +177,10 @@ class LexerT { public:
     ElementClassT *force_element_type(const Lexeme &);
     void ydefine(RouterT *, const String &name, const String &value, const Lexeme &, bool &scope_order_error);
     void yrequire_library(const Lexeme &lexeme, const String &value);
+    void yconnection_check_useless(const Vector<int> &x, bool isoutput, const char *epos[2]);
+    static void yconnection_analyze_ports(const Vector<int> &x, bool isoutput,
+					  int &min_ports, int &expandable);
+    void yconnection_connect_all(Vector<int> &outputs, Vector<int> &inputs, int connector, const char *pos1, const char *pos2);
 
     LexerT(const LexerT &);
     LexerT &operator=(const LexerT &);

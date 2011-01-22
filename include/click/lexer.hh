@@ -10,9 +10,10 @@ class LexerExtra;
 
 enum Lexemes {
     lexEOF = 0,
-    lexIdent = 256,
+    lexIdent = 256,		// see also Lexer::lexeme_string
     lexVariable,
     lexArrow,
+    lex2Arrow,
     lex2Colon,
     lex2Bar,
     lex3Dot,
@@ -99,16 +100,16 @@ class Lexer { public:
 
     void add_tunnel(String, String);
 
-    bool yport(int &port);
-    bool yelement(int &element, bool comma_ok);
-    void ydeclaration(const String &first_element = String());
+    bool yport(Vector<int> &ports);
+    bool yelement(Vector<int> &result, bool in_allowed);
     bool yconnection();
     void yelementclass();
     void ycompound_arguments(Compound *);
     int ycompound(String name = String());
+    void ygroup(String name, int group_nports[2]);
     void yrequire();
     void yvar();
-    bool ystatement(bool nested = false);
+    bool ystatement(int nested = 0);
 
     Router *create_router(Master *);
 
@@ -168,6 +169,7 @@ class Lexer { public:
     // elements
     HashTable<String, int> _element_map;
     Compound *_c;
+    int _group_depth;
 
     Vector<TunnelEnd *> _tunnels;
 
@@ -195,6 +197,10 @@ class Lexer { public:
     void expand_compound_element(int, VariableEnvironment &);
     void add_router_connections(int, const Vector<int> &);
     void yrequire_library(const String &value);
+    void yconnection_check_useless(const Vector<int> &x, bool isoutput);
+    static void yconnection_analyze_ports(const Vector<int> &x, bool isoutput,
+					  int &min_ports, int &expandable);
+    void yconnection_connect_all(Vector<int> &outputs, Vector<int> &inputs, int connector);
 
     TunnelEnd *find_tunnel(const Port &p, bool isoutput, bool insert);
     void expand_connection(const Port &p, bool isoutput, Vector<Port> &);
