@@ -132,7 +132,7 @@ elif [ $METRIC = "ETT" ]; then
 elif [ $METRIC = "ETX" ]; then
 	echo "lt :: LinkTableMulti(IP $XR_IP, IFACES \"$LTM\");"
 	echo "metric :: WINGETXMetric(LT lt);"
-elif [ $METRIC = "HopCount" ]; then
+elif [ $METRIC = "HOPCOUNT" ]; then
 	echo "lt :: LinkTableMulti(IP $XR_IP, IFACES \"$LTM\");"
 	echo "metric :: WINGHopCountMetric(LT lt);"
 else
