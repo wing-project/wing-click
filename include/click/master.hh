@@ -39,6 +39,7 @@ class Master { public:
     const volatile int* stopper_ptr() const	{ return &_stopper; }
 
     Timestamp next_timer_expiry() const		{ return _timer_expiry; }
+    Timer *next_timer();			// useful for benchmarking
     const Timestamp &timer_check() const	{ return _timer_check; }
     void run_timers(RouterThread *thread);
     unsigned max_timer_stride() const		{ return _max_timer_stride; }
@@ -96,23 +97,18 @@ class Master { public:
 
     // THREADS
     Vector<RouterThread*> _threads;
+    void wake_somebody();
 
     // DRIVERMANAGER
     volatile int _stopper;
     inline void set_stopper(int);
     bool check_driver();
 
-    // PENDING TASKS
-    uintptr_t _pending_head;
-    volatile uintptr_t *_pending_tail;
-    SpinlockIRQ _master_task_lock;
-    void process_pending(RouterThread*);
-
     // TIMERS
     unsigned _max_timer_stride;
     unsigned _timer_stride;
     unsigned _timer_count;
-    Vector<Timer *> _timer_heap;
+    Vector<Timer::heap_element> _timer_heap;
     Vector<Timer *> _timer_runchunk;
 #if CLICK_LINUXMODULE
     spinlock_t _timer_lock;
@@ -133,29 +129,11 @@ class Master { public:
 
     void set_timer_expiry() {
 	if (_timer_heap.size())
-	    _timer_expiry = _timer_heap.at_u(0)->_expiry;
+	    _timer_expiry = _timer_heap.at_u(0).expiry;
 	else
 	    _timer_expiry = Timestamp();
     }
     void check_timer_expiry(Timer *t);
-    static inline void place_timer(Timer **t, Timer **tbegin) {
-	(*t)->_schedpos1 = (t - tbegin) + 1;
-    }
-
-    struct timer_less {
-	bool operator()(Timer *a, Timer *b) {
-	    return a->expiry() < b->expiry();
-	}
-    };
-    struct timer_place {
-	Timer **_begin;
-	timer_place(Timer **begin)
-	    : _begin(begin) {
-	}
-	void operator()(Timer **t) {
-	    Master::place_timer(t, _begin);
-	}
-    };
 
 #if CLICK_USERLEVEL
     // SELECT
@@ -232,7 +210,7 @@ class Master { public:
 inline int
 Master::nthreads() const
 {
-    return _threads.size() - 2;
+    return _threads.size() - 1;
 }
 
 inline RouterThread*
@@ -240,10 +218,16 @@ Master::thread(int id) const
 {
     // return the requested thread, or the quiescent thread if there's no such
     // thread
-    if ((unsigned)(id + 2) < (unsigned)_threads.size())
-	return _threads.at_u(id + 2);
+    if ((unsigned)(id + 1) < (unsigned)_threads.size())
+	return _threads.at_u(id + 1);
     else
-	return _threads.at_u(1);
+	return _threads.at_u(0);
+}
+
+inline void
+Master::wake_somebody()
+{
+    _threads.at_u(1)->wake();
 }
 
 #if CLICK_USERLEVEL
@@ -352,6 +336,15 @@ Master::unlock_timers()
 #elif HAVE_MULTITHREAD
     _timer_lock.release();
 #endif
+}
+
+inline Timer *
+Master::next_timer()
+{
+    lock_timers();
+    Timer *t = _timer_heap.empty() ? 0 : _timer_heap.at_u(0).t;
+    unlock_timers();
+    return t;
 }
 
 inline Master *

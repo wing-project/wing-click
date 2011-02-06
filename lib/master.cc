@@ -24,6 +24,7 @@
 #include <click/router.hh>
 #include <click/error.hh>
 #include <click/handlercall.hh>
+#include <click/heap.hh>
 #if CLICK_USERLEVEL
 # include <fcntl.h>
 # include <click/userutils.hh>
@@ -59,13 +60,13 @@ extern "C" { static void sighandler(int signo); }
 #endif
 
 Master::Master(int nthreads)
-    : _routers(0), _pending_head(0), _pending_tail(&_pending_head)
+    : _routers(0)
 {
     _refcount = 0;
     _stopper = 0;
     _master_paused = 0;
 
-    for (int tid = -2; tid < nthreads; tid++)
+    for (int tid = -1; tid < nthreads; tid++)
 	_threads.push_back(new RouterThread(this, tid));
 
     // timer information
@@ -179,9 +180,7 @@ Master::pause()
 #if CLICK_USERLEVEL
     _select_lock.acquire();
 #endif
-    SpinlockIRQ::flags_t flags = _master_task_lock.acquire();
     _master_paused++;
-    _master_task_lock.release(flags);
 #if CLICK_USERLEVEL
     _select_lock.release();
 #endif
@@ -266,14 +265,17 @@ Master::kill_router(Router *router)
     {
 	lock_timers();
 	assert(!_timer_runchunk.size());
-	Timer* t;
-	for (Timer** tp = _timer_heap.end(); tp > _timer_heap.begin(); )
-	    if ((t = *--tp, t->router() == router)) {
-		remove_heap(_timer_heap.begin(), _timer_heap.end(), tp, timer_less(), timer_place(_timer_heap.begin()));
+	for (Timer::heap_element *thp = _timer_heap.end();
+	     thp > _timer_heap.begin(); ) {
+	    --thp;
+	    Timer *t = thp->t;
+	    if (t->router() == router) {
+		remove_heap<4>(_timer_heap.begin(), _timer_heap.end(), thp, Timer::heap_less(), Timer::heap_place());
 		_timer_heap.pop_back();
 		t->_owner = 0;
 		t->_schedpos1 = 0;
 	    }
+	}
 	set_timer_expiry();
 	unlock_timers();
     }
@@ -316,7 +318,7 @@ Master::kill_router(Router *router)
 #endif
 
     // something has happened, so wake up threads
-    for (RouterThread** tp = _threads.begin() + 2; tp < _threads.end(); tp++)
+    for (RouterThread** tp = _threads.begin() + 1; tp < _threads.end(); tp++)
 	(*tp)->wake();
 }
 
@@ -385,38 +387,6 @@ Master::check_driver()
 }
 
 
-// PENDING TASKS
-
-void
-Master::process_pending(RouterThread *thread)
-{
-    // must be called with thread's lock acquired
-
-    // claim the current pending list
-    thread->set_thread_state(RouterThread::S_RUNPENDING);
-    SpinlockIRQ::flags_t flags = _master_task_lock.acquire();
-    if (_master_paused > 0) {
-	_master_task_lock.release(flags);
-	return;
-    }
-    uintptr_t my_pending = _pending_head;
-    _pending_head = 0;
-    _pending_tail = &_pending_head;
-    thread->_any_pending = 0;
-    _master_task_lock.release(flags);
-
-    // process the list
-    while (Task *t = Task::pending_to_task(my_pending)) {
-	my_pending = t->_pending_nextptr;
-	t->_pending_nextptr = 0;
-#if HAVE_MULTITHREAD && HAVE___SYNC_SYNCHRONIZE
-	__sync_synchronize();
-#endif
-	t->process_pending(thread);
-    }
-}
-
-
 // TIMERS
 
 void
@@ -466,11 +436,11 @@ Master::run_timers(RouterThread *thread)
 	_timer_task = current;
 #endif
 	_timer_check = Timestamp::now();
-	Timer *t = _timer_heap.at_u(0);
+	Timer::heap_element *th = _timer_heap.begin();
 
-	if (t->_expiry <= _timer_check) {
+	if (th->expiry <= _timer_check) {
 	    // potentially adjust timer stride
-	    Timestamp adj_expiry = t->_expiry + Timer::adjustment();
+	    Timestamp adj_expiry = th->expiry + Timer::adjustment();
 	    if (adj_expiry <= _timer_check) {
 		_timer_count = 0;
 		if (_timer_stride > 1)
@@ -484,14 +454,15 @@ Master::run_timers(RouterThread *thread)
 	    // actually run timers
 	    int max_timers = 64;
 	    do {
-		pop_heap(_timer_heap.begin(), _timer_heap.end(), timer_less(), timer_place(_timer_heap.begin()));
+		Timer *t = th->t;
+		pop_heap<4>(_timer_heap.begin(), _timer_heap.end(), Timer::heap_less(), Timer::heap_place());
 		_timer_heap.pop_back();
 		set_timer_expiry();
 		t->_schedpos1 = 0;
 
 		run_one_timer(t);
 	    } while (_timer_heap.size() > 0 && !_stopper
-		     && (t = _timer_heap.at_u(0), t->_expiry <= _timer_check)
+		     && (th = _timer_heap.begin(), th->expiry <= _timer_check)
 		     && --max_timers >= 0);
 
 	    // If we ran out of timers to run, then perhaps there's an
@@ -502,13 +473,14 @@ Master::run_timers(RouterThread *thread)
 	    if (max_timers < 0 && !_stopper) {
 		_timer_runchunk.reserve(32);
 		do {
-		    pop_heap(_timer_heap.begin(), _timer_heap.end(), timer_less(), timer_place(_timer_heap.begin()));
+		    Timer *t = th->t;
+		    pop_heap<4>(_timer_heap.begin(), _timer_heap.end(), Timer::heap_less(), Timer::heap_place());
 		    _timer_heap.pop_back();
 		    t->_schedpos1 = -_timer_runchunk.size() - 1;
 
 		    _timer_runchunk.push_back(t);
 		} while (_timer_heap.size() > 0
-			 && (t = _timer_heap.at_u(0), t->_expiry <= _timer_check));
+			 && (th = _timer_heap.begin(), th->expiry <= _timer_check));
 		set_timer_expiry();
 
 		Vector<Timer*>::iterator i = _timer_runchunk.begin();
@@ -844,7 +816,7 @@ Master::run_selects_kqueue(RouterThread *thread, bool more_tasks)
 	click_qsort(&kev[0], n, sizeof(struct kevent), kevent_compare, 0);
 	for (struct kevent *p = &kev[0]; p < &kev[n]; ) {
 	    int fd = (int) p->ident, mask = 0;
-	    for (; (int) p->ident == fd; ++p)
+	    for (; p < &kev[n] && (int) p->ident == fd; ++p)
 		if (p->filter == EVFILT_READ)
 		    mask |= Element::SELECT_READ;
 		else if (p->filter == EVFILT_WRITE)
@@ -1286,17 +1258,16 @@ Master::info() const
     StringAccum sa;
     sa << "paused:\t\t" << _master_paused << '\n';
     sa << "stopper:\t" << _stopper << '\n';
-    sa << "pending:\t" << (Task::pending_to_task(_pending_head) != 0) << '\n';
     for (int i = 0; i < _threads.size(); i++) {
 	RouterThread *t = _threads[i];
-	sa << "thread " << (i - 2) << ":";
+	sa << "thread " << (i - 1) << ":";
 # ifdef CLICK_LINUXMODULE
 	if (t->_sleeper)
 	    sa << "\tsleep";
 	else
 	    sa << "\twake";
 # endif
-	if (t->_any_pending)
+	if (t->_pending_head)
 	    sa << "\tpending";
 # if CLICK_USERLEVEL && HAVE_MULTITHREAD
 	if (t->_wake_pipe[0] >= 0) {

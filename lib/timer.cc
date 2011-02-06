@@ -24,6 +24,7 @@
 #include <click/master.hh>
 #include <click/routerthread.hh>
 #include <click/task.hh>
+#include <click/heap.hh>
 CLICK_DECLS
 
 /** @file timer.hh
@@ -194,6 +195,7 @@ Timer::task_hook(Timer *, void *thunk)
 Timer::Timer()
     : _schedpos1(0), _thunk(0), _owner(0)
 {
+    static_assert(sizeof(heap_element) == 16);
     _hook.callback = do_nothing_hook;
 }
 
@@ -251,18 +253,18 @@ Timer::schedule_at(const Timestamp& when)
 	if (_schedpos1 < 0)
 	    master->_timer_runchunk[-_schedpos1 - 1] = 0;
 	_schedpos1 = master->_timer_heap.size() + 1;
-	master->_timer_heap.push_back(this);
+	master->_timer_heap.push_back(heap_element(this));
     }
     master->check_timer_expiry(this);
-    change_heap(master->_timer_heap.begin(), master->_timer_heap.end(),
-		master->_timer_heap.begin() + _schedpos1 - 1,
-		Master::timer_less(), Master::timer_place(master->_timer_heap.begin()));
+    change_heap<4>(master->_timer_heap.begin(), master->_timer_heap.end(),
+		   master->_timer_heap.begin() + _schedpos1 - 1,
+		   heap_less(), heap_place());
     if (old_schedpos1 == 1 || _schedpos1 == 1)
 	master->set_timer_expiry();
 
     // if we changed the timeout, wake up the first thread
     if (_schedpos1 == 1)
-	master->_threads[2]->wake();
+	master->wake_somebody();
 
     // done
     master->unlock_timers();
@@ -283,9 +285,9 @@ Timer::unschedule()
     master->lock_timers();
     int old_schedpos1 = _schedpos1;
     if (_schedpos1 > 0) {
-	remove_heap(master->_timer_heap.begin(), master->_timer_heap.end(),
-		    master->_timer_heap.begin() + _schedpos1 - 1,
-		    Master::timer_less(), Master::timer_place(master->_timer_heap.begin()));
+	remove_heap<4>(master->_timer_heap.begin(), master->_timer_heap.end(),
+		       master->_timer_heap.begin() + _schedpos1 - 1,
+		       heap_less(), heap_place());
 	master->_timer_heap.pop_back();
 	if (old_schedpos1 == 1)
 	    master->set_timer_expiry();

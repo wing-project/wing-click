@@ -32,6 +32,7 @@
 #include <click/straccum.hh>
 #include <click/error.hh>
 #include <click/algorithm.hh>
+#include <click/heap.hh>
 
 #ifdef CLICK_LINUXMODULE
 #include <click/cxxprotect.h>
@@ -251,7 +252,7 @@ IPRewriterBase::store_flow(IPRewriterFlow *flow, int input,
     Vector<IPRewriterFlow *> &myheap = _heap->_heaps[flow->guaranteed()];
     myheap.push_back(flow);
     push_heap(myheap.begin(), myheap.end(),
-	      IPRewriterFlow::less(), IPRewriterFlow::place(myheap.begin()));
+	      IPRewriterFlow::heap_less(), IPRewriterFlow::heap_place());
     ++_input_specs[input].count;
 
     if (unlikely(_heap->size() > _heap->capacity())) {

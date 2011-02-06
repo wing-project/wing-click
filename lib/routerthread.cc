@@ -68,10 +68,12 @@ static unsigned long greedy_schedule_jiffies;
 
 RouterThread::RouterThread(Master *m, int id)
 #if HAVE_TASK_HEAP
-    : _task_heap_hole(0), _master(m), _id(id)
+    : _task_heap_hole(0),
 #else
-    : Task(Task::error_hook, 0), _master(m), _id(id)
+    : Task(Task::error_hook, 0),
 #endif
+      _pending_head(0), _pending_tail(&_pending_head),
+      _master(m), _id(id)
 {
 #if HAVE_TASK_HEAP
     _pass = 0;
@@ -131,7 +133,6 @@ RouterThread::RouterThread(Master *m, int id)
 #endif
 
     static_assert(THREAD_QUIESCENT == (int) ThreadSched::THREAD_QUIESCENT
-		  && THREAD_STRONG_UNSCHEDULE == (int) ThreadSched::THREAD_STRONG_UNSCHEDULE
 		  && THREAD_UNKNOWN == (int) ThreadSched::THREAD_UNKNOWN);
 }
 
@@ -310,27 +311,29 @@ void
 RouterThread::task_reheapify_from(int pos, Task* t)
 {
     // MUST be called with task lock held
-    Task** tbegin = _task_heap.begin();
-    Task** tend = _task_heap.end();
+    task_heap_element *tbegin = _task_heap.begin();
+    task_heap_element *tend = _task_heap.end();
     int npos;
 
-    while (pos > 0
-	   && (npos = (pos-1) >> 1, PASS_GT(tbegin[npos]->_pass, t->_pass))) {
+    int endpos = _task_heap_hole << 1;
+    while (pos > endpos
+	   && (npos = (pos-1) >> 1, PASS_GT(tbegin[npos].pass, t->_pass))) {
 	tbegin[pos] = tbegin[npos];
-	tbegin[npos]->_schedpos = pos;
+	tbegin[npos].t->_schedpos = pos;
 	pos = npos;
     }
 
     while (1) {
-	Task* smallest = t;
-	Task** tp = tbegin + 2*pos + 1;
-	if (tp < tend && PASS_GE(smallest->_pass, tp[0]->_pass))
-	    smallest = tp[0];
-	if (tp + 1 < tend && PASS_GE(smallest->_pass, tp[1]->_pass))
-	    smallest = tp[1], tp++;
+	Task *smallest = t;
+	task_heap_element *tp = tbegin + 2*pos + 1;
+	if (tp < tend && PASS_GE(smallest->_pass, tp[0].pass))
+	    smallest = tp[0].t;
+	if (tp + 1 < tend && PASS_GE(smallest->_pass, tp[1].pass))
+	    smallest = tp[1].t, ++tp;
 
 	smallest->_schedpos = pos;
-	tbegin[pos] = smallest;
+	tbegin[pos].t = smallest;
+	tbegin[pos].pass = smallest->_pass;
 
 	if (smallest == t)
 	    return;
@@ -361,30 +364,40 @@ RouterThread::run_tasks(int ntasks)
     click_cycles_t cycles = 0;
 #endif
 
+    Task::Status want_status;
+    want_status.home_thread_id = thread_id();
+    want_status.is_scheduled = true;
+    want_status.is_strong_unscheduled = false;
+
     Task *t;
+#if HAVE_MULTITHREAD
+    int runs;
+#endif
+    for (; ntasks >= 0; --ntasks) {
 #if HAVE_TASK_HEAP
-    while (_task_heap.size() > 0 && ntasks >= 0) {
-	t = _task_heap.at_u(0);
+	if (_task_heap.size() == 0)
+	    break;
+	t = _task_heap.at_u(0).t;
 #else
-    while ((t = task_begin()), t != this && ntasks >= 0) {
+	t = task_begin();
+	if (t == this)
+	    break;
 #endif
 
-	// 22.May.2008: If pending changes on this task, break early to
-	// take care of them.
-	if (t->_pending_nextptr)
-	    break;
+	t->fast_remove_from_scheduled_list();
+
+	if (unlikely(t->_status.status != want_status.status)) {
+	    if (t->_status.home_thread_id != thread_id())
+		t->move_thread_second_half();
+	    goto post_fire;
+	}
+
+	t->_status.is_scheduled = false;
 
 #if HAVE_MULTITHREAD
-	int runs = t->cycle_runs();
+	runs = t->cycle_runs();
 	if (runs > PROFILE_ELEMENT)
 	    cycles = click_get_cycles();
-#endif
-
-#if HAVE_TASK_HEAP
-	t->_schedpos = -1;
-	_task_heap_hole = 1;
-#else
-	t->fast_unschedule(false);
 #endif
 
 #if HAVE_STRIDE_SCHED
@@ -396,19 +409,6 @@ RouterThread::run_tasks(int ntasks)
 
 	t->fire();
 
-#if HAVE_TASK_HEAP
-	if (_task_heap_hole) {
-	    Task* back = _task_heap.back();
-	    _task_heap.pop_back();
-	    if (_task_heap.size() > 0)
-		task_reheapify_from(0, back);
-	    _task_heap_hole = 0;
-	    // No need to reset t->_schedpos: 'back == t' only if
-	    // '_task_heap.size() == 0' now, in which case we didn't call
-	    // task_reheapify_from().
-	}
-#endif
-
 #if HAVE_MULTITHREAD
 	if (runs > PROFILE_ELEMENT) {
 	    unsigned delta = click_get_cycles() - cycles;
@@ -416,7 +416,21 @@ RouterThread::run_tasks(int ntasks)
 	}
 #endif
 
-	--ntasks;
+    post_fire:
+#if HAVE_TASK_HEAP
+	if (_task_heap_hole) {
+	    Task *back = _task_heap.back().t;
+	    _task_heap.pop_back();
+	    _task_heap_hole = 0;
+	    if (_task_heap.size() > 0)
+		task_reheapify_from(0, back);
+	    // No need to reset t->_schedpos: 'back == t' only if
+	    // '_task_heap.size() == 0' now, in which case we didn't call
+	    // task_reheapify_from().
+	}
+#else
+	/* do nothing */;
+#endif
     }
 }
 
@@ -474,6 +488,31 @@ RouterThread::run_os()
 #endif
 
     driver_lock_tasks();
+}
+
+void
+RouterThread::process_pending()
+{
+    // must be called with thread's lock acquired
+
+    // claim the current pending list
+    set_thread_state(RouterThread::S_RUNPENDING);
+    SpinlockIRQ::flags_t flags = _pending_lock.acquire();
+    uintptr_t my_pending = _pending_head;
+    _pending_head = 0;
+    _pending_tail = &_pending_head;
+    _any_pending = 0;
+    _pending_lock.release(flags);
+
+    // process the list
+    while (Task *t = Task::pending_to_task(my_pending)) {
+	my_pending = t->_pending_nextptr;
+	t->_pending_nextptr = 0;
+#if HAVE_MULTITHREAD && HAVE___SYNC_SYNCHRONIZE
+	__sync_synchronize();
+#endif
+	t->process_pending(this);
+    }
 }
 
 void
@@ -550,8 +589,8 @@ RouterThread::driver()
     }
 
     // run task requests (1)
-    if (_any_pending)
-	_master->process_pending(this);
+    if (_pending_head)
+	process_pending();
 
 #if !HAVE_ADAPTIVE_SCHEDULER
     // run a bunch of tasks
@@ -630,11 +669,7 @@ RouterThread::driver_once()
 #endif
     driver_lock_tasks();
 
-    Task *t = task_begin();
-    if (t != task_end() && !t->_pending_nextptr) {
-	t->fast_unschedule(false);
-	t->fire();
-    }
+    run_tasks(1);
 
     driver_unlock_tasks();
 #if CLICK_BSDMODULE  /* XXX MARKO */
@@ -651,10 +686,10 @@ RouterThread::unschedule_router_tasks(Router* r)
 {
     lock_tasks();
 #if HAVE_TASK_HEAP
-    Task* t;
-    for (Task** tp = _task_heap.end(); tp > _task_heap.begin(); )
-	if ((t = *--tp, t->router() == r)) {
-	    task_reheapify_from(tp - _task_heap.begin(), _task_heap.back());
+    Task *t;
+    for (task_heap_element *tp = _task_heap.end(); tp > _task_heap.begin(); )
+	if ((t = (--tp)->t, t->router() == r)) {
+	    task_reheapify_from(tp - _task_heap.begin(), _task_heap.back().t);
 	    // must clear _schedpos AFTER task_reheapify_from
 	    t->_schedpos = -1;
 	    // recheck this slot; have moved a task there

@@ -30,8 +30,7 @@ class RouterThread
 #endif
 { public:
 
-    enum { THREAD_QUIESCENT = -1, THREAD_STRONG_UNSCHEDULE = -2,
-	   THREAD_UNKNOWN = -1000 };
+    enum { THREAD_QUIESCENT = -1, THREAD_UNKNOWN = -1000 };
 
     inline int thread_id() const;
 
@@ -98,10 +97,23 @@ class RouterThread
   private:
 
 #if HAVE_TASK_HEAP
-    Vector<Task*> _task_heap;
+    struct task_heap_element {
+	unsigned pass;
+	Task *t;
+	task_heap_element() {
+	}
+	task_heap_element(Task *t_)
+	    : pass(t_->_pass), t(t_) {
+	}
+    };
+    Vector<task_heap_element> _task_heap;
     int _task_heap_hole;
     unsigned _pass;
 #endif
+
+    uintptr_t _pending_head;
+    volatile uintptr_t *_pending_tail;
+    SpinlockIRQ _pending_lock;
 
     Master *_master;
     int _id;
@@ -172,6 +184,7 @@ class RouterThread
     inline void driver_lock_tasks();
     inline void driver_unlock_tasks();
     inline void run_tasks(int ntasks);
+    inline void process_pending();
     inline void run_os();
 #if HAVE_ADAPTIVE_SCHEDULER
     void client_set_tickets(int client, int tickets);
@@ -252,7 +265,7 @@ RouterThread::task_begin() const
 {
 #if HAVE_TASK_HEAP
     int p = _task_heap_hole;
-    return (p < _task_heap.size() ? _task_heap[p] : 0);
+    return (p < _task_heap.size() ? _task_heap.at_u(p).t : 0);
 #else
     return _next;
 #endif
@@ -272,7 +285,7 @@ RouterThread::task_next(Task *task) const
 {
 #if HAVE_TASK_HEAP
     int p = task->_schedpos + 1;
-    return (p < _task_heap.size() ? _task_heap[p] : 0);
+    return (p < _task_heap.size() ? _task_heap.at_u(p).t : 0);
 #else
     return task->_next;
 #endif
@@ -404,7 +417,6 @@ RouterThread::wake()
 inline void
 RouterThread::add_pending()
 {
-    _any_pending = 1;
     wake();
 }
 
