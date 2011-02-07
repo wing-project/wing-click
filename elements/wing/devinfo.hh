@@ -21,8 +21,8 @@ public:
 	/* handler stuff */
 	void add_handlers();
 	EtherAddress eth() { return _eth; }
-	uint16_t channel() { return _channel; }
-	uint8_t iface() { return _iface; }
+	uint16_t channel() { return (uint16_t) _channel; }
+	uint8_t iface() { return (uint8_t) _iface; }
 	void set_channel(uint16_t channel) {
 		if (_debug) {
 			click_chatter("%{element} :: %s :: %s switching channel to %u",
@@ -39,7 +39,7 @@ private:
 	bool _debug;
 	EtherAddress _eth;
 	uint32_t _channel;
-	uint8_t _iface;
+	uint32_t _iface;
 	
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);

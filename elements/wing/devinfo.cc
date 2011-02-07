@@ -35,7 +35,6 @@ DevInfo::~DevInfo() {
 
 int DevInfo::configure(Vector<String> &conf, ErrorHandler *errh) {
 	_debug = false;
-
 	if (cp_va_kparse(conf, this, errh,
 			"ETH", cpkM, cpEthernetAddress, &_eth,
 			"IFACE", cpkM, cpUnsigned, &_iface,
@@ -45,7 +44,6 @@ int DevInfo::configure(Vector<String> &conf, ErrorHandler *errh) {
 			"DEBUG", 0, cpBool, &_debug,
 			cpEnd) < 0)
 		return -1;
-	
 	return 0;
 }
 
