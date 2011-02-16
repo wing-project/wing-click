@@ -157,7 +157,10 @@ void Minstrel::process_feedback(Packet *p_in) {
 		}
 		return;
 	}
-	nfo->add_result(ceh->rate, ceh->retries + 1, success);
+	nfo->add_result(ceh->rate, ceh->max_tries, success);
+	nfo->add_result(ceh->rate1, ceh->max_tries1, success);
+	nfo->add_result(ceh->rate2, ceh->max_tries2, success);
+	nfo->add_result(ceh->rate3, ceh->max_tries3, success);
 	return;
 }
 
@@ -228,8 +231,31 @@ void Minstrel::assign_rate(Packet *p_in)
 	}
 
 	ceh->magic = WIFI_EXTRA_MAGIC;
-	ceh->rate = nfo->_rates[ndx];
-	ceh->max_tries = WIFI_MAX_RETRIES + 1;
+
+	if (sample) {
+		if (nfo->_rates[ndx] < nfo->_rates[nfo->max_tp_rate]) {
+			ceh->rate = nfo->_rates[nfo->max_tp_rate];
+			ceh->max_tries = 4;
+			ceh->rate1 = nfo->_rates[ndx];
+			ceh->max_tries1 = 4;
+		} else {
+			ceh->rate = nfo->_rates[ndx];
+			ceh->max_tries = 4;
+			ceh->rate1 = nfo->_rates[nfo->max_tp_rate];
+			ceh->max_tries1 = 4;
+		}
+	} else {
+		ceh->rate = nfo->_rates[nfo->max_tp_rate];
+		ceh->max_tries = 4;
+		ceh->rate1 = nfo->_rates[nfo->max_tp_rate2];
+		ceh->max_tries1 = 4;
+	}
+
+	ceh->rate2 = nfo->_rates[nfo->max_prob_rate];
+	ceh->max_tries2 = 4;
+
+	ceh->rate3 = nfo->_rates[0];
+	ceh->max_tries3 = 4;
 
 	return;
 
