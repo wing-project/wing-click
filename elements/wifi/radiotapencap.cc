@@ -27,27 +27,45 @@
 #include <clicknet/radiotap.h>
 CLICK_DECLS
 
-
-
-#define CLICK_RADIOTAP_PRESENT (		\
+#define CLICK_RADIOTAP_PRESENT_FIRST (		\
 	(1 << IEEE80211_RADIOTAP_RATE)		| \
 	(1 << IEEE80211_RADIOTAP_DBM_TX_POWER)	| \
 	(1 << IEEE80211_RADIOTAP_RTS_RETRIES)	| \
+	(1 << IEEE80211_RADIOTAP_DATA_RETRIES)	| \
+	(1 << IEEE80211_RADIOTAP_EXT)	| \
+	0)
+
+#define CLICK_RADIOTAP_PRESENT_MIDDLE (		\
+	(1 << IEEE80211_RADIOTAP_RATE)		| \
+	(1 << IEEE80211_RADIOTAP_DATA_RETRIES)	| \
+	(1 << IEEE80211_RADIOTAP_EXT)	| \
+	0)
+
+#define CLICK_RADIOTAP_PRESENT_LAST (		\
+	(1 << IEEE80211_RADIOTAP_RATE)		| \
 	(1 << IEEE80211_RADIOTAP_DATA_RETRIES)	| \
 	0)
 
 struct click_radiotap_header {
 	struct ieee80211_radiotap_header wt_ihdr;
+	u_int32_t	it_present1; 
+	u_int32_t	it_present2; 
+	u_int32_t	it_present3; 
+	/* block (1) */
 	u_int8_t	wt_rate;
 	u_int8_t	wt_txpower;
 	u_int8_t        wt_rts_retries;
 	u_int8_t        wt_data_retries;
+	/* block (2) */
+	u_int8_t	wt_rate1;
+	u_int8_t        wt_data_retries1;
+	/* block (3) */
+	u_int8_t	wt_rate2;
+	u_int8_t        wt_data_retries2;
+	/* block (4) */
+	u_int8_t	wt_rate3;
+	u_int8_t        wt_data_retries3;
 };
-
-
-
-
-
 
 RadiotapEncap::RadiotapEncap()
 {
@@ -60,13 +78,12 @@ RadiotapEncap::~RadiotapEncap()
 int
 RadiotapEncap::configure(Vector<String> &conf, ErrorHandler *errh)
 {
-
-  _debug = false;
-  if (cp_va_kparse(conf, this, errh,
+	_debug = false;
+	if (cp_va_kparse(conf, this, errh,
 		   "DEBUG", 0, cpBool, &_debug,
 		   cpEnd) < 0)
-    return -1;
-  return 0;
+		return -1;
+	return 0;
 }
 
 Packet *
@@ -89,21 +106,42 @@ RadiotapEncap::simple_action(Packet *p)
 
 	  crh->wt_ihdr.it_version = 0;
 	  crh->wt_ihdr.it_len = cpu_to_le16(sizeof(struct click_radiotap_header));
-	  crh->wt_ihdr.it_present = cpu_to_le32(CLICK_RADIOTAP_PRESENT);
+	  crh->wt_ihdr.it_present = cpu_to_le32(CLICK_RADIOTAP_PRESENT_FIRST);
+	  crh->it_present1 = cpu_to_le32(CLICK_RADIOTAP_PRESENT_MIDDLE);
+	  crh->it_present2 = cpu_to_le32(CLICK_RADIOTAP_PRESENT_MIDDLE);
+	  crh->it_present3 = cpu_to_le32(CLICK_RADIOTAP_PRESENT_LAST);
 
+	  /* block (1) */
 	  crh->wt_rate = ceh->rate;
 	  crh->wt_txpower = ceh->power;
 	  crh->wt_rts_retries = 0;
 	  if (ceh->max_tries > 0) {
-		  crh->wt_data_retries = ceh->max_tries - 1;
+		  crh->wt_data_retries = ceh->max_tries;
 	  } else {
 		  crh->wt_data_retries = WIFI_MAX_RETRIES + 1;
 	  }
+
+	  /* block (2) */
+	  if (ceh->max_tries1 > 0) {
+		  crh->wt_rate1 = ceh->rate1;
+		  crh->wt_data_retries1 = ceh->max_tries1;
+	  } 
+
+	  /* block (3) */
+	  if (ceh->max_tries2 > 0) {
+		  crh->wt_rate2 = ceh->rate2;
+		  crh->wt_data_retries2 = ceh->max_tries2;
+	  } 
+
+	  /* block (4) */
+	  if (ceh->max_tries3 > 0) {
+		  crh->wt_rate3 = ceh->rate3;
+		  crh->wt_data_retries3 = ceh->max_tries3;
+	  } 
   }
 
   return p_out;
 }
-
 
 enum {H_DEBUG};
 
@@ -118,14 +156,14 @@ RadiotapEncap_read_param(Element *e, void *thunk)
       return String();
     }
 }
+
 static int
-RadiotapEncap_write_param(const String &in_s, Element *e, void *vparam,
-		      ErrorHandler *errh)
+RadiotapEncap_write_param(const String &in_s, Element *e, void *vparam, ErrorHandler *errh)
 {
   RadiotapEncap *f = (RadiotapEncap *)e;
   String s = cp_uncomment(in_s);
   switch((intptr_t)vparam) {
-  case H_DEBUG: {    //debug
+  case H_DEBUG: {
     bool debug;
     if (!cp_bool(s, &debug))
       return errh->error("debug parameter must be boolean");
@@ -139,9 +177,9 @@ RadiotapEncap_write_param(const String &in_s, Element *e, void *vparam,
 void
 RadiotapEncap::add_handlers()
 {
-  add_read_handler("debug", RadiotapEncap_read_param, (void *) H_DEBUG);
-
-  add_write_handler("debug", RadiotapEncap_write_param, (void *) H_DEBUG);
+	add_read_handler("debug", RadiotapEncap_read_param, (void *) H_DEBUG);
+	add_write_handler("debug", RadiotapEncap_write_param, (void *) H_DEBUG);
 }
+
 CLICK_ENDDECLS
 EXPORT_ELEMENT(RadiotapEncap)
