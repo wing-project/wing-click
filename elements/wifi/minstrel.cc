@@ -157,10 +157,16 @@ void Minstrel::process_feedback(Packet *p_in) {
 		}
 		return;
 	}
-	nfo->add_result(ceh->rate, ceh->max_tries, success);
-	nfo->add_result(ceh->rate1, ceh->max_tries1, success);
-	nfo->add_result(ceh->rate2, ceh->max_tries2, success);
-	nfo->add_result(ceh->rate3, ceh->max_tries3, success);
+
+	if (ceh->retries != 0) {
+		nfo->add_result(ceh->rate, ceh->retries, success);
+	} else {
+		nfo->add_result(ceh->rate, ceh->max_tries, success);
+		nfo->add_result(ceh->rate1, ceh->max_tries1, success);
+		nfo->add_result(ceh->rate2, ceh->max_tries2, success);
+		nfo->add_result(ceh->rate3, ceh->max_tries3, success);
+	}
+
 	return;
 }
 
@@ -174,6 +180,8 @@ void Minstrel::assign_rate(Packet *p_in)
 	uint8_t *dst_ptr = (uint8_t *) p_in->data() + _offset;
 	EtherAddress dst = EtherAddress(dst_ptr);
 	struct click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p_in);
+
+	memset((void*)ceh, 0, sizeof(struct click_wifi_extra));
 
 	if (dst.is_group() || !dst) {
 		Vector<int> rates = _rtable->lookup(EtherAddress::make_broadcast());
