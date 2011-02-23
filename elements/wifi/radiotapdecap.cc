@@ -28,46 +28,6 @@
 #include <clicknet/llc.h>
 CLICK_DECLS
 
-static void print_radiotap_namespace(struct ieee80211_radiotap_iterator *iter)
-{
-	switch (iter->this_arg_index) {
-	case IEEE80211_RADIOTAP_TSFT:
-		printf("\tTSFT: %llu\n", le64toh(*(unsigned long long *)iter->this_arg));
-		break;
-	case IEEE80211_RADIOTAP_FLAGS:
-		printf("\tflags: %02x\n", *iter->this_arg);
-		break;
-	case IEEE80211_RADIOTAP_RATE:
-		printf("\trate: %lf\n", (double)*iter->this_arg/2);
-		break;
-	case IEEE80211_RADIOTAP_CHANNEL:
-	case IEEE80211_RADIOTAP_FHSS:
-	case IEEE80211_RADIOTAP_DBM_ANTSIGNAL:
-	case IEEE80211_RADIOTAP_DBM_ANTNOISE:
-	case IEEE80211_RADIOTAP_LOCK_QUALITY:
-	case IEEE80211_RADIOTAP_TX_ATTENUATION:
-	case IEEE80211_RADIOTAP_DB_TX_ATTENUATION:
-	case IEEE80211_RADIOTAP_DBM_TX_POWER:
-	case IEEE80211_RADIOTAP_ANTENNA:
-	case IEEE80211_RADIOTAP_DB_ANTSIGNAL:
-	case IEEE80211_RADIOTAP_DB_ANTNOISE:
-	case IEEE80211_RADIOTAP_TX_FLAGS:
-		break;
-	case IEEE80211_RADIOTAP_RX_FLAGS:
-		printf("\tRX flags: %#.4x\n",
-			le16toh(*(uint16_t *)iter->this_arg));
-		break;
-	case IEEE80211_RADIOTAP_RTS_RETRIES:
-		break;
-	case IEEE80211_RADIOTAP_DATA_RETRIES:
-		printf("\tretries: %d\n", *iter->this_arg);
-		break;
-	default:
-		printf("\tBOGUS DATA\n");
-		break;
-	}
-}
-
 RadiotapDecap::RadiotapDecap()
 {
 }
@@ -105,11 +65,10 @@ RadiotapDecap::simple_action(Packet *p) {
 	ceh->magic = WIFI_EXTRA_MAGIC;
 
 	while (!(err = ieee80211_radiotap_iterator_next(&iter))) {
-		print_radiotap_namespace(&iter);
 		u_int16_t flags;
 		switch (iter.this_arg_index) {
 		case IEEE80211_RADIOTAP_FLAGS:
-			flags = le16_to_cpu(*iter.this_arg);
+			flags = le16_to_cpu(*(uint16_t *)iter.this_arg);
 			if (flags & IEEE80211_RADIOTAP_F_DATAPAD) {
 				ceh->pad = 1;
 			}
@@ -124,7 +83,7 @@ RadiotapDecap::simple_action(Packet *p) {
 			ceh->retries = *iter.this_arg;
 			break;
 		case IEEE80211_RADIOTAP_CHANNEL:
-			ceh->channel = le16_to_cpu(*iter.this_arg);
+			ceh->channel = le16_to_cpu(*(uint16_t *)iter.this_arg);
 			break;
 		case IEEE80211_RADIOTAP_DBM_ANTSIGNAL:
 			ceh->rssi = *iter.this_arg;
@@ -139,22 +98,15 @@ RadiotapDecap::simple_action(Packet *p) {
 			ceh->silence = *iter.this_arg;
 			break;
 		case IEEE80211_RADIOTAP_RX_FLAGS:
-			flags = le16_to_cpu(*iter.this_arg);
+			flags = le16_to_cpu(*(uint16_t *)iter.this_arg);
 			if (flags & IEEE80211_RADIOTAP_F_BADFCS)
 				ceh->flags |= WIFI_EXTRA_RX_ERR;
 			break;
 		case IEEE80211_RADIOTAP_TX_FLAGS:
-			flags = le16_to_cpu(*iter.this_arg);
+			flags = le16_to_cpu(*(uint16_t *)iter.this_arg);
 			ceh->flags |= WIFI_EXTRA_TX;
 			if (flags & IEEE80211_RADIOTAP_F_TX_FAIL)
 				ceh->flags |= WIFI_EXTRA_TX_FAIL;
-			break;
-
-		default:
-			click_chatter("%{element} :: %s :: unsupported field %d", 
-					this, 
-					__func__, 
-					iter.this_arg_index);
 			break;
 		}
 	}
@@ -165,7 +117,7 @@ RadiotapDecap::simple_action(Packet *p) {
 	}
 
 	p->pull(le16_to_cpu(th->it_len));
-	p->set_mac_header(p->data());  // reset mac-header pointer
+	p->set_mac_header(p->data()); // reset mac-header pointer
 
 	return p;
 
