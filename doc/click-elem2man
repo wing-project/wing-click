@@ -155,7 +155,7 @@ sub textize_add_links ($$) {
 	my $result = ($r eq $PrimaryElement ? "$selfref<$r>" : "L<$r>");
 	for ($pos = index($t, $r); $pos >= 0; $pos = index($t, $r, $pos + 1)) {
 	    if (($pos == 0 || substr($t, $pos - 1, 1) =~ /^[^\w@\/<]$/s)
-		&& (substr($t, $pos + $l, 1) =~ /^[^\w@\/]$/s)) {
+		&& (substr($t, $pos + $l) =~ /\A(?:[^\w@\/]|\z)/s)) {
 		substr($t, $pos, $l) = $result;
 		$pos += 2 + $l;
 	    }
@@ -226,13 +226,25 @@ sub nroff_fixfP ($$) {
     $x;
 }
 
+sub nroff_manref ($$$$) {
+    map { $_ = "\"$_\"" if (s/\"/\\(dq/g) } @_;
+    my($x);
+    if ($_[0] eq "") {
+	$x = "\n.M " . $_[1] . " " . $_[2];
+    } else {
+	$x = "\n.RM " . $_[0] . " " . $_[1] . " " . $_[2];
+    }
+    $x .= " " . $_[3] if $_[3] ne "";
+    $x . "\n";
+}
+
 sub nroffize_text ($) {
     my($t) = @_;
     my($s);
 
     # embolden & manpageize
     $t = textize_add_links($t, 'L');
-  
+
     $t =~ s/\\/\\\\/g;
     $t =~ s/^\./\\&./gm;
     $t =~ s/^'/\\&'/gm;
@@ -246,32 +258,34 @@ sub nroffize_text ($) {
     # get rid of entities
     $t =~ s{[\200-\377]}{"E<" . ord($1) . ">"}ge;
     $t =~ s{(E<[^>]*>)}{nroff_quote($1)}ge;
-  
+
     my $maxnest = 10;
     while ($maxnest-- && $t =~ /[A-Z]</) {
-    
+
 	# can't do C font here
 	$t =~ s/([BI])<($nonest)>/"\\f$1" . nroff_fixfP($2, $1) . "\\fP"/eg;
 	$t =~ s/[PU]<($nonest)>/$1/g;
-    
+
 	# files and filelike refs in italics
 	$t =~ s/F<($nonest)>/I<$1>/g;
-    
-	# LREF: man page references
-	$t =~ s{L<($nonest)\(([\dln])\)>(\S*)(\s*)}{\n.M $1 $2 $3\n}g;
-    
+
+	# comments
 	$t =~ s/V<($nonest)>//g;
-    
-	# LREF: a la HREF L<show this text|man/section>
-	$t =~ s{L<($nonest)>(\S*)(\s*)}{
-	    if (($s = $RelatedSource{$1})) {
-		"\n.M $1 \"$s\" $2\n";
+
+	# LREF: man page references, or a la HREF L<show this text|man/section>
+	$t =~ s{(\S*)L<($nonest)>(\S*)(\s*)}{
+	    my($pre, $text, $post, $space, $s, $i) = ($1, $2, $3, $4);
+	    if ($text =~ /\A(.*)\((\d+|[ln])\)\z/) {
+		nroff_manref($pre, $1, $2, $post);
+	    } elsif (($s = $RelatedSource{$text})) {
+		nroff_manref($pre, $text, $s, $post);
+	    } elsif (($i = index($text, "|")) >= 0) {
+		$pre . substr($text, 0, $i) . $post . $space;
 	    } else {
-		my $i = index($1, "|");
-		($i >= 0 ? substr($1, 0, $i) . $2 . $3 : "\\fB$1\\fP$2$3");
+		$pre . "\\fB" . $text . "\\fP" . $post . $space;
 	    }
 	}eg;
-    
+
 	$t =~ s/Z<>/\\&/g;
 	$t =~ s/N<>(\n?)/\n.br\n/g;
 
@@ -281,13 +295,13 @@ sub nroffize_text ($) {
 
     # replace entities
     $t =~ s/\305\274([^\276]*)\276/nroff_unentity($1)/ge;
-  
+
     # fix fonts
     $t =~ s/\\fP/\\fR/g;
 
     # fix manual
     $t =~ s/\n\.M (\S+) \"(\S+)\" (\(\2\))/\n.M $1 \"$2\" /sg;
-    
+
     $t =~ s/\n+/\n/sg;
     $t =~ s/^\n+//;
     $t =~ s/\n+$//;
@@ -349,7 +363,7 @@ sub nroff_do_section ($$$) {
     } elsif ($Begun) {
 	return;
     }
-  
+
     if ($name eq 'head1') {
 	print OUT ".SH \"", protquote(nroffize($args)), "\"\n";
     } elsif ($name eq 'head2') {
@@ -470,28 +484,28 @@ sub dokuwikiize_text ($) {
 
     # embolden & manpageize
     $t = textize_add_links($t, 'P');
-    
+
     # get rid of entities
     $t =~ s{E<([^>]*)>}{dokuwiki_unentity($1)}ge;
     $t =~ s{($dokuwiki_sensitive_char)}{^$1^}g;
 
     my $maxnest = 10;
     while ($maxnest-- && $t =~ /[A-Z]</) {
-    
+
 	# can't do C font here
 	$t =~ s/B<($nonest)>/dokuwiki_surround($1, "*")/eg;
 	$t =~ s.I<($nonest)>.dokuwiki_surround($1, "/").eg;
 	$t =~ s.U<($nonest)>.dokuwiki_surround($1, "_").eg;
 	$t =~ s/P<($nonest)>/$1/g;
 	$t =~ s/C<($nonest)>/dokuwiki_surround($1, "'")/eg;
-    
+
 	# files and filelike refs in italics
 	$t =~ s/F<($nonest)>/I<$1>/g;
-    
+
 	# LREF: man page references
 	$t =~ s{L<($nonest)\^\(\^[\dln]\^\)\^>}{[[$1]]}g;
 	$t =~ s{L<($nonest)>\^\(\^[\dln]\^\)\^}{[[$1]]}g;
-    
+
 	# LREF: a la HREF L<show this text|man/section>
 	$t =~ s{L<($nonest)\|($nonest)>}{[[$2|$1]]}g;
 	$t =~ s{L<($nonest)>}{[[$1]]}g;
@@ -500,7 +514,7 @@ sub dokuwikiize_text ($) {
 	$t =~ s/Z<>//g;
 	$t =~ s/N<>(\n?)/\\\\ /g;
     }
-    
+
     $t =~ s/\n+/\n/sg;
     $t =~ s/^\n+//;
     $t =~ s/\n+$//;
@@ -559,7 +573,7 @@ sub dokuwiki_do_section ($$$) {
     } elsif ($Begun) {
 	return;
     }
-    
+
     if ($name eq 'head1') {
 	print OUT "\n===== ", dokuwikiize($args), " =====\n\n";
     } elsif ($name eq 'head2') {
@@ -921,7 +935,7 @@ sub process_comment ($$) {
 			'drivers', '', $drivers,
 			%first_in_section, 'processing', 'io', 'c');
     }
-	
+
     # processing
     if (!defined($first_in_section{'processing'})) { PROCESSING: {
 	# can we figure out the processing type?
@@ -947,7 +961,7 @@ sub process_comment ($$) {
     insert_section(@section_name, @section_args, @section_text,
 		   1, 'name!', $title, $oneliner);
     insert_section(@section_name, @section_args, @section_text,
-		   @section_name, 'end!', $outsections[0], $title);    
+		   @section_name, 'end!', $outsections[0], $title);
 
     # output
     my($special_section) = 0;
@@ -956,7 +970,7 @@ sub process_comment ($$) {
 	my($x) = $section_text[$i];
 	my($was_special_section) = $special_section;
 	$special_section = 0;
-	
+
 	if ($s eq 'c') {
 	    $x =~ s{(\S\s*)\n}{$1N<>\n}g;
 	    $x =~ s{N<>\n*\z}{};
@@ -1026,9 +1040,11 @@ sub process_file ($;$) {
     my($filename, $text) = @_;
 
     print STDERR "Attempting $filename...\n" if $verbose;
-    $filename = "include/$1" if !-e $filename && $filename =~ /^<(.*)>$/s;
-    $filename = "$PREFIX/$filename" if !-e $filename && defined($PREFIX);
-    return if !-e $filename;
+    if ($filename ne "<stdin>") {
+	$filename = "include/$1" if !-e $filename && $filename =~ /^<(.*)>$/s;
+	$filename = "$PREFIX/$filename" if !-e $filename && defined($PREFIX);
+	return if !-e $filename;
+    }
     print STDERR "Found $filename\n" if $verbose;
     if (!defined($text)) {
 	if (!open(IN, $filename)) {
@@ -1088,7 +1104,7 @@ sub read_elementmap_text ($;$) {
 		$requires{$n} = [] if !defined $requires{$n};
 		push @{$requires{$n}}, $req;
 	    }
-	    
+
 	    $headerhash->{xmlunquote($hf)} = 1 if defined($hf);
 	}
     }
@@ -1102,13 +1118,13 @@ sub read_elementmap ($;$) {
     close E;
 }
 
-sub process_file_set ($$) {
-    my($fn, $fnhash) = @_;
+sub process_file_set ($$\@) {
+    my($fn, $fnhash, $filedata) = @_;
     if (open(IN, ($fn eq '-' ? "<&STDIN" : $fn))) {
 	my(@a, @b, $t, $x);
 	$t = <IN>;
 	close IN;
-	
+
 	# Parse file; click-buildtool gets special treatment
 	if ($t =~ /\A#.*click-buildtool findelem/) {
 	    $t =~ s/^#.*//mg;
@@ -1125,8 +1141,11 @@ sub process_file_set ($$) {
 	} elsif ($t =~ /\A<\?xml/) {
 	    read_elementmap_text($t, $fnhash);
 	} elsif ($t =~ /[\(\)]/) {
-	    die if $fn eq '-';
-	    $fnhash->{$fn} = 1;
+	    if ($fn ne "-") {
+		$fnhash->{$fn} = 1;
+	    } else {
+		push @$filedata, $t;
+	    }
 	} else {
 	    $t =~ s/^#.*//mg;
 	    foreach $_ (split(/\s+/, $t)) {
@@ -1167,7 +1186,7 @@ my(%requires_fixed);
 sub fix_one_requires ($) {
     my($req) = @_;
     my($driver) = driver_requirement($req);
-    
+
     my($t, $i);
     my($changes) = '';
     foreach $t (split(/\s+/, $req)) {
@@ -1186,7 +1205,7 @@ sub fix_one_requires ($) {
 	    }
 	}
     }
-    
+
     if ($changes) {
 	join(' ', uniq(sort {$a cmp $b} split(/\s+/, $req . $changes)));
     } else {
@@ -1327,15 +1346,18 @@ if ($uninstall) {
 }
 
 # read file sets
-my(%fnhash);
+my(%fnhash, @filedata);
 foreach $fn (@files) {
-    process_file_set($fn, \%fnhash);
+    process_file_set($fn, \%fnhash, @filedata);
 }
 fix_requires();
 
 # process files
-foreach $fn (keys(%fnhash)) {
+foreach my $fn (keys(%fnhash)) {
     process_file($fn);
+}
+foreach my $text (@filedata) {
+    process_file("<stdin>", $text);
 }
 
 if ($uninstall || !$directory) {
@@ -1348,7 +1370,7 @@ if ($uninstall || !$directory) {
 
 sub read_elementlist ($) {
     my($fn) = @_;
-  
+
     local($/) = "\n";
     if (!open(IN, $fn)) {
 	print STDERR "click-elem2man: $fn: $!\n";

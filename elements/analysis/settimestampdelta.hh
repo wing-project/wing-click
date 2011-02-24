@@ -15,8 +15,7 @@ replace packet timestamps with deltas
 
 =d
 
-SetTimestampDelta passes packets through, but nonzero packet timestamps are
-replaced with deltas.
+SetTimestampDelta replaces nonzero packet timestamps with deltas.
 
 Keyword arguments are:
 
@@ -43,7 +42,7 @@ relative to the next nonzero timestamp encountered.
 
 =a
 
-TimeFilter */
+SetTimestamp, AdjustTimestamp, TimeFilter */
 
 class SetTimestampDelta : public Element { public:
 
