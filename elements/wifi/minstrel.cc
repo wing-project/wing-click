@@ -162,9 +162,9 @@ void Minstrel::process_feedback(Packet *p_in) {
 		nfo->add_result(ceh->rate, ceh->retries, success);
 	} else {
 		nfo->add_result(ceh->rate, ceh->max_tries, success);
-		nfo->add_result(ceh->rate1, ceh->max_tries1, success);
-		nfo->add_result(ceh->rate2, ceh->max_tries2, success);
-		nfo->add_result(ceh->rate3, ceh->max_tries3, success);
+		nfo->add_result(ceh->rate1, ceh->max_tries1, 0);
+		nfo->add_result(ceh->rate2, ceh->max_tries2, 0);
+		nfo->add_result(ceh->rate3, ceh->max_tries3, 0);
 	}
 
 	return;
@@ -258,6 +258,8 @@ void Minstrel::assign_rate(Packet *p_in)
 		ceh->rate1 = nfo->_rates[nfo->max_tp_rate2];
 		ceh->max_tries1 = 4;
 	}
+
+	ceh->retries = ceh->max_tries;
 
 	ceh->rate2 = nfo->_rates[nfo->max_prob_rate];
 	ceh->max_tries2 = 4;

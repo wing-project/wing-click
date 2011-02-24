@@ -115,7 +115,9 @@ RadiotapEncap::simple_action(Packet *p)
 	  crh->wt_rate = ceh->rate;
 	  crh->wt_txpower = ceh->power;
 	  crh->wt_rts_retries = 0;
-	  if (ceh->max_tries > 0) {
+	  if (ceh->retries > 0) {
+		  crh->wt_data_retries = ceh->retries;
+	  } else if (ceh->max_tries > 0) {
 		  crh->wt_data_retries = ceh->max_tries;
 	  } else {
 		  crh->wt_data_retries = WIFI_MAX_RETRIES + 1;
