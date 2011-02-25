@@ -107,11 +107,8 @@ RouterThread::RouterThread(Master *m, int id)
 #endif
 #endif
 
-#if CLICK_USERLEVEL
-    _iters_per_os = 64;           /* iterations per select() */
-#else
-    _iters_per_os = 2;          /* iterations per OS schedule() */
-#endif
+    _iters_per_os = 2;		// userlevel: iterations per select()
+				// kernel: iterations per OS schedule()
 
 #if CLICK_LINUXMODULE || CLICK_BSDMODULE
     _greedy = false;
@@ -163,7 +160,7 @@ RouterThread::driver_lock_tasks()
     }
 #endif
 
-    while (!_task_blocker.compare_and_swap(0, (uint32_t) -1)) {
+    while (_task_blocker.compare_swap(0, (uint32_t) -1) != 0) {
 #if CLICK_LINUXMODULE
 	schedule();
 #endif
@@ -173,8 +170,8 @@ RouterThread::driver_lock_tasks()
 inline void
 RouterThread::driver_unlock_tasks()
 {
-    bool ok = _task_blocker.compare_and_swap((uint32_t) -1, 0);
-    assert(ok);
+    uint32_t val = _task_blocker.compare_swap((uint32_t) -1, 0);
+    assert(val == (uint32_t) -1);
 }
 
 
@@ -390,8 +387,6 @@ RouterThread::run_tasks(int ntasks)
 	    goto post_fire;
 	}
 
-	t->_status.is_scheduled = false;
-
 #if HAVE_MULTITHREAD
 	runs = t->cycle_runs();
 	if (runs > PROFILE_ELEMENT)
@@ -405,6 +400,7 @@ RouterThread::run_tasks(int ntasks)
 	_pass = t->_pass;
 #endif
 
+	t->_status.is_scheduled = false;
 	t->fire();
 
 #if HAVE_MULTITHREAD
