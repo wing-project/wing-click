@@ -21,10 +21,10 @@
 #include <click/confparse.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
-#include <click/radiotap_iter.h>
 #include <click/packet_anno.hh>
 #include <clicknet/wifi.h>
 #include <clicknet/radiotap.h>
+#include <clicknet/radiotap_iter.h>
 #include <clicknet/llc.h>
 CLICK_DECLS
 
