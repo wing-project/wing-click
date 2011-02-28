@@ -111,8 +111,9 @@ int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 {
 	_offset = 0;
 	_ewma_level = 75;
-	_lookaround_rate = 5;
+	_lookaround_rate = 20;
 	_period = 100;
+	_mrr = false;
 	_active = true;
 	_debug = false;
 	if (cp_va_kparse(conf, this, errh,
@@ -158,14 +159,14 @@ void Minstrel::process_feedback(Packet *p_in) {
 		return;
 	}
 
-	if (ceh->retries != 0) {
-		nfo->add_result(ceh->rate, ceh->retries, success);
-	} else {
+	if (_mrr) {
 		nfo->add_result(ceh->rate, ceh->max_tries, success);
 		nfo->add_result(ceh->rate1, ceh->max_tries1, 0);
 		nfo->add_result(ceh->rate2, ceh->max_tries2, 0);
 		nfo->add_result(ceh->rate3, ceh->max_tries3, 0);
-	}
+	} else {
+		nfo->add_result(ceh->rate, ceh->retries + 1, success);
+	} 
 
 	return;
 }
@@ -236,12 +237,13 @@ void Minstrel::assign_rate(Packet *p_in)
 	 * as this only wastes precious airtime */
 	if (sample && (nfo->_probability[ndx] > 17100)) {
 		ndx = nfo->max_tp_rate;
+		sample = false;
 	}
 
 	ceh->magic = WIFI_EXTRA_MAGIC;
 
 	if (sample) {
-		if (nfo->_rates[ndx] < nfo->_rates[nfo->max_tp_rate]) {
+		if (nfo->_rates[ndx] < nfo->_rates[nfo->max_tp_rate] && _mrr) {
 			ceh->rate = nfo->_rates[nfo->max_tp_rate];
 			ceh->max_tries = 4;
 			ceh->rate1 = nfo->_rates[ndx];
@@ -259,7 +261,7 @@ void Minstrel::assign_rate(Packet *p_in)
 		ceh->max_tries1 = 4;
 	}
 
-	ceh->retries = ceh->max_tries;
+	ceh->retries = ceh->max_tries - 1;
 
 	ceh->rate2 = nfo->_rates[nfo->max_prob_rate];
 	ceh->max_tries2 = 4;

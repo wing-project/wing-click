@@ -117,6 +117,7 @@ private:
 	Timer _timer;
 
 	bool _active;
+	bool _mrr;
 	unsigned _offset;
 	unsigned _period;
 	unsigned _ewma_level;
