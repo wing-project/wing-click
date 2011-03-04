@@ -227,7 +227,6 @@ class AggregatorBuffer : public NotifierQueue { public:
 
     EtherAddress _next;
     uint32_t _quantum;
-    uint32_t _scaling;
 
     uint32_t _creates; // number of queues created
     uint32_t _deletes; // number of queues deleted
@@ -240,12 +239,17 @@ class AggregatorBuffer : public NotifierQueue { public:
     uint32_t compute_deficit(Packet*);
 
     void clean_pool();
+
+    static int write_handler(const String &, Element *, void *, ErrorHandler *);
     static String read_handler(Element *, void *);
 
     uint16_t _et;     // This protocol's ethertype
 
     class ARPTableMulti* _arp_table;
     class LinkTableMulti* _lt;
+
+    bool _scheduler_active;
+    bool _aggregator_active;
 
     uint32_t _max_burst;
     uint32_t _min_burst;

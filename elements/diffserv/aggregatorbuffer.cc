@@ -48,7 +48,19 @@ CLICK_DECLS
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
-enum { H_RESET, H_DROPS, H_BYTEDROPS, H_CREATES, H_DELETES, H_CAPACITY, H_LIST_QUEUE, H_MAX_BURST_SIZE, H_MIN_BURST_SIZE, H_MAX_DELAY };
+enum { H_RESET, 
+	H_DROPS, 
+	H_BYTEDROPS, 
+	H_CREATES, 
+	H_DELETES, 
+	H_CAPACITY, 
+	H_LIST_QUEUE, 
+	H_MAX_BURST_SIZE, 
+	H_MIN_BURST_SIZE, 
+	H_MAX_DELAY, 
+	H_SCHEDULER_ACTIVE, 
+	H_AGGREGATOR_ACTIVE 
+};
 
 AggregatorBuffer::AggregatorBuffer() : 
   _task(this), _timer(&_task)
@@ -99,10 +111,7 @@ AggregatorBuffer::compute_deficit(Packet* p)
   if (!_lt)
     return p->length();
   IPAddress to = _arp_table->reverse_lookup(_next);
-  uint32_t metric = _lt->get_host_metric_from_me(to);
-  if (!metric)
-    return 0;
-  return (p->length() * metric) / _scaling;
+  return _lt->get_host_metric_from_me(to);
 }
 
 void 
@@ -157,30 +166,24 @@ AggregatorBuffer::configure(Vector<String>& conf, ErrorHandler* errh)
   _arp_table=0;
   _capacity=500;
   _quantum=1500;
-  _scaling=1500;
   _max_burst=1500;
   _min_burst=60;
   _max_delay=20;
   _period=2000;
+  _scheduler_active = true;
+  _aggregator_active = true;
 
   int res = cp_va_kparse(conf, this, errh,
 			"ETHTYPE", cpkM, cpUnsignedShort, &_et,
 			"CAPACITY", 0, cpUnsigned, &_capacity,
 			"QUANTUM", 0, cpUnsigned, &_quantum,
-			"SCALING", 0, cpInteger, &_scaling,
 			"MAX_BURST", 0, cpInteger, &_max_burst,
 			"MIN_BURST", 0, cpInteger, &_min_burst,
 			"DELAY", 0, cpUnsigned, &_max_delay,
 			"PERIOD", 0, cpUnsigned, &_period,
- 			"LT", 0, cpElement, &_lt, 
-			"ARP", 0, cpElement, &_arp_table,
+ 			"LT", 0, cpElementCast, "LinkTableMulti", &_lt, 
+ 			"ARP", 0, cpElementCast, "ARPTableMulti", &_arp_table, 
 			cpEnd);
-
-  if (_lt && _lt->cast("LinkTableMulti") == 0) 
-      return errh->error("LT element is not a LinkTableMulti");
-  
-  if (_arp_table && _arp_table->cast("ARPTable") == 0) 
-    return errh->error("ARPTable element is not a ARPTable");
 
   _full_note.initialize(Notifier::FULL_NOTIFIER, router());
   _full_note.set_active(true, false);
@@ -275,7 +278,10 @@ AggregatorBuffer::pull(int)
     if (head.value()) {
       p = head.value();
       _head_table->find_insert(_next, 0);
-    } else if (queue->top() && (queue->top()->timestamp_anno() <= Timestamp::now())) {
+
+
+
+    } else if (queue->top() && (!_aggregator_active || (queue->top()->timestamp_anno() <= Timestamp::now()))) {
       // packet ready for output
       p = queue->aggregate(_et);
     }
@@ -285,7 +291,7 @@ AggregatorBuffer::pull(int)
       if ((queue->_size == 0) && (++queue->_trash == TRASH_TRIGGER)) {
           trash = true;
       }
-    } else if (compute_deficit(p) <= queue->_deficit) {
+    } else if (!_scheduler_active || (compute_deficit(p) <= queue->_deficit)) {
       queue->_deficit -= compute_deficit(p);
       _full_note.wake();
       send = true;
@@ -397,8 +403,9 @@ AggregatorBuffer::add_handlers()
   add_read_handler("byte_drops", read_handler, (void*)H_BYTEDROPS);
   add_read_handler("capacity", read_handler, (void*)H_CAPACITY);
   add_read_handler("list_queues", read_handler, (void*)H_LIST_QUEUE);
+  add_write_handler("scheduler_active", write_handler, H_SCHEDULER_ACTIVE);
+  add_write_handler("aggregator_active", write_handler, H_AGGREGATOR_ACTIVE);
 }
-
 
 String 
 AggregatorBuffer::read_handler(Element *e, void *thunk)
@@ -423,6 +430,29 @@ AggregatorBuffer::read_handler(Element *e, void *thunk)
   default:
     return "<error>\n";
   }
+}
+
+int AggregatorBuffer::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *errh) 
+{
+	AggregatorBuffer *d = (AggregatorBuffer *) e;
+	String s = cp_uncomment(in_s);
+	switch ((intptr_t) vparam) {
+		case H_SCHEDULER_ACTIVE: {
+			bool flag;
+			if (!cp_bool(s, &flag))
+				return errh->error("parameter must be boolean");
+			d->_scheduler_active = flag;
+			break;
+		}
+		case H_AGGREGATOR_ACTIVE: {
+			bool flag;
+			if (!cp_bool(s, &flag))
+				return errh->error("parameter must be boolean");
+			d->_aggregator_active = flag;
+			break;
+		}
+	}
+	return 0;
 }
 
 CLICK_ENDDECLS
