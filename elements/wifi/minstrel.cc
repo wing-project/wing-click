@@ -235,7 +235,7 @@ void Minstrel::assign_rate(Packet *p_in)
 	/* If the sampling rate already has a probability 
 	 * of >95%, we shouldn't be attempting to use it, 
 	 * as this only wastes precious airtime */
-	if (sample && (nfo->_probability[ndx] > 17100)) {
+	if (!_mrr && sample && (nfo->_probability[ndx] > 17100)) {
 		ndx = nfo->max_tp_rate;
 		sample = false;
 	}
