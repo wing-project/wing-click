@@ -405,6 +405,7 @@ AggregatorBuffer::add_handlers()
   add_read_handler("list_queues", read_handler, (void*)H_LIST_QUEUE);
   add_write_handler("scheduler_active", write_handler, H_SCHEDULER_ACTIVE);
   add_write_handler("aggregator_active", write_handler, H_AGGREGATOR_ACTIVE);
+  add_write_handler("max_delay", write_handler, H_MAX_DELAY);
 }
 
 String 
@@ -449,6 +450,13 @@ int AggregatorBuffer::write_handler(const String &in_s, Element *e, void *vparam
 			if (!cp_bool(s, &flag))
 				return errh->error("parameter must be boolean");
 			d->_aggregator_active = flag;
+			break;
+		}
+		case H_MAX_DELAY: {
+			uint32_t max_delay;
+			if (!cp_unsigned(s, &max_delay))
+				return errh->error("parameter must be a positive integer");
+			d->_max_delay = max_delay;
 			break;
 		}
 	}
