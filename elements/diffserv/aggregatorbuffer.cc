@@ -403,6 +403,9 @@ AggregatorBuffer::add_handlers()
   add_read_handler("byte_drops", read_handler, (void*)H_BYTEDROPS);
   add_read_handler("capacity", read_handler, (void*)H_CAPACITY);
   add_read_handler("list_queues", read_handler, (void*)H_LIST_QUEUE);
+  add_read_handler("scheduler_active", read_handler, H_SCHEDULER_ACTIVE);
+  add_read_handler("aggregator_active", read_handler, H_AGGREGATOR_ACTIVE);
+  add_read_handler("max_delay", read_handler, H_MAX_DELAY);
   add_write_handler("scheduler_active", write_handler, H_SCHEDULER_ACTIVE);
   add_write_handler("aggregator_active", write_handler, H_AGGREGATOR_ACTIVE);
   add_write_handler("max_delay", write_handler, H_MAX_DELAY);
@@ -428,6 +431,12 @@ AggregatorBuffer::read_handler(Element *e, void *thunk)
     return(String(c->capacity()) + "\n");
   case H_LIST_QUEUE:
     return(c->list_queues());
+  case H_SCHEDULER_ACTIVE:
+    return(String(c->_scheduler_active) + "\n");
+  case H_MAX_DELAY:
+    return(String(c->_max_delay) + "\n");
+  case H_AGGREGATOR_ACTIVE:
+    return(String(c->_aggregator_active) + "\n");
   default:
     return "<error>\n";
   }
