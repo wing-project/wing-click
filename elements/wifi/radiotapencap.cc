@@ -27,6 +27,13 @@
 #include <clicknet/radiotap.h>
 CLICK_DECLS
 
+#define CLICK_RADIOTAP_PRESENT_SINGLE (			\
+	(1 << IEEE80211_RADIOTAP_RATE)			| \
+	(1 << IEEE80211_RADIOTAP_DBM_TX_POWER)		| \
+	(1 << IEEE80211_RADIOTAP_RTS_RETRIES)		| \
+	(1 << IEEE80211_RADIOTAP_DATA_RETRIES)		| \
+	0)
+
 #define CLICK_RADIOTAP_PRESENT_FIRST (			\
 	(1 << IEEE80211_RADIOTAP_RATE)			| \
 	(1 << IEEE80211_RADIOTAP_DBM_TX_POWER)		| \
@@ -46,7 +53,6 @@ CLICK_DECLS
 #define CLICK_RADIOTAP_PRESENT_LAST (		\
 	(1 << IEEE80211_RADIOTAP_RATE)		| \
 	(1 << IEEE80211_RADIOTAP_DATA_RETRIES)	| \
-	(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE)	| \
 	0)
 
 RadiotapEncap::RadiotapEncap() {
@@ -95,7 +101,7 @@ RadiotapEncap::simple_action(Packet *p) {
 
 		crh->it_version = 0;
 		crh->it_len = cpu_to_le16(size);
-		crh->it_present = (ceh->rate1 == 0) ? cpu_to_le32(CLICK_RADIOTAP_PRESENT_LAST) : cpu_to_le32(CLICK_RADIOTAP_PRESENT_FIRST);
+		crh->it_present = (ceh->rate1 == 0) ? cpu_to_le32(CLICK_RADIOTAP_PRESENT_SINGLE) : cpu_to_le32(CLICK_RADIOTAP_PRESENT_FIRST);
 
 		uint32_t *ptr = (uint32_t *) (crh + 1);
 
@@ -122,7 +128,7 @@ RadiotapEncap::simple_action(Packet *p) {
 		*fld = 0;
 		fld++;
 		if (ceh->retries > 0) {
-			*fld = ceh->retries;
+			*fld = ceh->retries + 1;
 		} else if (ceh->max_tries > 0) {
 			*fld = ceh->max_tries;
 		} else {
