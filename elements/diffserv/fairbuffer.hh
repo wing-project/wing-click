@@ -1,5 +1,5 @@
-#ifndef AGGREGATORBUFFER_HH
-#define AGGREGATORBUFFER_HH
+#ifndef FAIRBUFFER_HH
+#define FAIRBUFFER_HH
 #include <click/element.hh>
 #include <click/notifier.hh>
 #include <click/hashtable.hh>
@@ -12,9 +12,9 @@ CLICK_DECLS
 
 /*
  * =c
- * Aggregator(ETHTYPE, [CAPACITY, QUANTUM, SCALING, MAX_BURST, MIN_BURST, DELAY, PERIOD, LT, ARP])
+ * FairBuffer([ETHTYPE, CAPACITY, QUANTUM, MAX_BURST, MIN_BURST, DELAY, LT, ARP])
  * =s ethernet
- * concatenates multiple MAC PDUs
+ * concatenates multiple MAC PDUs and implements the ADRR scheduling policy
  * =io
  * one output, one input
  * =d
@@ -32,7 +32,7 @@ CLICK_DECLS
  * according with a Deficit Round Robin (DRR) policy.
  */
 
-class AggregatorBufferQueue {
+class FairBufferQueue {
 
   public:
 
@@ -50,12 +50,12 @@ class AggregatorBufferQueue {
     uint32_t _trash;
     Timestamp _last_update;
 
-    AggregatorBufferQueue(uint32_t capacity, uint32_t quantum, uint32_t max_burst) : _capacity(capacity) {
+    FairBufferQueue(uint32_t capacity, uint32_t quantum, uint32_t max_burst) : _capacity(capacity) {
       _q = new Packet*[_capacity];
       reset(quantum, max_burst);
     }
 
-    ~AggregatorBufferQueue() {
+    ~FairBufferQueue() {
       _queue_lock.acquire_write();
       for(uint32_t i = 0; i < _capacity; i++){
         if(_q[i]) {
@@ -172,12 +172,12 @@ class AggregatorBufferQueue {
     }
 };
 
-class AggregatorBuffer : public NotifierQueue { public:
+class FairBuffer : public NotifierQueue { public:
 
-    AggregatorBuffer();
-    ~AggregatorBuffer();
+    FairBuffer();
+    ~FairBuffer();
 
-    const char* class_name() const		{ return "AggregatorBuffer"; }
+    const char* class_name() const		{ return "FairBuffer"; }
     const char *port_count() const		{ return PORTS_1_1; }
     const char* processing() const		{ return PUSH_TO_PULL; }
     void *cast(const char *);
@@ -210,13 +210,13 @@ class AggregatorBuffer : public NotifierQueue { public:
     int _sleepiness;
     ActiveNotifier _full_note;
 
-    typedef HashTable<EtherAddress, AggregatorBufferQueue*> FairTable;
+    typedef HashTable<EtherAddress, FairBufferQueue*> FairTable;
     typedef FairTable::const_iterator TableItr;
 
     typedef HashTable<EtherAddress, Packet*> HeadTable;
     typedef HeadTable::const_iterator HeadItr;
 
-    typedef Vector<AggregatorBufferQueue*> QueuePool;
+    typedef Vector<FairBufferQueue*> QueuePool;
     typedef QueuePool::iterator PoolItr;
 
     ReadWriteLock _map_lock;
@@ -233,8 +233,8 @@ class AggregatorBuffer : public NotifierQueue { public:
     uint32_t _drops; // packets dropped because of full queue
     uint32_t _bdrops; // bytes dropped
 
-    AggregatorBufferQueue* request_queue();
-    void release_queue(AggregatorBufferQueue*);
+    FairBufferQueue* request_queue();
+    void release_queue(FairBufferQueue*);
     
     uint32_t compute_deficit(Packet*);
 

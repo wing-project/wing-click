@@ -1,5 +1,5 @@
 /*
- * aggregatorbuffer.{cc,hh}
+ * fairbuffer.{cc,hh}
  *
  * Roberto Riggio
  * Copyright (c) 2008, CREATE-NET
@@ -35,7 +35,7 @@
  */
 
 #include <click/config.h>
-#include "aggregatorbuffer.hh"
+#include "fairbuffer.hh"
 #include <click/confparse.hh>
 #include <click/error.hh>
 #include <click/straccum.hh>
@@ -62,7 +62,7 @@ enum { H_RESET,
 	H_AGGREGATOR_ACTIVE 
 };
 
-AggregatorBuffer::AggregatorBuffer() : 
+FairBuffer::FairBuffer() : 
   _task(this), _timer(&_task)
 {
   _fair_table = new FairTable();
@@ -71,7 +71,7 @@ AggregatorBuffer::AggregatorBuffer() :
   reset();
 }
 
-AggregatorBuffer::~AggregatorBuffer()
+FairBuffer::~FairBuffer()
 {
   _map_lock.acquire_write();
 
@@ -104,7 +104,7 @@ AggregatorBuffer::~AggregatorBuffer()
 }
 
 uint32_t 
-AggregatorBuffer::compute_deficit(Packet* p)
+FairBuffer::compute_deficit(Packet* p)
 {
   if (!p)
     return 0;
@@ -115,7 +115,7 @@ AggregatorBuffer::compute_deficit(Packet* p)
 }
 
 void 
-AggregatorBuffer::clean_pool(){
+FairBuffer::clean_pool(){
   _pool_lock.acquire_write();
   PoolItr itr = _queue_pool->begin();
   while(itr != _queue_pool->end()){
@@ -134,10 +134,10 @@ AggregatorBuffer::clean_pool(){
 }
 
 void * 
-AggregatorBuffer::cast(const char *n)
+FairBuffer::cast(const char *n)
 {
-    if (strcmp(n, "AggregatorBuffer") == 0)
-	return (AggregatorBuffer *)this;
+    if (strcmp(n, "FairBuffer") == 0)
+	return (FairBuffer *)this;
     else if (strcmp(n, Notifier::FULL_NOTIFIER) == 0)
 	return static_cast<Notifier*>(&_full_note);
     else
@@ -145,7 +145,7 @@ AggregatorBuffer::cast(const char *n)
 }
 
 void 
-AggregatorBuffer::reset()
+FairBuffer::reset()
 {
   _drops=0;
   _bdrops=0;
@@ -160,7 +160,7 @@ AggregatorBuffer::reset()
 }
 
 int 
-AggregatorBuffer::configure(Vector<String>& conf, ErrorHandler* errh) 
+FairBuffer::configure(Vector<String>& conf, ErrorHandler* errh) 
 {
   _lt=0;
   _et=0x0642;
@@ -195,7 +195,7 @@ AggregatorBuffer::configure(Vector<String>& conf, ErrorHandler* errh)
 }
 
 int
-AggregatorBuffer::initialize(ErrorHandler *errh)
+FairBuffer::initialize(ErrorHandler *errh)
 {
     ScheduleInfo::initialize_task(this, &_task, errh);
     _timer.initialize(this);
@@ -203,7 +203,7 @@ AggregatorBuffer::initialize(ErrorHandler *errh)
 }
 
 void 
-AggregatorBuffer::push(int, Packet* p)
+FairBuffer::push(int, Packet* p)
 { 
 
   click_ether *e = (click_ether *)p->data();
@@ -211,7 +211,7 @@ AggregatorBuffer::push(int, Packet* p)
 
   _map_lock.acquire_write();
   // get queue for dhost
-  AggregatorBufferQueue* q = _fair_table->get(dhost);
+  FairBufferQueue* q = _fair_table->get(dhost);
   
   // no queue, get one
   if(!q){
@@ -246,14 +246,14 @@ AggregatorBuffer::push(int, Packet* p)
 }
 
 bool
-AggregatorBuffer::run_task(Task *)
+FairBuffer::run_task(Task *)
 {
   _empty_note.wake();
   return true;
 }
 
 Packet * 
-AggregatorBuffer::pull(int)
+FairBuffer::pull(int)
 {
 
     if (_fair_table->empty()) {
@@ -271,7 +271,7 @@ AggregatorBuffer::pull(int)
     HeadItr head = _head_table->find(_next);
 
     EtherAddress key = active.key();
-    AggregatorBufferQueue* queue = active.value();
+    FairBufferQueue* queue = active.value();
 
     _sleepiness = 0;
 
@@ -345,7 +345,7 @@ AggregatorBuffer::pull(int)
 }
 
 String 
-AggregatorBuffer::list_queues()
+FairBuffer::list_queues()
 {
   StringAccum result;
 
@@ -364,14 +364,14 @@ AggregatorBuffer::list_queues()
   return(result.take_string());
 }
 
-AggregatorBufferQueue * 
-AggregatorBuffer::request_queue() 
+FairBufferQueue * 
+FairBuffer::request_queue() 
 {
-  AggregatorBufferQueue* q = 0;
+  FairBufferQueue* q = 0;
   _pool_lock.acquire_write();
 
   if(_queue_pool->size() == 0){
-    _queue_pool->push_back(new AggregatorBufferQueue(_capacity, _quantum, _max_burst));
+    _queue_pool->push_back(new FairBufferQueue(_capacity, _quantum, _max_burst));
     _creates++;
   } // end if
 
@@ -385,7 +385,7 @@ AggregatorBuffer::request_queue()
 }
 
 void 
-AggregatorBuffer::release_queue(AggregatorBufferQueue* q)
+FairBuffer::release_queue(FairBufferQueue* q)
 {
   _pool_lock.acquire_write();    
   _queue_pool->push_back(q);
@@ -393,7 +393,7 @@ AggregatorBuffer::release_queue(AggregatorBufferQueue* q)
 }
 
 void 
-AggregatorBuffer::add_handlers()
+FairBuffer::add_handlers()
 {
   add_read_handler("reset", read_handler, (void*)H_RESET);
   add_read_handler("queue_creates", read_handler, (void*)H_CREATES);
@@ -411,9 +411,9 @@ AggregatorBuffer::add_handlers()
 }
 
 String 
-AggregatorBuffer::read_handler(Element *e, void *thunk)
+FairBuffer::read_handler(Element *e, void *thunk)
 {
-  AggregatorBuffer *c = (AggregatorBuffer *)e;
+  FairBuffer *c = (FairBuffer *)e;
   switch ((intptr_t)thunk) {
   case H_RESET:
     c->reset();
@@ -441,9 +441,9 @@ AggregatorBuffer::read_handler(Element *e, void *thunk)
   }
 }
 
-int AggregatorBuffer::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *errh) 
+int FairBuffer::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *errh) 
 {
-	AggregatorBuffer *d = (AggregatorBuffer *) e;
+	FairBuffer *d = (FairBuffer *) e;
 	String s = cp_uncomment(in_s);
 	switch ((intptr_t) vparam) {
 		case H_SCHEDULER_ACTIVE: {
@@ -473,4 +473,4 @@ int AggregatorBuffer::write_handler(const String &in_s, Element *e, void *vparam
 
 CLICK_ENDDECLS
 ELEMENT_REQUIRES(NotifierQueue ARPTableMulti LinkTableMulti)
-EXPORT_ELEMENT(AggregatorBuffer)
+EXPORT_ELEMENT(FairBuffer)
