@@ -4,7 +4,7 @@ elementclass LinkScheduler {
   classifier :: IPClassifier(ip dscp 34, ip dscp 18, -);
   input -> classifier;
 
-  sched :: WFQSched (4,2,1)
+  sched :: WFQSched (4, 2, 1)
     -> output;
 
   classifier[0] -> FullNoteQueue(10) -> [0] sched;
