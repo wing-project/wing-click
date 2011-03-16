@@ -163,24 +163,25 @@ int
 AggregatorBuffer::configure(Vector<String>& conf, ErrorHandler* errh) 
 {
   _lt=0;
+  _et=0x0642;
   _arp_table=0;
   _capacity=500;
   _quantum=1500;
   _max_burst=1500;
   _min_burst=60;
-  _max_delay=20;
-  _period=2000;
+  _max_delay=5;
   _scheduler_active = true;
   _aggregator_active = true;
 
   int res = cp_va_kparse(conf, this, errh,
-			"ETHTYPE", cpkM, cpUnsignedShort, &_et,
+			"ETHTYPE", 0, cpUnsignedShort, &_et,
 			"CAPACITY", 0, cpUnsigned, &_capacity,
 			"QUANTUM", 0, cpUnsigned, &_quantum,
 			"MAX_BURST", 0, cpInteger, &_max_burst,
 			"MIN_BURST", 0, cpInteger, &_min_burst,
 			"DELAY", 0, cpUnsigned, &_max_delay,
-			"PERIOD", 0, cpUnsigned, &_period,
+			"SCHEDULER", 0, cpBool, &_scheduler_active,
+			"AGGREGATOR", 0, cpBool, &_aggregator_active,
  			"LT", 0, cpElementCast, "LinkTableMulti", &_lt, 
  			"ARP", 0, cpElementCast, "ARPTableMulti", &_arp_table, 
 			cpEnd);
@@ -278,9 +279,6 @@ AggregatorBuffer::pull(int)
     if (head.value()) {
       p = head.value();
       _head_table->find_insert(_next, 0);
-
-
-
     } else if (queue->top() && (!_aggregator_active || (queue->top()->timestamp_anno() <= Timestamp::now()))) {
       // packet ready for output
       p = queue->aggregate(_et);
@@ -292,6 +290,7 @@ AggregatorBuffer::pull(int)
           trash = true;
       }
     } else if (!_scheduler_active || (compute_deficit(p) <= queue->_deficit)) {
+      // packet ready for output
       queue->_deficit -= compute_deficit(p);
       _full_note.wake();
       send = true;

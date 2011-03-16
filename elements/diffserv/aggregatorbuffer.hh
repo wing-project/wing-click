@@ -254,7 +254,6 @@ class AggregatorBuffer : public NotifierQueue { public:
     uint32_t _max_burst;
     uint32_t _min_burst;
     uint32_t _max_delay;
-    uint32_t _period;
 
     Task _task;
     Timer _timer;
