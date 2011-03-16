@@ -6,6 +6,6 @@
  */
 
 FromDump('aggregator-packed.dump', STOP true)
- -> DeAggregator(ETHTYPE 0x0642)
+ -> DeAggregator()
  -> ToDump('aggregator-output.dump', ENCAP ETHER)
 

@@ -61,12 +61,10 @@ DeAggregator::initialize(ErrorHandler*)
 int 
 DeAggregator::configure(Vector<String>& conf, ErrorHandler* errh) 
 {
-
+  _et=0x0642;
   int res = cp_va_kparse(conf, this, errh,
-			"ETHTYPE", cpkM, cpUnsignedShort, &_et,
+			"ETHTYPE", 0, cpUnsignedShort, &_et,
 			cpEnd);
-  if (!_et) 
-    return errh->error("ETHTYPE not specified");
 
   return res;
 
