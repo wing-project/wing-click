@@ -159,16 +159,14 @@ void Minstrel::process_feedback(Packet *p_in) {
 		return;
 	}
 
-	if (_mrr) {
-		nfo->add_result(ceh->rate, ceh->max_tries, success);
-		nfo->add_result(ceh->rate1, ceh->max_tries1, 0);
-		nfo->add_result(ceh->rate2, ceh->max_tries2, 0);
-		nfo->add_result(ceh->rate3, ceh->max_tries3, 0);
-	} else {
-		nfo->add_result(ceh->rate, ceh->retries + 1, success);
-	} 
+	nfo->add_result(ceh->rate, ceh->retries + 1, success);
 
 	return;
+}
+
+uint32_t Minstrel::compute_retry_chain(uint32_t, uint32_t)
+{
+	return 4;
 }
 
 void Minstrel::assign_rate(Packet *p_in)
@@ -191,7 +189,6 @@ void Minstrel::assign_rate(Packet *p_in)
 		} else {
 			ceh->rate = 2;
 		}
-		ceh->max_tries = WIFI_MAX_RETRIES + 1;
 		return;
 	}
 
@@ -245,29 +242,30 @@ void Minstrel::assign_rate(Packet *p_in)
 	if (sample) {
 		if (nfo->_rates[ndx] < nfo->_rates[nfo->max_tp_rate] && _mrr) {
 			ceh->rate = nfo->_rates[nfo->max_tp_rate];
-			ceh->max_tries = 4;
 			ceh->rate1 = nfo->_rates[ndx];
-			ceh->max_tries1 = 4;
 		} else {
 			ceh->rate = nfo->_rates[ndx];
-			ceh->max_tries = 4;
 			ceh->rate1 = nfo->_rates[nfo->max_tp_rate];
-			ceh->max_tries1 = 4;
 		}
 	} else {
 		ceh->rate = nfo->_rates[nfo->max_tp_rate];
-		ceh->max_tries = 4;
 		ceh->rate1 = nfo->_rates[nfo->max_tp_rate2];
-		ceh->max_tries1 = 4;
+	}
+
+	ceh->max_tries = compute_retry_chain(p_in->length(), ceh->rate);
+	ceh->max_tries1 = compute_retry_chain(p_in->length(), ceh->rate1);
+
+	if (!_mrr) {
+		ceh->max_tries = WIFI_MAX_RETRIES + 1;
 	}
 
 	ceh->retries = ceh->max_tries - 1;
 
 	ceh->rate2 = nfo->_rates[nfo->max_prob_rate];
-	ceh->max_tries2 = 4;
+	ceh->max_tries2 = compute_retry_chain(p_in->length(), ceh->rate2);
 
 	ceh->rate3 = nfo->_rates[0];
-	ceh->max_tries3 = 4;
+	ceh->max_tries3 = compute_retry_chain(p_in->length(), ceh->rate3);
 
 	return;
 

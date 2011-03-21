@@ -120,7 +120,7 @@ RadiotapEncap::simple_action(Packet *p) {
 
 		uint8_t *fld = (uint8_t *) (ptr);
 
-		/* block (1) */
+		/* block (0) */
 		*fld = ceh->rate;
 		fld++;
 		*fld = ceh->power;
