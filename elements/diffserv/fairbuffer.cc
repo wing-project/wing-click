@@ -56,7 +56,6 @@ enum { H_RESET,
 	H_CAPACITY, 
 	H_LIST_QUEUE, 
 	H_MAX_BURST_SIZE, 
-	H_MIN_BURST_SIZE, 
 	H_MAX_DELAY, 
 	H_SCHEDULER_ACTIVE, 
 	H_AGGREGATOR_ACTIVE 
@@ -168,20 +167,18 @@ FairBuffer::configure(Vector<String>& conf, ErrorHandler* errh)
   _capacity=500;
   _quantum=1500;
   _max_burst=1500;
-  _min_burst=60;
   _max_delay=5;
   _scheduler_active = true;
-  _aggregator_active = true;
+  _aggregator_active = false;
 
   int res = cp_va_kparse(conf, this, errh,
 			"ETHTYPE", 0, cpUnsignedShort, &_et,
 			"CAPACITY", 0, cpUnsigned, &_capacity,
 			"QUANTUM", 0, cpUnsigned, &_quantum,
 			"MAX_BURST", 0, cpInteger, &_max_burst,
-			"MIN_BURST", 0, cpInteger, &_min_burst,
-			"DELAY", 0, cpUnsigned, &_max_delay,
-			"SCHEDULER", 0, cpBool, &_scheduler_active,
-			"AGGREGATOR", 0, cpBool, &_aggregator_active,
+			"MAX_DELAY", 0, cpUnsigned, &_max_delay,
+			"SCHEDULER_ACTIVE", 0, cpBool, &_scheduler_active,
+			"AGGREGATOR_ACTIVE", 0, cpBool, &_aggregator_active,
  			"LT", 0, cpElementCast, "LinkTableMulti", &_lt, 
  			"ARP", 0, cpElementCast, "ARPTableMulti", &_arp_table, 
 			cpEnd);
@@ -281,7 +278,7 @@ FairBuffer::pull(int)
       _head_table->find_insert(_next, 0);
     } else if (queue->top() && (!_aggregator_active || queue->ready())) {
       // packet ready for output
-      p = queue->aggregate(_et, _aggregator_active);
+      p = queue->aggregate();
     }
 
     if (!p) {
@@ -316,7 +313,7 @@ FairBuffer::pull(int)
       _next = EtherAddress();
     }
 
-    // Check if there is queue that will expire earlier
+    // Check if there is a queue that will expire earlier
     TableItr itr = _fair_table->begin();
     Timestamp expire = Timestamp(0);
 
@@ -371,7 +368,7 @@ FairBuffer::request_queue()
   _pool_lock.acquire_write();
 
   if(_queue_pool->size() == 0){
-    _queue_pool->push_back(new FairBufferQueue(_capacity, _quantum, _max_burst));
+    _queue_pool->push_back(new FairBufferQueue(this));
     _creates++;
   } // end if
 
@@ -379,7 +376,7 @@ FairBuffer::request_queue()
   q = _queue_pool->back();
   _queue_pool->pop_back();
   _pool_lock.release_write();
-  q->reset(_quantum, _max_burst);
+  q->reset();
 
   return(q);
 }

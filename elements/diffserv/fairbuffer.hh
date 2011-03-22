@@ -32,161 +32,7 @@ CLICK_DECLS
  * according with a Deficit Round Robin (DRR) policy.
  */
 
-class FairBufferQueue {
-
-  public:
-
-    ReadWriteLock _queue_lock;
-    Packet** _q;
-
-    uint32_t _capacity;
-    uint32_t _size;
-    uint32_t _opt_burst;
-    uint32_t _bsize;
-    uint32_t _drops;
-    uint32_t _head;
-    uint32_t _tail;
-    uint32_t _deficit;
-    uint32_t _trash;
-    Timestamp _last_update;
-
-    FairBufferQueue(uint32_t capacity, uint32_t quantum, uint32_t max_burst) : _capacity(capacity) {
-      _q = new Packet*[_capacity];
-      reset(quantum, max_burst);
-    }
-
-    ~FairBufferQueue() {
-      _queue_lock.acquire_write();
-      for(uint32_t i = 0; i < _capacity; i++){
-        if(_q[i]) {
-          _q[i]->kill();
-        }
-      } 
-      delete[] _q;
-      _queue_lock.release_write();
-    }  
-
-    void reset(int32_t quantum, uint32_t max_burst) {
-      _size = 0;
-      _opt_burst = max_burst;
-      _bsize = 0;
-      _drops = 0;
-      _head = 0;
-      _tail = 0;
-      _deficit = quantum;
-      _trash = 0;
-      _last_update = Timestamp(0);
-    }
-
-    Packet* pull() {
-      Packet* p = 0;
-      _queue_lock.acquire_write();
-      if(_head != _tail){
-        p = _q[_head];
-        _q[_head] = 0;
-        _head = (_head+1)%_capacity;
-        _size--;
-        _bsize -= p->length();
-      }
-      _queue_lock.release_write();
-      return(p);
-    }
-
-    bool push(Packet* p) {
-      bool result = false;
-      _queue_lock.acquire_write();
-      if((_tail+1)%_capacity != _head){
-        _tail++;
-        _tail %= _capacity;
-        _q[_tail] = p;
-        _size++;
-        _bsize += p->length();
-        result = true;
-      } else {
-        _drops++;
-      }
-      _queue_lock.release_write();
-      return result;
-    }
-
-    Packet* aggregate(uint16_t et, bool aggregator_active) {
-
-      if (_size == 0) {
-        return 0;
-      }
-
-      if (!aggregator_active) {
-        return pull();
-      }
-
-      WritablePacket *wp = pull()->uniqueify();
-
-      if (top() && (wp->length() + top()->length() < _opt_burst)) {
-
-        click_ether *e = (click_ether *)wp->data();
-        uint16_t ether_type = e->ether_type;
-        uint16_t length = htons(wp->length() - sizeof(struct click_ether));
-
-        EtherAddress *dst = new EtherAddress(e->ether_dhost);
-        EtherAddress *src = new EtherAddress(e->ether_shost);
-
-        uint16_t ether_type_pack = htons(et);
-
-        wp = wp->push(4);
-
-        memcpy(wp->data(), dst->data(), 6);
-        memcpy(wp->data() + 6, src->data(), 6);
-        memcpy(wp->data() + 12, &ether_type_pack, 2);	
-
-        memcpy(wp->data() + 14, &length, 2);
-        memcpy(wp->data() + 16, &ether_type, 2);
-
-        do {
-
-          uint32_t append = top()->length() - sizeof(struct click_ether);
-          wp = wp->put(append+4);
-
-          Packet* q = pull();
-
-          click_ether *qe = (click_ether *)q->data();
-          uint16_t ether_type = qe->ether_type;
-          uint16_t length = htons(q->length() - sizeof(struct click_ether));
-
-          memcpy(wp->data() + (wp->length()-append-4), &length, 2);
-          memcpy(wp->data() + (wp->length()-append-2), &ether_type, 2);
-          memcpy(wp->data() + (wp->length()-append), q->data()+sizeof(struct click_ether), append);
-
-          q->kill();
-
-        } while (top() && (wp->length() + top()->length() < _opt_burst));
-
-      }
-
-      return wp;
-
-    }
-
-    bool ready() {
-      if (top()->timestamp_anno() <= Timestamp::now()) {
-        return true;
-      }
-      if (top()->length() >= _opt_burst) {
-        return true;
-      }
-      return false;
-    }
-
-    const Packet* top() {
-      Packet* p = 0;
-      _queue_lock.acquire_write();
-      if(_head != _tail){
-        p = _q[(_head+1)%_capacity];
-      }
-      _queue_lock.release_write();
-      return(p);
-    }
-
-};
+class FairBufferQueue;
 
 class FairBuffer : public NotifierQueue { public:
 
@@ -212,7 +58,12 @@ class FairBuffer : public NotifierQueue { public:
     uint32_t drops() { return(_drops); } // dropped packets
     uint32_t bdrops() { return(_bdrops); } // bytes dropped
 
-    uint32_t capacity() { return(_capacity); } // aggr. queues size
+    uint32_t quantum() { return(_quantum); } 
+    uint32_t capacity() { return(_capacity); } 
+    uint32_t max_burst() { return(_max_burst); } 
+    uint16_t et() { return(_et); } 
+    uint32_t aggregator_active() { return(_aggregator_active); } 
+    uint32_t scheduler_active() { return(_scheduler_active); } 
 
     String list_queues();
 
@@ -268,11 +119,168 @@ class FairBuffer : public NotifierQueue { public:
     bool _aggregator_active;
 
     uint32_t _max_burst;
-    uint32_t _min_burst;
     uint32_t _max_delay;
 
     Task _task;
     Timer _timer;
+
+};
+
+class FairBufferQueue {
+
+  public:
+
+    ReadWriteLock _queue_lock;
+    Packet** _q;
+    FairBuffer * _fair_buffer;
+
+    uint32_t _capacity;
+    uint32_t _deficit;
+    uint32_t _size;
+    uint32_t _max_burst;
+    uint32_t _bsize;
+    uint32_t _drops;
+    uint32_t _head;
+    uint32_t _tail;
+    uint32_t _trash;
+    Timestamp _last_update;
+
+    FairBufferQueue(FairBuffer *fair_buffer) : _fair_buffer(fair_buffer) {
+      _capacity = _fair_buffer->capacity();
+      _q = new Packet*[_capacity];
+      reset();
+    }
+
+    ~FairBufferQueue() {
+      _queue_lock.acquire_write();
+      for(uint32_t i = 0; i < _capacity; i++){
+        if(_q[i]) {
+          _q[i]->kill();
+        }
+      } 
+      delete[] _q;
+      _queue_lock.release_write();
+    }  
+
+    void reset() {
+      _size = 0;
+      _max_burst = _fair_buffer->max_burst();
+      _bsize = 0;
+      _drops = 0;
+      _head = 0;
+      _tail = 0;
+      _deficit = _fair_buffer->quantum();
+      _trash = 0;
+      _last_update = Timestamp(0);
+    }
+
+    Packet* pull() {
+      Packet* p = 0;
+      _queue_lock.acquire_write();
+      if(_head != _tail){
+        _head = (_head+1)%_capacity;
+        p = _q[_head];
+        _q[_head] = 0;
+        _size--;
+        _bsize -= p->length();
+      }
+      _queue_lock.release_write();
+      return(p);
+    }
+
+    bool push(Packet* p) {
+      bool result = false;
+      _queue_lock.acquire_write();
+      if((_tail+1)%_capacity != _head){
+        _tail++;
+        _tail %= _capacity;
+        _q[_tail] = p;
+        _size++;
+        _bsize += p->length();
+        result = true;
+      } else {
+        _drops++;
+      }
+      _queue_lock.release_write();
+      return result;
+    }
+
+    Packet* aggregate() {
+
+      if (_size == 0) {
+        return 0;
+      }
+
+      if (!_fair_buffer->aggregator_active()) {
+        return pull();
+      }
+
+      WritablePacket *wp = pull()->uniqueify();
+
+      if (top() && (wp->length() + top()->length() < _max_burst)) {
+
+        click_ether *e = (click_ether *)wp->data();
+        uint16_t ether_type = e->ether_type;
+        uint16_t length = htons(wp->length() - sizeof(struct click_ether));
+
+        EtherAddress *dst = new EtherAddress(e->ether_dhost);
+        EtherAddress *src = new EtherAddress(e->ether_shost);
+
+        uint16_t ether_type_pack = htons(_fair_buffer->et());
+
+        wp = wp->push(4);
+
+        memcpy(wp->data(), dst->data(), 6);
+        memcpy(wp->data() + 6, src->data(), 6);
+        memcpy(wp->data() + 12, &ether_type_pack, 2);	
+
+        memcpy(wp->data() + 14, &length, 2);
+        memcpy(wp->data() + 16, &ether_type, 2);
+
+        do {
+
+          uint32_t append = top()->length() - sizeof(struct click_ether);
+          wp = wp->put(append+4);
+
+          Packet* q = pull();
+
+          click_ether *qe = (click_ether *)q->data();
+          uint16_t ether_type = qe->ether_type;
+          uint16_t length = htons(q->length() - sizeof(struct click_ether));
+
+          memcpy(wp->data() + (wp->length()-append-4), &length, 2);
+          memcpy(wp->data() + (wp->length()-append-2), &ether_type, 2);
+          memcpy(wp->data() + (wp->length()-append), q->data()+sizeof(struct click_ether), append);
+
+          q->kill();
+
+        } while (top() && (wp->length() + top()->length() < _max_burst));
+
+      }
+
+      return wp;
+
+    }
+
+    bool ready() {
+      if (top()->timestamp_anno() <= Timestamp::now()) {
+        return true;
+      }
+      if (top()->length() >= _max_burst) {
+        return true;
+      }
+      return false;
+    }
+
+    const Packet* top() {
+      Packet* p = 0;
+      _queue_lock.acquire_write();
+      if(_head != _tail){
+        p = _q[(_head+1)%_capacity];
+      }
+      _queue_lock.release_write();
+      return(p);
+    }
 
 };
 
