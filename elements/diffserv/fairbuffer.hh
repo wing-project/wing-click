@@ -82,9 +82,9 @@ class FairBufferQueue {
       Packet* p = 0;
       _queue_lock.acquire_write();
       if(_head != _tail){
-        _head = (_head+1)%_capacity;
         p = _q[_head];
         _q[_head] = 0;
+        _head = (_head+1)%_capacity;
         _size--;
         _bsize -= p->length();
       }
@@ -109,14 +109,17 @@ class FairBufferQueue {
       return result;
     }
 
-    Packet* aggregate(uint16_t et) {
+    Packet* aggregate(uint16_t et, bool aggregator_active) {
 
       if (_size == 0) {
         return 0;
       }
 
+      if (!aggregator_active) {
+        return pull();
+      }
+
       WritablePacket *wp = pull()->uniqueify();
-      uint16_t ether_type_pack = htons(et);
 
       if (top() && (wp->length() + top()->length() < _opt_burst)) {
 
@@ -127,11 +130,13 @@ class FairBufferQueue {
         EtherAddress *dst = new EtherAddress(e->ether_dhost);
         EtherAddress *src = new EtherAddress(e->ether_shost);
 
+        uint16_t ether_type_pack = htons(et);
+
         wp = wp->push(4);
 
         memcpy(wp->data(), dst->data(), 6);
         memcpy(wp->data() + 6, src->data(), 6);
-	memcpy(wp->data() + 12, &ether_type_pack, 2);	
+        memcpy(wp->data() + 12, &ether_type_pack, 2);	
 
         memcpy(wp->data() + 14, &length, 2);
         memcpy(wp->data() + 16, &ether_type, 2);
@@ -161,6 +166,16 @@ class FairBufferQueue {
 
     }
 
+    bool ready() {
+      if (top()->timestamp_anno() <= Timestamp::now()) {
+        return true;
+      }
+      if (top()->length() >= _opt_burst) {
+        return true;
+      }
+      return false;
+    }
+
     const Packet* top() {
       Packet* p = 0;
       _queue_lock.acquire_write();
@@ -170,6 +185,7 @@ class FairBufferQueue {
       _queue_lock.release_write();
       return(p);
     }
+
 };
 
 class FairBuffer : public NotifierQueue { public:

@@ -279,9 +279,9 @@ FairBuffer::pull(int)
     if (head.value()) {
       p = head.value();
       _head_table->find_insert(_next, 0);
-    } else if (queue->top() && (!_aggregator_active || (queue->top()->timestamp_anno() <= Timestamp::now()))) {
+    } else if (queue->top() && (!_aggregator_active || queue->ready())) {
       // packet ready for output
-      p = queue->aggregate(_et);
+      p = queue->aggregate(_et, _aggregator_active);
     }
 
     if (!p) {

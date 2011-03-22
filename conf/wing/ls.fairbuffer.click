@@ -1,7 +1,7 @@
 elementclass LinkScheduler {
   $lt, $arp|
 
-  input -> FairBuffer() -> output;
+  input -> FairBuffer(SCHEDULER true, AGGREGATOR false) -> output;
   
 };
 
