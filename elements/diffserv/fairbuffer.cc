@@ -107,7 +107,7 @@ FairBuffer::compute_deficit(Packet* p)
 {
   if (!p)
     return 0;
-  if (!_lt)
+  if (!_lt || !_arp_table)
     return p->length();
   IPAddress to = _arp_table->reverse_lookup(_next);
   return _lt->get_host_metric_from_me(to);
