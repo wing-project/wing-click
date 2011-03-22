@@ -112,7 +112,7 @@ int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 	_offset = 0;
 	_ewma_level = 75;
 	_lookaround_rate = 20;
-	_period = 100;
+	_period = 1000;
 	_mrr = false;
 	_active = true;
 	_debug = false;
@@ -158,13 +158,11 @@ void Minstrel::process_feedback(Packet *p_in) {
 		}
 		return;
 	}
-
 	nfo->add_result(ceh->rate, ceh->retries + 1, success);
-
 	return;
 }
 
-uint32_t Minstrel::compute_retry_chain(uint32_t, uint32_t)
+uint32_t Minstrel::get_retry_count(uint32_t, uint32_t)
 {
 	return 4;
 }
@@ -232,15 +230,21 @@ void Minstrel::assign_rate(Packet *p_in)
 	/* If the sampling rate already has a probability 
 	 * of >95%, we shouldn't be attempting to use it, 
 	 * as this only wastes precious airtime */
-	if (!_mrr && sample && (nfo->_probability[ndx] > 17100)) {
+	if (sample && (nfo->_probability[ndx] > 17100)) {
 		ndx = nfo->max_tp_rate;
 		sample = false;
 	}
 
 	ceh->magic = WIFI_EXTRA_MAGIC;
 
+	if (!_mrr) {
+		ceh->rate = nfo->_rates[nfo->max_tp_rate];
+		ceh->max_tries = WIFI_MAX_RETRIES + 1;
+		return;
+	}
+
 	if (sample) {
-		if (nfo->_rates[ndx] < nfo->_rates[nfo->max_tp_rate] && _mrr) {
+		if (nfo->_rates[ndx] < nfo->_rates[nfo->max_tp_rate]) {
 			ceh->rate = nfo->_rates[nfo->max_tp_rate];
 			ceh->rate1 = nfo->_rates[ndx];
 		} else {
@@ -252,20 +256,16 @@ void Minstrel::assign_rate(Packet *p_in)
 		ceh->rate1 = nfo->_rates[nfo->max_tp_rate2];
 	}
 
-	ceh->max_tries = compute_retry_chain(p_in->length(), ceh->rate);
-	ceh->max_tries1 = compute_retry_chain(p_in->length(), ceh->rate1);
-
-	if (!_mrr) {
-		ceh->max_tries = WIFI_MAX_RETRIES + 1;
-	}
+	ceh->max_tries = get_retry_count(p_in->length(), ceh->rate);
+	ceh->max_tries1 = get_retry_count(p_in->length(), ceh->rate1);
 
 	ceh->retries = ceh->max_tries - 1;
 
 	ceh->rate2 = nfo->_rates[nfo->max_prob_rate];
-	ceh->max_tries2 = compute_retry_chain(p_in->length(), ceh->rate2);
+	ceh->max_tries2 = get_retry_count(p_in->length(), ceh->rate2);
 
 	ceh->rate3 = nfo->_rates[0];
-	ceh->max_tries3 = compute_retry_chain(p_in->length(), ceh->rate3);
+	ceh->max_tries3 = get_retry_count(p_in->length(), ceh->rate3);
 
 	return;
 
