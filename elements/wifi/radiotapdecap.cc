@@ -24,8 +24,10 @@
 #include <click/packet_anno.hh>
 #include <clicknet/wifi.h>
 #include <clicknet/radiotap.h>
-#include <clicknet/radiotap_iter.h>
 #include <clicknet/llc.h>
+extern "C" {
+	#include <click/radiotap_iter.h>
+}
 CLICK_DECLS
 
 RadiotapDecap::RadiotapDecap()

@@ -71,9 +71,6 @@ input [1]
 -> [1] output;
 
 
-querier -> [1] output;
-
-
 host_cl [1] -> set_gateway -> [0] track_flows [0] -> querier;
 
 
