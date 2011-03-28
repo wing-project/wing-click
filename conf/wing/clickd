@@ -42,7 +42,7 @@ DEV="moni0"
 PROFILE="bulk"
 LS="fcfs"
 METRIC="wcett"
-RC="static"
+RC="minstrel"
 
 CLICK_FILE=/var/run/$NAME.click
 PID_FILE=/var/run/$NAME.pid
