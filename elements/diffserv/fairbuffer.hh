@@ -137,7 +137,6 @@ class FairBufferQueue {
     uint32_t _capacity;
     uint32_t _deficit;
     uint32_t _size;
-    uint32_t _max_burst;
     uint32_t _bsize;
     uint32_t _drops;
     uint32_t _head;
@@ -164,12 +163,11 @@ class FairBufferQueue {
 
     void reset() {
       _size = 0;
-      _max_burst = _fair_buffer->max_burst();
       _bsize = 0;
       _drops = 0;
       _head = 0;
       _tail = 0;
-      _deficit = _fair_buffer->quantum();
+      _deficit = _fair_buffer->quantum();;
       _trash = 0;
       _last_update = Timestamp(0);
     }
@@ -217,7 +215,7 @@ class FairBufferQueue {
 
       WritablePacket *wp = pull()->uniqueify();
 
-      if (top() && (wp->length() + top()->length() < _max_burst)) {
+      if (top() && (wp->length() + top()->length() < _fair_buffer->max_burst())) {
 
         click_ether *e = (click_ether *)wp->data();
         uint16_t ether_type = e->ether_type;
@@ -254,7 +252,7 @@ class FairBufferQueue {
 
           q->kill();
 
-        } while (top() && (wp->length() + top()->length() < _max_burst));
+        } while (top() && (wp->length() + top()->length() < _fair_buffer->max_burst()));
 
       }
 
@@ -263,10 +261,13 @@ class FairBufferQueue {
     }
 
     bool ready() {
+      if (!_fair_buffer->aggregator_active()) {
+        return true;
+      }
       if (top()->timestamp_anno() <= Timestamp::now()) {
         return true;
       }
-      if (top()->length() >= _max_burst) {
+      if (_bsize >= _fair_buffer->max_burst()) {
         return true;
       }
       return false;
