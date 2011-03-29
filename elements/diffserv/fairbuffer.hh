@@ -45,12 +45,10 @@ class FairBuffer : public NotifierQueue { public:
     void *cast(const char *);
 
     int configure(Vector<String> &conf, ErrorHandler *);
-    int initialize(ErrorHandler *);
 
     void push(int port, Packet *);
     Packet *pull(int port);
 
-    bool run_task(Task *);
     void add_handlers();
 
     uint32_t creates() { return(_creates); } // queues created
@@ -105,8 +103,6 @@ class FairBuffer : public NotifierQueue { public:
     
     uint32_t compute_deficit(Packet*);
 
-    void clean_pool();
-
     static int write_handler(const String &, Element *, void *, ErrorHandler *);
     static String read_handler(Element *, void *);
 
@@ -120,9 +116,6 @@ class FairBuffer : public NotifierQueue { public:
 
     uint32_t _max_burst;
     uint32_t _max_delay;
-
-    Task _task;
-    Timer _timer;
 
 };
 
@@ -261,6 +254,9 @@ class FairBufferQueue {
     }
 
     bool ready() {
+      if (!top()) {
+        return false;
+      }
       if (!_fair_buffer->aggregator_active()) {
         return true;
       }

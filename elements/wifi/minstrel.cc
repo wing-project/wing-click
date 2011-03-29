@@ -112,7 +112,7 @@ int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 	_offset = 0;
 	_ewma_level = 75;
 	_lookaround_rate = 20;
-	_period = 1000;
+	_period = 500;
 	_mrr = false;
 	_active = true;
 	_debug = false;
@@ -238,7 +238,7 @@ void Minstrel::assign_rate(Packet *p_in)
 	ceh->magic = WIFI_EXTRA_MAGIC;
 
 	if (!_mrr) {
-		ceh->rate = nfo->_rates[nfo->max_tp_rate];
+		ceh->rate = nfo->_rates[ndx];
 		ceh->max_tries = WIFI_MAX_RETRIES + 1;
 		return;
 	}

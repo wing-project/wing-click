@@ -61,8 +61,7 @@ enum { H_RESET,
 	H_AGGREGATOR_ACTIVE 
 };
 
-FairBuffer::FairBuffer() : 
-  _task(this), _timer(&_task)
+FairBuffer::FairBuffer() 
 {
   _fair_table = new FairTable();
   _head_table = new HeadTable();
@@ -72,7 +71,9 @@ FairBuffer::FairBuffer() :
 
 FairBuffer::~FairBuffer()
 {
+
   _map_lock.acquire_write();
+  _pool_lock.acquire_write();
 
   // de-allocate fair-table
   TableItr itr = _fair_table->begin();
@@ -96,10 +97,24 @@ FairBuffer::~FairBuffer()
   delete _head_table;
 
   // de-allocate pool
-  clean_pool();
+  PoolItr itr_pool = _queue_pool->begin();
+  while(itr_pool != _queue_pool->end()){
+    Packet* p = 0;
+    // destroy queued packets
+    do{
+      p = (*itr_pool)->pull();
+      // flush
+      if(p){
+	    p->kill();
+      } // end if
+    }while(p);
+    itr_pool++;
+  } // end while
   _queue_pool->clear();
   delete _queue_pool;
+
   _map_lock.release_write();
+  _pool_lock.release_write();
 }
 
 uint32_t 
@@ -111,25 +126,6 @@ FairBuffer::compute_deficit(Packet* p)
     return p->length();
   IPAddress to = _arp_table->reverse_lookup(_next);
   return _lt->get_host_metric_from_me(to);
-}
-
-void 
-FairBuffer::clean_pool(){
-  _pool_lock.acquire_write();
-  PoolItr itr = _queue_pool->begin();
-  while(itr != _queue_pool->end()){
-    Packet* p = 0;
-    // destroy queued packets
-    do{
-      p = (*itr)->pull();
-      // flush
-      if(p){
-	    p->kill();
-      } // end if
-    }while(p);
-    itr++;
-  } // end while
-  _pool_lock.release_write();
 }
 
 void * 
@@ -165,7 +161,7 @@ FairBuffer::configure(Vector<String>& conf, ErrorHandler* errh)
   _et=0x0642;
   _arp_table=0;
   _capacity=500;
-  _quantum=1500;
+  _quantum=1534;
   _max_burst=1500;
   _max_delay=5;
   _scheduler_active = true;
@@ -191,14 +187,6 @@ FairBuffer::configure(Vector<String>& conf, ErrorHandler* errh)
 
 }
 
-int
-FairBuffer::initialize(ErrorHandler *errh)
-{
-    ScheduleInfo::initialize_task(this, &_task, errh);
-    _timer.initialize(this);
-    return 0;
-}
-
 void 
 FairBuffer::push(int, Packet* p)
 { 
@@ -212,11 +200,12 @@ FairBuffer::push(int, Packet* p)
   
   // no queue, get one
   if(!q){
+    // this also resets the deficit counter
     q = request_queue();
     if(_fair_table->empty()) 
       _next = dhost;
-    _fair_table->find_insert(dhost, q);  
-    _head_table->find_insert(dhost, 0);  
+    _fair_table->set(dhost, q);  
+    _head_table->set(dhost, 0);  
   } // end if 
 
   if (!p->timestamp_anno()) {
@@ -230,28 +219,23 @@ FairBuffer::push(int, Packet* p)
     if (q->_size == q->_capacity) {
       _full_note.sleep();
     }
-  }else{
+  } else {
     // queue overflow, destroy the packet
-    if (_drops == 0)
-      click_chatter("%{element}: overflow", this);
+    if (_drops == 0) {
+      click_chatter("%{element} :: %s :: overflow", this, __func__);
+    }
     _bdrops += p->length();
     p->kill();
     _drops++;
   } // end if
   _map_lock.release_write();
-
-}
-
-bool
-FairBuffer::run_task(Task *)
-{
-  _empty_note.wake();
-  return true;
 }
 
 Packet * 
 FairBuffer::pull(int)
 {
+
+    _map_lock.acquire_write();
 
     if (_fair_table->empty()) {
         if (++_sleepiness == SLEEPINESS_TRIGGER) {
@@ -262,7 +246,6 @@ FairBuffer::pull(int)
 
     bool trash = false;
     bool send = false;
-    _map_lock.acquire_write();
 
     TableItr active = _fair_table->find(_next);
     HeadItr head = _head_table->find(_next);
@@ -275,24 +258,24 @@ FairBuffer::pull(int)
     Packet *p = 0;
     if (head.value()) {
       p = head.value();
-      _head_table->find_insert(_next, 0);
-    } else if (queue->top() && (!_aggregator_active || queue->ready())) {
+      _head_table->set(_next, 0);
+    } else if (queue->ready()) {
       // packet ready for output
       p = queue->aggregate();
-    }
+    } 
 
     if (!p) {
       queue->_deficit = 0;
       if ((queue->_size == 0) && (++queue->_trash == TRASH_TRIGGER)) {
           trash = true;
       }
-    } else if (!_scheduler_active || (compute_deficit(p) <= queue->_deficit)) {
+    } else if (!scheduler_active() || (compute_deficit(p) <= queue->_deficit)) {
       // packet ready for output
       queue->_deficit -= compute_deficit(p);
       _full_note.wake();
       send = true;
     } else {
-      _head_table->find_insert(_next, p);
+      _head_table->set(_next, p);
       queue->_trash = 0;
     }
   
@@ -301,7 +284,6 @@ FairBuffer::pull(int)
     if (trash) {
         release_queue(queue);
         _fair_table->erase(key);
-        _head_table->erase(key);
     } 
 
     if (!_fair_table->empty()) {
@@ -318,27 +300,20 @@ FairBuffer::pull(int)
     Timestamp expire = Timestamp(0);
 
     while(itr != _fair_table->end()) {
+      itr.value()->_deficit += _quantum;
       if (itr.value()->top()) {
         if ((expire == Timestamp(0)) || (expire > itr.value()->top()->timestamp_anno())) {
           _next = itr.key();
-          itr.value()->_deficit += _quantum;
           expire = itr.value()->top()->timestamp_anno();
         }
       }
       itr++;
     }
 
-    Timestamp expiry = expire - Timer::adjustment();
-    if (expiry > Timestamp::now()) {
-      _timer.schedule_at(expiry);
-    } else {
-      _task.fast_reschedule();
-    }
-
-    _empty_note.sleep();
     _map_lock.release_write();
 
     return (send) ? p : 0;
+
 }
 
 String 
