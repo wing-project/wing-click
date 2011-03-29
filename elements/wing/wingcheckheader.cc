@@ -51,18 +51,6 @@ WINGCheckHeader::simple_action(Packet *p) {
 		goto bad;
 	}
 
-	// check packet version
-	if (pk->_version != _wing_version) {
-		_bad_table.insert(EtherAddress(eh->ether_shost), pk->_version);
-		click_chatter("%{element} :: %s :: unknown protocol version %02x from %s",
-				this, 
-				__func__, 
-				pk->_version,
-				EtherAddress(eh->ether_shost).unparse().c_str());
-
-		goto bad;
-	}
-
 	// check packet length
 	int len;
 	switch (pk->_type) {
@@ -115,6 +103,18 @@ WINGCheckHeader::simple_action(Packet *p) {
 					pk->_type);
 			goto bad;
 		}
+	}
+
+	// check packet version
+	if (pk->_version != _wing_version) {
+		_bad_table.insert(EtherAddress(eh->ether_shost), pk->_version);
+		click_chatter("%{element} :: %s :: unknown protocol version %02x from %s",
+				this, 
+				__func__, 
+				pk->_version,
+				EtherAddress(eh->ether_shost).unparse().c_str());
+
+		goto bad;
 	}
 
 	return (p);

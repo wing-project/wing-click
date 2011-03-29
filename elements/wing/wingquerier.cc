@@ -138,7 +138,7 @@ WINGQuerier::encap(Packet *p_in, PathMulti best)
 void WINGQuerier::push(int, Packet *p_in) {
 	IPAddress dst = p_in->dst_ip_anno();
 	if (!dst) {	
-		click_chatter("%{element} :: %s :: got invalid dst %s", 
+		click_chatter("%{element} :: %s :: dst annotation not set %s", 
 				this, 
 				__func__,
 				dst.unparse().c_str());

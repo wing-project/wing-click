@@ -61,7 +61,24 @@ void WINGSetGateway::push(int, Packet *p_in) {
 		return;
 	} 
 	IPAddress dst = p_in->dst_ip_anno();
-	p_in->set_dst_ip_anno(_gw_sel->best_gateway(dst));
+	if (!dst) {	
+		click_chatter("%{element} :: %s :: dst annotation not set %s", 
+				this, 
+				__func__,
+				dst.unparse().c_str());
+		p_in->kill();
+		return;
+	}
+	IPAddress gw = _gw_sel->best_gateway(dst);
+	if (!gw) {	
+		click_chatter("%{element} :: %s :: unable to find gw for %s", 
+				this, 
+				__func__,
+				dst.unparse().c_str());
+		p_in->kill();
+		return;
+	}
+	p_in->set_dst_ip_anno(gw);
 	output(0).push(p_in);
 }
 

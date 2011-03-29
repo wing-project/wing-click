@@ -84,7 +84,7 @@ void WINGTrackFlows::push_fwd(Packet *p_in) {
 	/* no match */
 	IPAddress gw = p_in->dst_ip_anno();
 	if (!gw) {
-		click_chatter("%{element} :: %s :: unable to set gateway for dst %s", 
+		click_chatter("%{element} :: %s :: dst annotation not set %s", 
 				this,
 				__func__, 
 				p_in->dst_ip_anno().unparse().c_str());
