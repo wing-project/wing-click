@@ -113,7 +113,7 @@ int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 	_ewma_level = 75;
 	_lookaround_rate = 20;
 	_period = 500;
-	_mrr = false;
+	_mrr = true;
 	_active = true;
 	_debug = false;
 	if (cp_va_kparse(conf, this, errh,
@@ -122,6 +122,7 @@ int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 				"PERIOD", 0, cpUnsigned, &_period,
 				"LOOKAROUND_RATE", 0, cpUnsigned, &_lookaround_rate,
 				"EWMA_LEVEL", 0, cpUnsigned, &_ewma_level,
+				"MRR", 0, cpBool, &_mrr,
 				"ACTIVE", 0, cpBool, &_active,
 				"DEBUG", 0, cpBool, &_debug,
 			 cpEnd) < 0)
