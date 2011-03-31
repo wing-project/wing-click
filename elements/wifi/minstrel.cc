@@ -113,7 +113,6 @@ int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 	_ewma_level = 75;
 	_lookaround_rate = 20;
 	_period = 500;
-	_mrr = true;
 	_active = true;
 	_debug = false;
 	if (cp_va_kparse(conf, this, errh,
@@ -122,7 +121,6 @@ int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 				"PERIOD", 0, cpUnsigned, &_period,
 				"LOOKAROUND_RATE", 0, cpUnsigned, &_lookaround_rate,
 				"EWMA_LEVEL", 0, cpUnsigned, &_ewma_level,
-				"MRR", 0, cpBool, &_mrr,
 				"ACTIVE", 0, cpBool, &_active,
 				"DEBUG", 0, cpBool, &_debug,
 			 cpEnd) < 0)
@@ -165,7 +163,7 @@ void Minstrel::process_feedback(Packet *p_in) {
 
 uint32_t Minstrel::get_retry_count(uint32_t, uint32_t)
 {
-	return 4;
+	return WIFI_MAX_RETRIES + 1;;
 }
 
 void Minstrel::assign_rate(Packet *p_in)
@@ -237,12 +235,6 @@ void Minstrel::assign_rate(Packet *p_in)
 	}
 
 	ceh->magic = WIFI_EXTRA_MAGIC;
-
-	if (!_mrr) {
-		ceh->rate = nfo->_rates[ndx];
-		ceh->max_tries = WIFI_MAX_RETRIES + 1;
-		return;
-	}
 
 	if (sample) {
 		if (nfo->_rates[ndx] < nfo->_rates[nfo->max_tp_rate]) {
