@@ -38,17 +38,6 @@ RadiotapDecap::~RadiotapDecap()
 {
 }
 
-int
-RadiotapDecap::configure(Vector<String> &conf, ErrorHandler *errh)
-{
-	_debug = false;
-	if (cp_va_kparse(conf, this, errh,
-			"DEBUG", 0, cpBool, &_debug,
-			cpEnd) < 0)
-		return -1;
-	return 0;
-}
-
 Packet *
 RadiotapDecap::simple_action(Packet *p) {
 
@@ -128,44 +117,6 @@ RadiotapDecap::simple_action(Packet *p) {
 	p->kill();
 	return 0;
 
-}
-
-enum {H_DEBUG};
-
-static String
-RadiotapDecap_read_param(Element *e, void *thunk)
-{
-	RadiotapDecap *td = (RadiotapDecap *)e;
-	switch ((uintptr_t) thunk) {
-		case H_DEBUG:
-			return String(td->_debug) + "\n";
-		default:
-			return String();
-	}
-}
-
-static int
-RadiotapDecap_write_param(const String &in_s, Element *e, void *vparam, ErrorHandler *errh)
-{
-	RadiotapDecap *f = (RadiotapDecap *)e;
-	String s = cp_uncomment(in_s);
-	switch((intptr_t)vparam) {
-		case H_DEBUG: {
-			bool debug;
-			if (!cp_bool(s, &debug))
-				return errh->error("debug parameter must be boolean");
-			f->_debug = debug;
-			break;
-		}
-	}
-	return 0;
-}
-
-void
-RadiotapDecap::add_handlers()
-{
-	add_read_handler("debug", RadiotapDecap_read_param, (void *) H_DEBUG);
-	add_write_handler("debug", RadiotapDecap_write_param, (void *) H_DEBUG);
 }
 
 CLICK_ENDDECLS
