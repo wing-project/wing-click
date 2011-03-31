@@ -80,7 +80,7 @@ RadiotapEncap::simple_action(Packet *p) {
 		return 0;
 	}
 
-	int size = sizeof(struct ieee80211_radiotap_header) + sizeof(u_int8_t) + sizeof(u_int8_t) + sizeof(u_int8_t) + sizeof(u_int8_t);
+	uint16_t size = sizeof(struct ieee80211_radiotap_header) + sizeof(u_int8_t) + sizeof(u_int8_t) + sizeof(u_int8_t) + sizeof(u_int8_t);
 	if (ceh->rate1 > 0) {
 		size += sizeof(u_int32_t) + sizeof(u_int8_t) + sizeof(u_int8_t);
 		if (ceh->rate2 > 0) {
@@ -101,6 +101,7 @@ RadiotapEncap::simple_action(Packet *p) {
 
 		crh->it_version = 0;
 		crh->it_len = cpu_to_le16(size);
+
 		crh->it_present = (ceh->rate1 == 0) ? cpu_to_le32(CLICK_RADIOTAP_PRESENT_SINGLE) : cpu_to_le32(CLICK_RADIOTAP_PRESENT_FIRST);
 
 		uint32_t *ptr = (uint32_t *) (crh + 1);
