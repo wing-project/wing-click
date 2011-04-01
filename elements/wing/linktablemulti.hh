@@ -51,7 +51,7 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
       }
       return false;
     }
-	
+
     Vector<int> get_interfaces(NodeAddress);
     Vector<int> get_local_interfaces() {
       return get_interfaces(_ip);

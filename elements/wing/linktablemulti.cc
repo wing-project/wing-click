@@ -124,11 +124,12 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
         if (raw_path.size() < 1) {
             return reverse_route;
         }
-        reverse_route.push_back(NodeAirport(dst, raw_path[0]._iface, 0));
+        reverse_route.push_back(NodeAirport(dst, _hosts.findp(_hosts.findp(dst)->_prev_to_me)->_address._iface, 0));
         for (int x = 1; x < raw_path.size(); x++) {
             reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x]._iface, raw_path[x - 1]._iface));
         }
         reverse_route.push_back(NodeAirport(_ip, 0, raw_path[raw_path.size() - 1]._iface));
+
     } else {
         Vector<NodeAddress> raw_path;
         while (nfo && nfo->_metric_to_me != 0) {
@@ -140,7 +141,7 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
         if (raw_path.size() < 1) {
             return reverse_route;
         }
-        reverse_route.push_back(NodeAirport(dst, 0, raw_path[0]._iface));
+        reverse_route.push_back(NodeAirport(dst, 0, _hosts.findp(_hosts.findp(dst)->_prev_from_me)->_address._iface));
         for (int x = 0; x < raw_path.size() - 1; x++) {
             reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x]._iface,  raw_path[x + 1]._iface));
         }
