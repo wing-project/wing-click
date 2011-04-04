@@ -112,7 +112,6 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
         return reverse_route;
     }
     HostInfo *nfo = _hosts.findp(dst);
-
     if (from_me) {
         Vector<NodeAddress> raw_path;
         while (nfo && nfo->_metric_from_me != 0) {
@@ -124,12 +123,11 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
         if (raw_path.size() < 1) {
             return reverse_route;
         }
-        reverse_route.push_back(NodeAirport(dst, _hosts.findp(_hosts.findp(dst)->_prev_to_me)->_address._iface, 0));
-        for (int x = 1; x < raw_path.size(); x++) {
+        reverse_route.push_back(NodeAirport(dst, raw_path[0]._iface, 0));
+        for (int x = 1; x < raw_path.size() - 2; x++) {
             reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x]._iface, raw_path[x - 1]._iface));
         }
         reverse_route.push_back(NodeAirport(_ip, 0, raw_path[raw_path.size() - 1]._iface));
-
     } else {
         Vector<NodeAddress> raw_path;
         while (nfo && nfo->_metric_to_me != 0) {
@@ -141,8 +139,8 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
         if (raw_path.size() < 1) {
             return reverse_route;
         }
-        reverse_route.push_back(NodeAirport(dst, 0, _hosts.findp(_hosts.findp(dst)->_prev_from_me)->_address._iface));
-        for (int x = 0; x < raw_path.size() - 1; x++) {
+        reverse_route.push_back(NodeAirport(dst, 0, raw_path[0]._iface));
+        for (int x = 0; x < raw_path.size() - 2; x++) {
             reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x]._iface,  raw_path[x + 1]._iface));
         }
         reverse_route.push_back(NodeAirport(_ip, raw_path[raw_path.size() - 1]._iface, 0));
@@ -304,21 +302,21 @@ LinkTableMulti::dijkstra(bool from_me)
 
       bool marked = neighbor->_marked_to_me;
       if (from_me) {
-	marked = neighbor->_marked_from_me;
+        marked = neighbor->_marked_from_me;
       }
 
       if (marked) {
-	continue;
+        continue;
       }
 
       AddressPair pair = AddressPair(neighbor->_address, current_min_address);
       if (from_me) {
-	pair = AddressPair(current_min_address, neighbor->_address);
+        pair = AddressPair(current_min_address, neighbor->_address);
       }
       LinkInfo *lnfo = _links.findp(pair);
 
       if (!lnfo || !lnfo->_metric || !lnfo->_channel) {
-	continue;
+        continue;
       }
 
       Vector<uint32_t> metrics;
@@ -353,19 +351,19 @@ LinkTableMulti::dijkstra(bool from_me)
 
       uint32_t neighbor_metric = neighbor->_metric_to_me;
       if (from_me) {
-	neighbor_metric = neighbor->_metric_from_me;
+        neighbor_metric = neighbor->_metric_from_me;
       }
 
       uint32_t adjusted_metric = compute_metric(metrics, channels);
 
       if (!neighbor_metric || adjusted_metric < neighbor_metric) {
-	if (from_me) {
-	  neighbor->_metric_from_me = adjusted_metric;
-	  neighbor->_prev_from_me = current_min_address;
-	} else {
-	  neighbor->_metric_to_me = adjusted_metric;
-	  neighbor->_prev_to_me = current_min_address;
-	}
+        if (from_me) {
+          neighbor->_metric_from_me = adjusted_metric;
+          neighbor->_prev_from_me = current_min_address;
+        } else {
+          neighbor->_metric_to_me = adjusted_metric;
+          neighbor->_prev_to_me = current_min_address;
+        }
       }
     }
 
@@ -376,8 +374,8 @@ LinkTableMulti::dijkstra(bool from_me)
       uint32_t metric = nfo->_metric_to_me;
       bool marked = nfo->_marked_to_me;
       if (from_me) {
-	metric = nfo->_metric_from_me;
-	marked = nfo->_marked_from_me;
+        metric = nfo->_metric_from_me;
+        marked = nfo->_marked_from_me;
       }
       if (!marked && metric && metric < min_metric) {
         current_min_address = nfo->_address;

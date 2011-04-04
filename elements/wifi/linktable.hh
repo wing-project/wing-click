@@ -470,7 +470,7 @@ LinkTableBase<T,U>::valid_route(const U &route)
   for (int x = 0; x < route.size(); x++) {
     for (int y = x + 1; y < route.size(); y++) {
       if (route[x] == route[y]) {
-	return false;
+        return false;
       }
     }
   }
@@ -525,32 +525,18 @@ LinkTableBase<T,U>::print_hosts()
 template <typename T, typename U>
 void
 LinkTableBase<T,U>::clear_stale() {
-
   LTable links;
   for (LTIter iter = _links.begin(); iter.live(); iter++) {
     LinkInfo nfo = iter.value();
     if ((unsigned) _stale_timeout.sec() >= nfo.age()) {
       links.insert(AddressPair(nfo._from, nfo._to), nfo);
-    } else {
-      if (0) {
-	click_chatter("%{element} :: %s removing link %s -> %s metric %d seq %d age %d\n",
-		      this,
-		      __func__,
-		      nfo._from.unparse().c_str(),
-		      nfo._to.unparse().c_str(),
-		      nfo._metric,
-		      nfo._seq,
-		      nfo.age());
-      }
     }
   }
   _links.clear();
-
   for (LTIter iter = links.begin(); iter.live(); iter++) {
     LinkInfo nfo = iter.value();
     _links.insert(AddressPair(nfo._from, nfo._to), nfo);
   }
-
 }
 
 enum {H_BLACKLIST,
