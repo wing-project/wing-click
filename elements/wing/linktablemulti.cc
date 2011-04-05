@@ -124,8 +124,13 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
             return reverse_route;
         }
         reverse_route.push_back(NodeAirport(dst, raw_path[0]._iface, 0));
-        for (int x = 1; x < raw_path.size() - 2; x++) {
-            reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x]._iface, raw_path[x - 1]._iface));
+        for (int x = 1; x < raw_path.size() - 1; x++) {
+            if (raw_path[x]._ip == raw_path[x + 1]._ip) {
+                reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x + 1]._iface, raw_path[x]._iface));
+                x++;
+            } else {
+                reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x]._iface, raw_path[x]._iface));
+            }
         }
         reverse_route.push_back(NodeAirport(_ip, 0, raw_path[raw_path.size() - 1]._iface));
     } else {
@@ -140,8 +145,13 @@ LinkTableMulti::best_route(NodeAddress dst, bool from_me)
             return reverse_route;
         }
         reverse_route.push_back(NodeAirport(dst, 0, raw_path[0]._iface));
-        for (int x = 0; x < raw_path.size() - 2; x++) {
-            reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x]._iface,  raw_path[x + 1]._iface));
+        for (int x = 1; x < raw_path.size() - 1; x++) {
+            if (raw_path[x]._ip == raw_path[x + 1]._ip) {
+                reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x]._iface,  raw_path[x + 1]._iface));
+                x++;
+            } else {
+                reverse_route.push_back(NodeAirport(raw_path[x]._ip, raw_path[x]._iface,  raw_path[x]._iface));
+            }
         }
         reverse_route.push_back(NodeAirport(_ip, raw_path[raw_path.size() - 1]._iface, 0));
     }
