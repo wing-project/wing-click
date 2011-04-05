@@ -252,8 +252,6 @@ void Minstrel::assign_rate(Packet *p_in)
 	ceh->max_tries = get_retry_count(p_in->length(), ceh->rate);
 	ceh->max_tries1 = get_retry_count(p_in->length(), ceh->rate1);
 
-	ceh->retries = ceh->max_tries - 1;
-
 	ceh->rate2 = nfo->_rates[nfo->max_prob_rate];
 	ceh->max_tries2 = get_retry_count(p_in->length(), ceh->rate2);
 
