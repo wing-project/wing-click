@@ -56,8 +56,8 @@ String DevInfo::read_handler(Element *e, void *thunk) {
 	switch ((uintptr_t) thunk) {
 	case H_DEBUG:
 		return String(f->_debug) + "\n";
-	//case H_CHANNEL:
-	//	return String(f->channel()) + "\n";
+	case H_CHANNEL:
+		return String(f->channel()) + "\n";
 	default:
 		return String();
 	}

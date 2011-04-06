@@ -23,7 +23,7 @@ public:
 	void add_handlers();
 	EtherAddress eth() { return _eth; }
 	uint8_t ifid() { return (uint8_t) _ifid; }
-	uint16_t channel() { return (uint16_t) _ctable->lookup(_eth)[_channel]; }
+	uint16_t channel() { return (uint16_t) _channel; }
 
 private:
 
