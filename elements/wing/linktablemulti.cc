@@ -93,17 +93,6 @@ LinkTableMulti::configure(Vector<String> &conf, ErrorHandler *errh) {
     return 0;
 }
 
-Vector<int>
-LinkTableMulti::get_interfaces(NodeAddress ip) {
-    Vector<int> ifaces;
-    for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
-        if ((iter.key()._ip == ip._ip) && (iter.key()._iface != 0)) {
-            ifaces.push_back(iter.key()._iface);
-        }
-    }
-    return ifaces;
-}
-
 PathMulti 
 LinkTableMulti::best_route(NodeAddress dst, bool from_me)
 {

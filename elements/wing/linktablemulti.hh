@@ -35,14 +35,14 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
     uint32_t get_route_metric(const PathMulti &);
     void dijkstra(bool);
 
-    bool update_link(NodeAddress node) {	
+    inline bool update_link(NodeAddress node) {	
       if (LinkTableBase<NodeAddress, PathMulti>::update_link(node, node._ip, Timestamp::now().sec(), 0, 1, 1)) {
         return LinkTableBase<NodeAddress, PathMulti>::update_link(node._ip, node, Timestamp::now().sec(), 0, 1, 1);
       }
       return false;
     }
 
-    bool update_link(NodeAddress from, NodeAddress to, uint32_t seq, uint32_t age, uint32_t metric, uint16_t channel) {
+    inline bool update_link(NodeAddress from, NodeAddress to, uint32_t seq, uint32_t age, uint32_t metric, uint16_t channel) {
       if (update_link(from) &&
           update_link(to) && 
           LinkTableBase<NodeAddress, PathMulti>::update_link(from, to, seq, age, metric, channel)) {
@@ -51,8 +51,17 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
       return false;
     }
 
-    Vector<int> get_interfaces(NodeAddress);
-    Vector<int> get_local_interfaces() {
+    inline Vector<int> get_interfaces(NodeAddress ip) {
+        Vector<int> ifaces;
+        for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
+            if ((iter.key()._ip == ip._ip) && (iter.key()._iface != 0)) {
+                ifaces.push_back(iter.key()._iface);
+            }
+        }
+        return ifaces;
+    }
+
+    inline Vector<int> get_local_interfaces() {
       return get_interfaces(_ip);
     }
 

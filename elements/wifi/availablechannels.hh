@@ -6,8 +6,25 @@
 #include <click/glue.hh>
 CLICK_DECLS
 
+/*
+ * =c
+ * AvailableChannels()
+ * =s Wifi, Wireless Station, Wireless AccessPoint
+ * Tracks channels capabilities of other stations.
+ * =d
+ * Tracks a list of channels other stations are capable of.
+ * =h insert write-only
+ * Inserts an ethernet address and a list of channels to the database.
+ * =h remove write-only
+ * Removes an ethernet address from the database.
+ * =h channels read-only
+ * Shows the entries in the database.
+ * =a BeaconScanner
+ */
+
 class AvailableChannels: public Element {
-public:
+
+  public:
 
 	AvailableChannels();
 	~AvailableChannels();
@@ -25,7 +42,7 @@ public:
 	Vector<int> lookup(EtherAddress eth);
 	int insert(EtherAddress eth, Vector<int> );
 
-private:
+  private:
 
 	bool _debug;
 

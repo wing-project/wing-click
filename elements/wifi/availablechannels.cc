@@ -89,7 +89,6 @@ void AvailableChannels::take_state(Element *e, ErrorHandler *) {
 		return;
 	_rtable = q->_rtable;
 	_default_channels = _default_channels;
-
 }
 
 Vector<int> AvailableChannels::lookup(EtherAddress eth) {

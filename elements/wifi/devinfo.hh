@@ -23,16 +23,6 @@ public:
 	EtherAddress eth() { return _eth; }
 	uint16_t channel() { return (uint16_t) _channel; }
 	uint8_t iface() { return (uint8_t) _iface; }
-	void set_channel(uint16_t channel) {
-		if (_debug) {
-			click_chatter("%{element} :: %s :: %s switching channel to %u",
-					this, 
-					__func__, 
-					_eth.unparse().c_str(),
-					channel);
-		}
-		_channel = channel; 
-	}
 
 private:
 
