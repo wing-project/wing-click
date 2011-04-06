@@ -23,7 +23,7 @@
 #include <click/straccum.hh>
 #include <clicknet/ether.h>
 #include <elements/wifi/availablerates.hh>
-#include "availablechannels.hh"
+#include <elements/wifi/availablechannels.hh>
 CLICK_DECLS
 
 DevInfo::DevInfo() 
@@ -37,7 +37,7 @@ int DevInfo::configure(Vector<String> &conf, ErrorHandler *errh) {
 	_debug = false;
 	if (cp_va_kparse(conf, this, errh,
 			"ETH", cpkM, cpEthernetAddress, &_eth,
-			"IFACE", cpkM, cpUnsigned, &_iface,
+			"IFID", cpkM, cpUnsigned, &_ifid,
 			"CHANNEL", cpkM, cpUnsigned, &_channel,
 			"CHANNELS", cpkM, cpElementCast, "AvailableChannels", &_ctable,
 			"RATES", cpkM, cpElementCast, "AvailableRates", &_rtable,
@@ -56,8 +56,8 @@ String DevInfo::read_handler(Element *e, void *thunk) {
 	switch ((uintptr_t) thunk) {
 	case H_DEBUG:
 		return String(f->_debug) + "\n";
-	case H_CHANNEL:
-		return String(f->channel()) + "\n";
+	//case H_CHANNEL:
+	//	return String(f->channel()) + "\n";
 	default:
 		return String();
 	}

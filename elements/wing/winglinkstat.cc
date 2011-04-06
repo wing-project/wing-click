@@ -25,9 +25,9 @@
 #include <click/packet_anno.hh>
 #include <clicknet/ether.h>
 #include <elements/wifi/availablerates.hh>
-#include "devinfo.hh"
+#include <elements/wifi/devinfo.hh>
+#include <elements/wifi/availablechannels.hh>
 #include "arptablemulti.hh"
-#include "availablechannels.hh"
 #include "winglinkmetric.hh"
 #include "linktablemulti.hh"
 #include "wingpacket.hh"
@@ -64,7 +64,7 @@ int WINGLinkStat::initialize(ErrorHandler *) {
 		_timer.initialize(this);
 		_timer.reschedule_after_msec(p + j - max_jitter);
 	}
-	_node = NodeAddress(_node, _dev->iface());
+	_node = NodeAddress(_node, _dev->ifid());
 	reset();
 	return 0;
 }

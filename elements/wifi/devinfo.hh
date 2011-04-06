@@ -5,6 +5,7 @@
 #include <click/etheraddress.hh>
 #include <click/bighashmap.hh>
 #include <click/glue.hh>
+#include <elements/wifi/availablechannels.hh>
 CLICK_DECLS
 
 class DevInfo: public Element {
@@ -21,15 +22,15 @@ public:
 	/* handler stuff */
 	void add_handlers();
 	EtherAddress eth() { return _eth; }
-	uint16_t channel() { return (uint16_t) _channel; }
-	uint8_t iface() { return (uint8_t) _iface; }
+	uint8_t ifid() { return (uint8_t) _ifid; }
+	uint16_t channel() { return (uint16_t) _ctable->lookup(_eth)[_channel]; }
 
 private:
 
 	bool _debug;
 	EtherAddress _eth;
 	uint32_t _channel;
-	uint32_t _iface;
+	uint32_t _ifid;
 	
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);

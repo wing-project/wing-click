@@ -117,7 +117,7 @@ for i in $(seq 1 1 $NB_INTERFACES); do
 	get_element "$CHANNELS" $i "channel"
 	echo "rates_$i :: AvailableRates(DEFAULT $AVAILABLE_RATES, $addr $AVAILABLE_RATES);"
 	echo "channels_$i :: AvailableChannels(DEFAULT $AVAILABLE_CHANNELS, $addr $AVAILABLE_CHANNELS);"
-	echo "dev_$i :: DevInfo(ETH $addr, IFACE $i, CHANNEL $channel, CHANNELS channels_$i, RATES rates_$i);"
+	echo "dev_$i :: DevInfo(ETH $addr, IFID $i, CHANNEL $channel, CHANNELS channels_$i, RATES rates_$i);"
 	LTM="$LTM $i"
 done
 
