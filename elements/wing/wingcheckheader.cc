@@ -139,7 +139,7 @@ String WINGCheckHeader::bad_nodes() {
 }
 
 enum {
-	H_DROPS, H_BAD_VERSION
+	H_DROPS, H_BAD_NODES
 };
 
 String WINGCheckHeader::read_handler(Element *e, void *thunk) {
@@ -147,7 +147,7 @@ String WINGCheckHeader::read_handler(Element *e, void *thunk) {
 	switch ((uintptr_t) thunk) {
 	case H_DROPS:
 		return String(td->drops()) + "\n";
-	case H_BAD_VERSION:
+	case H_BAD_NODES:
 		return td->bad_nodes();
 	default:
 		return String() + "\n";
@@ -156,7 +156,7 @@ String WINGCheckHeader::read_handler(Element *e, void *thunk) {
 
 void WINGCheckHeader::add_handlers() {
 	add_read_handler("drops", read_handler, H_DROPS);
-	add_read_handler("bad_version", read_handler, H_BAD_VERSION);
+	add_read_handler("bad_nodes", read_handler, H_BAD_NODES);
 }
 
 CLICK_ENDDECLS

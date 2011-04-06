@@ -32,7 +32,6 @@ public:
 
 private:
 
-	IPAddress _ip; // My address.
 	unsigned int _period; // msecs
 
 	class WINGGatewaySelector *_gw_sel;

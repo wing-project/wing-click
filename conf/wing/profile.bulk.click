@@ -48,8 +48,7 @@ query_responder :: WINGQueryResponder(IP $ip,
                                      DEBUG $debug);
 
 
-gw_responder ::  WINGGatewayResponder(IP $ip,
-                                 PERIOD 15000,
+gw_responder ::  WINGGatewayResponder(PERIOD 15000,
                                  SEL gw, 
                                  LT lt, 
                                  RESPONDER query_responder,

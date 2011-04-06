@@ -116,7 +116,7 @@ void WINGQueryResponder::process_query(Packet *p_in) {
 		p_in->kill();
 		return;
 	}
-        ReplyInfo reply = ReplyInfo(pk->qsrc(), best);
+	ReplyInfo reply = ReplyInfo(pk->qsrc(), best);
 	uint32_t seq = pk->seq();
 	if (_debug) {
 		click_chatter("%{element} :: %s :: generating reply %s seq %d", 

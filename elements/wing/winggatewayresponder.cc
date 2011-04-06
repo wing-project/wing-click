@@ -40,7 +40,6 @@ WINGGatewayResponder::~WINGGatewayResponder() {
 int WINGGatewayResponder::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	if (cp_va_kparse(conf, this, errh, 
-				"IP", cpkM, cpIPAddress, &_ip, 
 				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
 				"SEL", cpkM, cpElementCast, "WINGGatewaySelector", &_gw_sel, 
 				"RESPONDER", cpkM, cpElementCast, "WINGQueryResponder", &_responder, 
@@ -74,14 +73,12 @@ void WINGGatewayResponder::run_timer(Timer *) {
 }
 
 enum {
-	H_DEBUG, H_IP
+	H_DEBUG
 };
 
 String WINGGatewayResponder::read_handler(Element *e, void *thunk) {
 	WINGGatewayResponder *c = (WINGGatewayResponder *) e;
 	switch ((intptr_t) (thunk)) {
-	case H_IP:
-		return c->_ip.unparse() + "\n";
 	case H_DEBUG:
 		return String(c->_debug) + "\n";
 	default:
@@ -106,7 +103,6 @@ int WINGGatewayResponder::write_handler(const String &in_s, Element *e,
 }
 
 void WINGGatewayResponder::add_handlers() {
-	add_read_handler("ip", read_handler, H_IP);
 	add_read_handler("debug", read_handler, H_DEBUG);
 	add_write_handler("debug", write_handler, H_DEBUG);
 }
