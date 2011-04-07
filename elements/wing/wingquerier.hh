@@ -45,6 +45,7 @@ public:
 
 	void push(int, Packet *);
 	Packet * encap(Packet *, PathMulti);
+	void encap(Packet *);
 
 private:
 

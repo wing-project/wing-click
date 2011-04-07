@@ -65,6 +65,9 @@ WINGCheckHeader::simple_action(Packet *p) {
 	case WING_PT_DATA : 
 		len = ((struct wing_data *) (eh + 1))->hlen_w_data();
 		break;
+	case WING_PT_BCAST_DATA : 
+		len = ((struct wing_bcast_data *) (eh + 1))->hlen_w_data();
+		break;
 	default : 
 		click_chatter("%{element} :: %s :: bad packet type %d", this, __func__, ntohs(pk->_type));
 		goto bad;
@@ -93,6 +96,9 @@ WINGCheckHeader::simple_action(Packet *p) {
 			break;
 		case WING_PT_DATA : 
 			cksum = ((struct wing_data *) (eh + 1))->check_checksum();
+			break;
+		case WING_PT_BCAST_DATA : 
+			cksum = ((struct wing_bcast_data *) (eh + 1))->check_checksum();
 			break;
 		}
 		if (!cksum) {

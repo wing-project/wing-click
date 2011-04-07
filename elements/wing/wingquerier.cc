@@ -134,6 +134,59 @@ WINGQuerier::encap(Packet *p_in, PathMulti best)
 	return p;
 
 }
+void
+WINGQuerier::encap(Packet *p_in)
+{
+
+	int data_len = p_in->length();
+
+	WritablePacket *p = p_in->push(sizeof(wing_bcast_data) + sizeof(click_ether));
+	if (p == 0) {
+		click_chatter("%{element} :: %s :: cannot encap packet!", this, __func__);
+		return;
+	}
+
+	click_ether *eh = (click_ether *) p->data();
+	struct wing_bcast_data *pk = (struct wing_bcast_data *) (eh + 1);
+	memset(pk, '\0', sizeof(wing_bcast_data));
+
+	pk->_type = WING_PT_BCAST_DATA;
+	pk->set_data_len(data_len);
+
+	Vector<int> ifs = _link_table->get_local_interfaces();
+
+	EtherAddress eth_src = _arp_table->lookup(NodeAddress(_ip, ifs[0]));
+	if (_ip && eth_src.is_group()) {
+		click_chatter("%{element} :: %s :: arp lookup failed for src %s (%s)", 
+				this,
+				__func__,
+				_ip.unparse().c_str(),
+				eth_src.unparse().c_str());
+	}
+
+	memset(eh->ether_dhost, 0xff, 6);
+	memcpy(eh->ether_shost, eth_src.data(), 6);
+
+	output(0).push(p);
+
+	for (int i = 1; i < ifs.size(); i++) {
+		if (Packet *q = p_in->clone()) {
+			q->uniqueify();
+			eh = (click_ether *) q->data();
+			eth_src = _arp_table->lookup(NodeAddress(_ip, ifs[i]));
+			if (_ip && eth_src.is_group()) {
+				click_chatter("%{element} :: %s :: arp lookup failed for src %s (%s)", 
+						this,
+						__func__,
+						_ip.unparse().c_str(),
+						eth_src.unparse().c_str());
+			}
+			memcpy(eh->ether_shost, eth_src.data(), 6);
+			output(0).push(q);
+		}
+	}
+
+}
 
 void WINGQuerier::push(int, Packet *p_in) {
 	IPAddress dst = p_in->dst_ip_anno();
@@ -145,6 +198,13 @@ void WINGQuerier::push(int, Packet *p_in) {
 		p_in->kill();
 		return;
 	}
+
+	/* handle broadcast addresses */
+	if (dst == IPAddress::make_broadcast()) {
+		encap(p_in);
+		return;
+	}
+	/* look for static routes first */
 	PathMulti *p = _routes.findp(dst);
 	if (p) {
 		p_in = encap(p_in, *p);
@@ -153,6 +213,7 @@ void WINGQuerier::push(int, Packet *p_in) {
 		}
 		return;
 	}
+	/* look known routes */
 	DstInfo *nfo = _queries.findp(dst);
 	if (!nfo) {
 		_queries.insert(dst, DstInfo(dst));
@@ -164,6 +225,7 @@ void WINGQuerier::push(int, Packet *p_in) {
 		nfo->_last_switch = Timestamp(0);
 		nfo->_first_selected = Timestamp(0);
 	}
+	/* start a new query if the known one is too old */
 	Timestamp now = Timestamp::now();
 	Timestamp expire = nfo->_last_switch + _time_before_switch;
 	if (!nfo->_best_metric || !nfo->_p.size() || expire < now) {

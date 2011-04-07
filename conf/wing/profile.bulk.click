@@ -73,6 +73,9 @@ input [1]
 host_cl [1] -> set_gateway -> [0] track_flows [0] -> querier;
 
 
+set_gateway [1] -> querier;  
+
+
 forwarder[0] 
   -> dt ::DecIPTTL
   -> [1] output;
@@ -89,7 +92,7 @@ es -> SetTimestamp() -> [0] output;
 
 forwarder[1] // IP packets to me
   -> WINGStripHeader()
-  -> CheckIPHeader(CHECKSUM false)
+  -> check_ip :: CheckIPHeader(CHECKSUM false)
   -> from_gw_cl :: IPClassifier(src net $ip mask $nm, -)
   -> [2] output;
 
@@ -103,6 +106,7 @@ input [0]
                        15/03 , // replies
                        15/04 , // es
                        15/05 , // gw
+                       15/06 , // bcast
                       );
  
  
@@ -111,6 +115,7 @@ input [0]
  ncl[2] -> [1] query_responder;
  ncl[3] -> es;
  ncl[4] -> gw;
+ ncl[4] -> Strip(22) -> check_ip;
 
 }
 

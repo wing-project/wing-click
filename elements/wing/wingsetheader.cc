@@ -61,6 +61,13 @@ WINGSetHeader::simple_action(Packet *p_in) {
 		}
 		((struct wing_data *) (eh + 1))->set_checksum();
 		break;
+	case WING_PT_BCAST_DATA : 
+		if (p->length() < sizeof(struct wing_bcast_data)) {
+			click_chatter("%{element} :: %s :: packet truncated", this, __func__);
+			goto bad;
+		}
+		((struct wing_bcast_data *) (eh + 1))->set_checksum();
+		break;
 	case WING_PT_PROBE : 
 		if (p->length() < sizeof(struct wing_probe)) {
 			click_chatter("%{element} :: %s :: probe truncated", this, __func__);

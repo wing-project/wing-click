@@ -10,6 +10,7 @@ enum wing_packet_types {
 	WING_PT_REPLY = 0x03, // wing_packet
 	WING_PT_PROBE = 0x04, // wing_probe
 	WING_PT_GATEWAY = 0x05, // wing_packet
+	WING_PT_BCAST_DATA  = 0x06, // wing_bcast_data
 };
 
 enum wing_probe_flags {
@@ -234,6 +235,32 @@ public:
 		}
 		p.push_back(port);
 		return p;
+	}
+});
+
+/* broadcast data packet format */
+CLICK_PACKED_STRUCTURE(
+struct wing_bcast_data : public wing_header {,
+	/* packet length functions */
+	size_t hlen_w_data()   const { return ntohl(_data_len) + sizeof(struct wing_bcast_data); }
+private:
+	/* these are private and have access functions below so I
+	 * don't have to remember about endianness
+	 */
+	uint32_t _data_len;
+public:  
+	uint32_t     data_len()                       { return ntohl(_data_len); }
+	void         set_data_len(uint32_t data_len)  { _data_len = htonl(data_len); }
+	/* remember that if you call this you must have set the number
+	 * of links in this packet!
+	 */
+	u_char *data() { return (((u_char *)this) + sizeof(struct wing_bcast_data)); }
+	void set_checksum() {
+		_cksum = 0;
+		_cksum = click_in_cksum((unsigned char *) this, data_len() + sizeof(struct wing_bcast_data));
+	}	
+	bool check_checksum() {
+		return click_in_cksum((unsigned char *) this, data_len() + sizeof(struct wing_bcast_data)) == 0;
 	}
 });
 

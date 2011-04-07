@@ -30,7 +30,7 @@ public:
 	~WINGSetGateway();
 
 	const char *class_name() const { return "WINGSetGateway"; }
-	const char *port_count() const { return "1/1"; }
+	const char *port_count() const { return "1/1-2"; }
 	const char *processing() const { return PUSH; }
 	const char *flow_code() const { return "#/#"; }
 

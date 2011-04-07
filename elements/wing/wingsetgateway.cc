@@ -69,6 +69,20 @@ void WINGSetGateway::push(int, Packet *p_in) {
 		p_in->kill();
 		return;
 	}
+	if (dst == IPAddress::make_broadcast()) {
+		if (_debug) {
+			click_chatter("%{element} :: %s :: got broadcast packet %s", 
+					this, 
+					__func__,
+					dst.unparse().c_str());
+		}
+		if (noutputs() == 2) {
+			output(1).push(p_in);
+		} else {
+			p_in->kill();
+		}
+		return;
+	}
 	IPAddress gw = _gw_sel->best_gateway(dst);
 	if (!gw) {	
 		click_chatter("%{element} :: %s :: unable to find gw for %s", 
@@ -87,7 +101,6 @@ enum {
 };
 
 String WINGSetGateway::read_handler(Element *e, void *thunk) {
-IPAddress tmp;
 	WINGSetGateway *c = (WINGSetGateway *) e;
 	switch ((intptr_t) (thunk)) {
 	case H_GATEWAY:
