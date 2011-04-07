@@ -170,8 +170,7 @@ WINGQuerier::encap(Packet *p_in)
 	output(0).push(p);
 
 	for (int i = 1; i < ifs.size(); i++) {
-		if (Packet *q = p_in->clone()) {
-			q->uniqueify();
+		if (Packet *q = p->clone()) {
 			eh = (click_ether *) q->data();
 			eth_src = _arp_table->lookup(NodeAddress(_ip, ifs[i]));
 			if (_ip && eth_src.is_group()) {
