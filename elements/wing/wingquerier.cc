@@ -197,7 +197,6 @@ void WINGQuerier::push(int, Packet *p_in) {
 		p_in->kill();
 		return;
 	}
-
 	/* handle broadcast addresses */
 	if (dst == IPAddress::make_broadcast()) {
 		encap(p_in);
@@ -206,6 +205,7 @@ void WINGQuerier::push(int, Packet *p_in) {
 	/* look for static routes first */
 	PathMulti *p = _routes.findp(dst);
 	if (p) {
+		click_chatter("found static route to %s (%s)", dst.unparse().c_str(), route_to_string(*p).c_str());
 		p_in = encap(p_in, *p);
 		if (p_in) {
 			output(0).push(p_in);
@@ -289,7 +289,7 @@ String WINGQuerier::print_queries() {
 String WINGQuerier::print_routes() {
 	StringAccum sa;
 	for (RouteTable::iterator iter = _routes.begin(); iter.live(); iter++) {
-		sa << route_to_string(iter.value()) << "\n";
+		sa << iter.key().unparse() << " hops " << iter.value().size() - 1 << " " << route_to_string(iter.value()) << "\n";
 	}
 	return sa.take_string();
 }
@@ -371,12 +371,12 @@ int WINGQuerier::write_handler(const String &in_s, Element *e, void *vparam,
 void WINGQuerier::add_handlers() {
 	add_read_handler("debug", read_handler, H_DEBUG);
 	add_read_handler("queries", read_handler, H_QUERIES);
-	add_read_handler("routes", read_handler, H_ROUTES);
+	add_read_handler("static_routes", read_handler, H_ROUTES);
 	add_write_handler("debug", write_handler, H_DEBUG);
-	add_write_handler("clear_routes", write_handler, H_CLEAR_ROUTES);
+	add_write_handler("clear_static_routes", write_handler, H_CLEAR_ROUTES);
 	add_write_handler("clear_queries", write_handler, H_CLEAR_QUERIES);
-	add_write_handler("add", write_handler, H_ADD);
-	add_write_handler("del", write_handler, H_DEL);
+	add_write_handler("add_static_route", write_handler, H_ADD);
+	add_write_handler("del_static_route", write_handler, H_DEL);
 }
 
 CLICK_ENDDECLS
