@@ -51,18 +51,14 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
       return false;
     }
 
-    inline Vector<int> get_interfaces(NodeAddress ip) {
+    inline Vector<int> get_local_interfaces() {
         Vector<int> ifaces;
         for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
-            if ((iter.key()._ip == ip._ip) && (iter.key()._iface != 0)) {
+            if ((iter.key()._ip == _ip._ip) && (iter.key()._iface != 0)) {
                 ifaces.push_back(iter.key()._iface);
             }
         }
         return ifaces;
-    }
-
-    inline Vector<int> get_local_interfaces() {
-      return get_interfaces(_ip);
     }
 
   protected:
