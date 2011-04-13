@@ -1,17 +1,9 @@
 #ifndef CLICK_WINGTRACKFLOWS_HH
 #define CLICK_WINGTRACKFLOWS_HH
 #include <click/element.hh>
-#include <click/glue.hh>
-#include <click/timer.hh>
-#include <click/ipaddress.hh>
-#include <click/etheraddress.hh>
-#include <click/vector.hh>
-#include <click/hashmap.hh>
-#include "pathmulti.hh"
+#include "wingbase.hh"
 #include <click/ipflowid.hh>
 #include <clicknet/tcp.h>
-#include "arptablemulti.hh"
-#include "winggatewayselector.hh"
 CLICK_DECLS
 
 /*

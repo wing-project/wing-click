@@ -17,20 +17,12 @@
  */
 
 #include <click/config.h>
-#include <click/error.hh>
-#include <click/ipaddress.hh>
 #include "winglinkstat.hh"
 #include <click/confparse.hh>
-#include <click/straccum.hh>
-#include <click/packet_anno.hh>
-#include <clicknet/ether.h>
-#include <elements/wifi/availablerates.hh>
 #include <elements/wifi/devinfo.hh>
+#include <elements/wifi/availablerates.hh>
 #include <elements/wifi/availablechannels.hh>
-#include "arptablemulti.hh"
 #include "winglinkmetric.hh"
-#include "linktablemulti.hh"
-#include "wingpacket.hh"
 CLICK_DECLS
 
 enum {

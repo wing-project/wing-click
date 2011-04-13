@@ -31,7 +31,7 @@ inline bool operator!=(const PathMulti &p1, const PathMulti &p2) {
 	return (!(p1 == p2));
 }
 
-StringAccum & operator<<(StringAccum &, PathMulti);
+StringAccum & operator<<(StringAccum &sa, PathMulti p);
 
 inline String route_to_string(const PathMulti &p) {
 	StringAccum sa;

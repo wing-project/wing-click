@@ -2,10 +2,6 @@
 #define WINGETXMETRIC_HH
 #include <click/element.hh>
 #include "winglinkmetric.hh"
-#include <click/hashmap.hh>
-#include <click/etheraddress.hh>
-#include <clicknet/wifi.h>
-#include <elements/wifi/bitrate.hh>
 CLICK_DECLS
 
 /*

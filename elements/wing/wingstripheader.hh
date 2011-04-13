@@ -1,6 +1,7 @@
 #ifndef CLICK_WINGSTRIPHEADER_HH
 #define CLICK_WINGSTRIPHEADER_HH
 #include <click/element.hh>
+#include "wingbase.hh"
 CLICK_DECLS
 
 /*

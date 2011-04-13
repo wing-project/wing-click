@@ -1,8 +1,6 @@
 #ifndef CLICK_NODEADDRESS_HH
 #define CLICK_NODEADDRESS_HH
-#include <click/string.hh>
 #include <click/ipaddress.hh>
-#include <click/glue.hh>
 #include <click/straccum.hh>
 CLICK_DECLS
 

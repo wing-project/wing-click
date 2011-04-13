@@ -1,8 +1,5 @@
 #include <click/config.h>
-#include <click/glue.hh>
 #include <click/confparse.hh>
-#include <click/straccum.hh>
-#include <click/integers.hh>
 #include "nodeaddress.hh"
 CLICK_DECLS
 

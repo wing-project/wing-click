@@ -18,13 +18,7 @@
 
 #include <click/config.h>
 #include "wingtrackflows.hh"
-#include <click/ipaddress.hh>
 #include <click/confparse.hh>
-#include <click/error.hh>
-#include <click/glue.hh>
-#include <click/straccum.hh>
-#include <clicknet/ether.h>
-#include <click/packet_anno.hh>
 CLICK_DECLS
 
 WINGTrackFlows::WINGTrackFlows() :

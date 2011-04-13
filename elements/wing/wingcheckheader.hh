@@ -1,8 +1,7 @@
 #ifndef CLICK_WINGCHECKHEADER_HH
 #define CLICK_WINGCHECKHEADER_HH
 #include <click/element.hh>
-#include <click/hashmap.hh>
-#include <click/glue.hh>
+#include "wingbase.hh"
 CLICK_DECLS
 
 /*

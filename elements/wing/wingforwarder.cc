@@ -17,17 +17,8 @@
  */
 
 #include <click/config.h>
-#include <click/ipaddress.hh>
-#include <click/confparse.hh>
-#include <click/error.hh>
-#include <click/glue.hh>
-#include <click/straccum.hh>
-#include <click/packet_anno.hh>
-#include <clicknet/ether.h>
-#include "arptablemulti.hh"
 #include "wingforwarder.hh"
-#include "wingpacket.hh"
-#include "linktablemulti.hh"
+#include <click/confparse.hh>
 CLICK_DECLS
 
 WINGForwarder::WINGForwarder() :

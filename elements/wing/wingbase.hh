@@ -1,9 +1,11 @@
 #ifndef CLICK_WINGBASE_HH
 #define CLICK_WINGBASE_HH
 #include <click/element.hh>
+#include <click/dequeue.hh>
+#include <click/hashmap.hh>
+#include <click/packet_anno.hh>
 #include <clicknet/ether.h>
-#include "winglinkstat.hh"
-#include "wingpacket.hh"
+#include <clicknet/wifi.h>
 #include "linktablemulti.hh"
 #include "arptablemulti.hh"
 #include "wingpacket.hh"

@@ -17,13 +17,8 @@
  */
 
 #include <click/config.h>
-#include <click/confparse.hh>
-#include <click/etheraddress.hh>
-#include <click/glue.hh>
-#include <clicknet/ether.h>
-#include <clicknet/ip.h>
-#include "wingpacket.hh"
 #include "wingcheckheader.hh"
+#include <click/confparse.hh>
 CLICK_DECLS
 
 WINGCheckHeader::WINGCheckHeader() :

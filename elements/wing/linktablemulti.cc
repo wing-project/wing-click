@@ -19,9 +19,6 @@
 #include <click/config.h>
 #include "linktablemulti.hh"
 #include <click/confparse.hh>
-#include <click/error.hh>
-#include <click/glue.hh>
-#include <click/straccum.hh>
 CLICK_DECLS
 
 bool

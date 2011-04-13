@@ -17,11 +17,8 @@
  */
 
 #include <click/config.h>
-#include <click/confparse.hh>
 #include "wingsetheader.hh"
-#include <click/glue.hh>
-#include "wingpacket.hh"
-#include <clicknet/ether.h>
+#include <click/confparse.hh>
 CLICK_DECLS
 
 WINGSetHeader::WINGSetHeader() {

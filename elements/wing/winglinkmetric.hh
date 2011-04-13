@@ -1,8 +1,9 @@
 #ifndef CLICK_WINGLINKMETRIC_HH
 #define CLICK_WINGLINKMETRIC_HH
 #include <click/element.hh>
+#include "wingbase.hh"
 #include "winglinkstat.hh"
-#include "linktablemulti.hh"
+#include <elements/wifi/bitrate.hh>
 CLICK_DECLS
 
 class WINGLinkMetric: public Element {

@@ -18,16 +18,7 @@
 
 #include <click/config.h>
 #include "wingquerier.hh"
-#include <click/ipaddress.hh>
 #include <click/confparse.hh>
-#include <click/error.hh>
-#include <click/glue.hh>
-#include <click/straccum.hh>
-#include <clicknet/ether.h>
-#include "wingquerier.hh"
-#include "linktablemulti.hh"
-#include "arptablemulti.hh"
-#include "wingpacket.hh"
 CLICK_DECLS
 
 bool
@@ -205,7 +196,6 @@ void WINGQuerier::push(int, Packet *p_in) {
 	/* look for static routes first */
 	PathMulti *p = _routes.findp(dst);
 	if (p) {
-		click_chatter("found static route to %s (%s)", dst.unparse().c_str(), route_to_string(*p).c_str());
 		p_in = encap(p_in, *p);
 		if (p_in) {
 			output(0).push(p_in);

@@ -19,8 +19,6 @@
 #include <click/config.h>
 #include "wingbase.hh"
 #include <click/confparse.hh>
-#include <click/error.hh>
-#include <click/straccum.hh>
 CLICK_DECLS
 
 CLICK_ENDDECLS

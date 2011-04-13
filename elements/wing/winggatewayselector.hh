@@ -1,13 +1,6 @@
 #ifndef CLICK_WINGGATEWAYSELECTOR_HH
 #define CLICK_WINGGATEWAYSELECTOR_HH
 #include <click/element.hh>
-#include <click/glue.hh>
-#include <click/timer.hh>
-#include <click/ipaddress.hh>
-#include <click/vector.hh>
-#include <click/hashmap.hh>
-#include <click/dequeue.hh>
-#include "pathmulti.hh"
 #include "wingbase.hh"
 CLICK_DECLS
 

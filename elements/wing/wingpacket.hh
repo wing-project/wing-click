@@ -2,6 +2,7 @@
 #define CLICK_WINGPACKET_HH
 #include "pathmulti.hh"
 #include "nodeaddress.hh"
+#include "nodeairport.hh"
 CLICK_DECLS
 
 enum wing_packet_types { 

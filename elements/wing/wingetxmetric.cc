@@ -19,8 +19,6 @@
 #include <click/config.h>
 #include "wingetxmetric.hh"
 #include <click/confparse.hh>
-#include <click/error.hh>
-#include <click/straccum.hh>
 CLICK_DECLS
 
 WINGETXMetric::WINGETXMetric() :

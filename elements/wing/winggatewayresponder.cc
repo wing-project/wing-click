@@ -18,20 +18,13 @@
 
 #include <click/config.h>
 #include "winggatewayresponder.hh"
-#include <click/ipaddress.hh>
 #include <click/confparse.hh>
-#include <click/error.hh>
-#include <click/glue.hh>
-#include <click/straccum.hh>
-#include <clicknet/ether.h>
-#include "linktablemulti.hh"
 #include "winggatewayselector.hh"
-#include "winggatewayresponder.hh"
 #include "wingqueryresponder.hh"
 CLICK_DECLS
 
 WINGGatewayResponder::WINGGatewayResponder() :
-	_timer(this), _debug(false) {
+	_timer(this) {
 }
 
 WINGGatewayResponder::~WINGGatewayResponder() {
@@ -44,7 +37,6 @@ int WINGGatewayResponder::configure(Vector<String> &conf, ErrorHandler *errh) {
 				"SEL", cpkM, cpElementCast, "WINGGatewaySelector", &_gw_sel, 
 				"RESPONDER", cpkM, cpElementCast, "WINGQueryResponder", &_responder, 
 				"PERIOD", 0, cpUnsigned, &_period, 
-				"DEBUG", 0, cpBool, &_debug, 
 				cpEnd) < 0)
 		return -1;
 
@@ -70,41 +62,6 @@ void WINGGatewayResponder::run_timer(Timer *) {
 	unsigned j = click_random(0, 2 * max_jitter);
 	Timestamp delay = Timestamp::make_msec(_period + j - max_jitter);
 	_timer.schedule_at(Timestamp::now() + delay);
-}
-
-enum {
-	H_DEBUG
-};
-
-String WINGGatewayResponder::read_handler(Element *e, void *thunk) {
-	WINGGatewayResponder *c = (WINGGatewayResponder *) e;
-	switch ((intptr_t) (thunk)) {
-	case H_DEBUG:
-		return String(c->_debug) + "\n";
-	default:
-		return "<error>\n";
-	}
-}
-
-int WINGGatewayResponder::write_handler(const String &in_s, Element *e,
-		void *vparam, ErrorHandler *errh) {
-	WINGGatewayResponder *d = (WINGGatewayResponder *) e;
-	String s = cp_uncomment(in_s);
-	switch ((intptr_t) vparam) {
-	case H_DEBUG: {
-		bool debug;
-		if (!cp_bool(s, &debug))
-			return errh->error("debug parameter must be boolean");
-		d->_debug = debug;
-		break;
-	}
-	}
-	return 0;
-}
-
-void WINGGatewayResponder::add_handlers() {
-	add_read_handler("debug", read_handler, H_DEBUG);
-	add_write_handler("debug", write_handler, H_DEBUG);
 }
 
 CLICK_ENDDECLS

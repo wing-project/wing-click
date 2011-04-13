@@ -13,7 +13,7 @@
  */
 
 #include <click/element.hh>
-#include <click/glue.hh>
+#include "wingbase.hh"
 CLICK_DECLS
 
 class WINGSetHeader: public Element {

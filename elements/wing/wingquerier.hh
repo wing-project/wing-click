@@ -1,11 +1,7 @@
 #ifndef CLICK_WINGQUERIER_HH
 #define CLICK_WINGQUERIER_HH
 #include <click/element.hh>
-#include <click/glue.hh>
-#include <click/timer.hh>
-#include <click/etheraddress.hh>
-#include <click/hashmap.hh>
-#include "pathmulti.hh"
+#include "wingbase.hh"
 CLICK_DECLS
 
 /*
@@ -20,7 +16,7 @@ CLICK_DECLS
  *
  * =h add write
  * Writing "0:6.0.0.1;1 1:6.0.0.2:0" to this element will make all packets 
- * destined for 6.0.0.2 from 6.0.0.1 to use the first wireless interface
+ * going from node 6.0.0.1 to node 6.0.0.2, use the first wireless interface
  * on both nodes.
  * 
  */

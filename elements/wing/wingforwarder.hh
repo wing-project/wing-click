@@ -1,10 +1,7 @@
 #ifndef CLICK_WINGFORWARDER_HH
 #define CLICK_WINGFORWARDER_HH
 #include <click/element.hh>
-#include <click/glue.hh>
-#include <click/timer.hh>
-#include <click/etheraddress.hh>
-#include <click/vector.hh>
+#include "wingbase.hh"
 CLICK_DECLS
 
 /*

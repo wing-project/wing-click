@@ -18,15 +18,7 @@
 
 #include <click/config.h>
 #include "wingqueryresponder.hh"
-#include <click/ipaddress.hh>
 #include <click/confparse.hh>
-#include <click/error.hh>
-#include <click/glue.hh>
-#include <click/straccum.hh>
-#include <clicknet/ether.h>
-#include "arptablemulti.hh"
-#include "wingpacket.hh"
-#include "linktablemulti.hh"
 CLICK_DECLS
 
 WINGQueryResponder::WINGQueryResponder() :

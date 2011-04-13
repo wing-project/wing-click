@@ -1,8 +1,7 @@
 #ifndef CLICK_LINKTABLEMULTI_HH
 #define CLICK_LINKTABLEMULTI_HH
 #include <elements/wifi/linktable.hh>
-#include "nodeaddress.hh"
-#include "pathmulti.hh"
+#include "wingpacket.hh"
 CLICK_DECLS
 
 /*

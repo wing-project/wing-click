@@ -18,8 +18,7 @@
 
 #include <click/config.h>
 #include "wingstripheader.hh"
-#include "wingpacket.hh"
-#include <clicknet/ether.h>
+#include <click/confparse.hh>
 CLICK_DECLS
 
 WINGStripHeader::WINGStripHeader() {

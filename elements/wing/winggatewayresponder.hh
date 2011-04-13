@@ -1,9 +1,7 @@
 #ifndef CLICK_WINGGATEWAYRESPONDER_HH
 #define CLICK_WINGGATEWAYRESPONDER_HH
 #include <click/element.hh>
-#include <click/glue.hh>
-#include <click/timer.hh>
-#include "nodeaddress.hh"
+#include "wingbase.hh"
 CLICK_DECLS
 
 /*
@@ -28,7 +26,6 @@ public:
 	int initialize(ErrorHandler *);
 	int configure(Vector<String> &conf, ErrorHandler *errh);
 	void run_timer(Timer *);
-	void add_handlers();
 
 private:
 
@@ -39,10 +36,6 @@ private:
 	class LinkTableMulti *_link_table;
 
 	Timer _timer;
-	bool _debug;
-
-	static int write_handler(const String &, Element *, void *, ErrorHandler *);
-	static String read_handler(Element *, void *);
 
 };
 

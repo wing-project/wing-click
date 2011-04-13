@@ -1,12 +1,7 @@
 #ifndef CLICK_WINGLINKSTAT_HH
 #define CLICK_WINGLINKSTAT_HH
 #include <click/element.hh>
-#include <click/timer.hh>
-#include <click/etheraddress.hh>
-#include <click/dequeue.hh>
-#include <click/hashmap.hh>
-#include <clicknet/wifi.h>
-#include "nodeaddress.hh"
+#include "wingbase.hh"
 CLICK_DECLS
 
 class RateSize {

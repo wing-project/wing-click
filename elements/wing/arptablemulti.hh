@@ -1,7 +1,7 @@
 #ifndef CLICK_ARPTABLEMULTI_HH
 #define CLICK_ARPTABLEMULTI_HH
 #include <elements/ethernet/arptable.hh>
-#include "nodeaddress.hh"
+#include "wingpacket.hh"
 CLICK_DECLS
 
 class ARPTableMulti : public ARPTableBase<NodeAddress> { public:
