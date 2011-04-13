@@ -25,7 +25,6 @@ WifiDecap@12 :: WifiDecap;
 # 185 "/tmp/wing-mesh.click"
 WINGCheckHeader@13 :: WINGCheckHeader;
 # 186 "/tmp/wing-mesh.click"
-WINGRouteResponder@14 :: WINGRouteResponder(IP 6.35.170.123, LT lt, ARP arp, DEBUG false);
 # 187 "/tmp/wing-mesh.click"
 Discard@15 :: Discard;
 # 212 "/tmp/wing-mesh.click"
