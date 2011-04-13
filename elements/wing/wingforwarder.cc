@@ -31,7 +31,7 @@
 CLICK_DECLS
 
 WINGForwarder::WINGForwarder() :
-	_inc_packets(0), _inc_bytes(0) {
+	_inc_packets(0), _inc_bytes(0), _out_packets(0), _out_bytes(0) {
 }
 
 WINGForwarder::~WINGForwarder() {
@@ -42,7 +42,6 @@ int WINGForwarder::configure(Vector<String> &conf, ErrorHandler *errh) {
 	if (cp_va_kparse(conf, this, errh, 
 				"IP", cpkM, cpIPAddress, &_ip, 
 				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
-				"DEBUG", 0, cpBool, &_debug, 
 				cpEnd) < 0)
 		return -1;
 
@@ -146,15 +145,12 @@ enum {
 	H_INC_BYTES,
 	H_OUT_PACKETS, 
 	H_OUT_BYTES,
-	H_STATS,
-	H_DEBUG
+	H_STATS
 };
 
 String WINGForwarder::read_handler(Element *e, void *thunk) {
 	WINGForwarder *f = (WINGForwarder *) e;
 	switch ((uintptr_t) thunk) {
-	case H_DEBUG:
-		return String(f->_debug) + "\n";
 	case H_INC_PACKETS:
 		return String(f->inc_packets()) + "\n";
 	case H_INC_BYTES:
@@ -169,29 +165,12 @@ String WINGForwarder::read_handler(Element *e, void *thunk) {
 	return String();
 }
 
-int WINGForwarder::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *errh) {
-	WINGForwarder *td = (WINGForwarder *) e;
-	String s = cp_uncomment(in_s);
-	switch ((intptr_t) vparam) {
-		case H_DEBUG: {
-			bool debug;
-			if (!cp_bool(s, &debug))
-				return errh->error("debug parameter must be boolean");
-			td->_debug = debug;
-			break;
-		}
-	}
-	return 0;
-}
-
 void WINGForwarder::add_handlers() {
 	add_read_handler("stats", read_handler, H_STATS);
 	add_read_handler("inc_packets", read_handler, H_INC_PACKETS);
 	add_read_handler("inc_bytes", read_handler, H_INC_BYTES);
 	add_read_handler("out_packets", read_handler, H_OUT_PACKETS);
 	add_read_handler("out_bytes", read_handler, H_OUT_BYTES);
-	add_read_handler("debug", read_handler, H_DEBUG);
-	add_write_handler("debug", write_handler, H_DEBUG);
 }
 
 CLICK_ENDDECLS

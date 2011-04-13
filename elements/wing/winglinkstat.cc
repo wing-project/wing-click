@@ -64,7 +64,7 @@ int WINGLinkStat::initialize(ErrorHandler *) {
 		_timer.initialize(this);
 		_timer.reschedule_after_msec(p + j - max_jitter);
 	}
-	_node = NodeAddress(_node, _dev->ifid());
+	_node = NodeAddress(_link_table->ip(), _dev->ifid());
 	reset();
 	return 0;
 }
@@ -74,7 +74,6 @@ int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
 	String probes;
 
 	if (cp_va_kparse(conf, this, errh, 
-			"IP", cpkM, cpIPAddress, &_node,
 			"DEV", cpkM, cpElementCast, "DevInfo", &_dev,
 			"METRIC", cpkM, cpElementCast, "WINGLinkMetric", &_link_metric, 
 			"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 

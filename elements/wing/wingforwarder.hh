@@ -9,7 +9,7 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGForwarder(IP, ARP ARPTableMulti element, [DEBUG])
+ * WINGForwarder(IP, ARP ARPTableMulti element)
  * =s Wifi, Wireless Routing
  * Forwards source-routed packets.
  * =d
@@ -48,15 +48,12 @@ private:
 
 	class ARPTableMulti *_arp_table;
 
-	bool _debug;
-
 	/* statistics for handlers */
 	int _inc_packets;
 	int _inc_bytes;
 	int _out_packets;
 	int _out_bytes;
 
-	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);
 
 };

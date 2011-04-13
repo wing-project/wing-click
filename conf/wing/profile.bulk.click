@@ -23,17 +23,15 @@ track_flows :: WINGTrackFlows();
 set_gateway :: WINGSetGateway(SEL gw);
 
 
-forwarder :: WINGForwarder(IP $ip, 
-                          ARP arp,
-                          DEBUG $debug);
+forwarder :: WINGForwarder(IP $ip, ARP arp);
 
 
-querier :: WINGQuerier(QUERY_WAIT 5,
-                         TIME_BEFORE_SWITCH 5,
-			 IP $ip,
-			 ARP arp,
-                         LT lt, 
-                         DEBUG $debug);
+querier :: WINGQuerier(IP $ip,
+                       QUERY_WAIT 5,
+                       TIME_BEFORE_SWITCH 5,
+                       LT lt, 
+                       ARP arp,
+                       DEBUG $debug);
 
 
 query_forwarder :: WINGMetricFlood(IP $ip, 

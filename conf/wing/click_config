@@ -162,14 +162,13 @@ echo "input -> ps :: PaintSwitch();"
 for i in $(seq 1 1 $NB_INTERFACES); do
 	set_mode $i
 	get_element "$HWADDRS" $i "addr"
-	echo "es_$i :: WINGLinkStat(IP $XR_IP, 
-                                  DEV dev_$i,
+	echo "es_$i :: WINGLinkStat(DEV dev_$i,
                                   PERIOD $XR_PERIOD,
                                   TAU $XR_TAU,
                                   PROBES \"$PROBES\",
-                                  ARP arp,
-                                  LT lt,
                                   METRIC metric,
+                                  LT lt,
+                                  ARP arp,
                                   DEBUG \$debug);"
 	echo "ps[$((i-1))] -> es_$i -> output;"
 done
@@ -210,12 +209,6 @@ LS_FILE="ls.$LS.click"
 cat $LS_FILE
 
 echo "control :: ControlSocket(\"TCP\", 7777);
-
-err :: WifiDupeFilter() 
-  -> WifiDecap() 
-  -> WINGCheckHeader()
-  -> WINGRouteResponder(IP $XR_IP, LT lt, ARP arp, DEBUG $DEBUG)
-  -> Discard();
 
 // has one input and one output
 // takes and spits out ip packets
@@ -279,6 +272,6 @@ for i in $(seq 1 1 $NB_INTERFACES); do
 -> Paint($((i-1)))
 -> cl;
 "
-	echo "tx_filter_$i[1] -> [1] rc_$i [1] -> err;
+	echo "tx_filter_$i[1] -> [1] rc_$i [1] -> Discard();
 "
 done
