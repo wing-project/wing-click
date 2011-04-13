@@ -43,7 +43,7 @@ public:
   virtual String print_routes(bool, bool) = 0;
   String print_links();
   String print_hosts();
-
+  T ip() { return _ip; }
   void clear();
 
   /* other public functions */
@@ -539,7 +539,8 @@ LinkTableBase<T,U>::clear_stale() {
   }
 }
 
-enum {H_BLACKLIST,
+enum {H_HOST_IP,
+      H_BLACKLIST,
       H_BLACKLIST_CLEAR,
       H_BLACKLIST_ADD,
       H_BLACKLIST_REMOVE,
@@ -558,6 +559,7 @@ String
 LinkTableBase<T,U>::read_handler(Element *e, void *thunk) {
   LinkTableBase *td = (LinkTableBase *) e;
   switch ((uintptr_t) thunk) {
+    case H_HOST_IP:  return td->ip().unparse() + "\n";
     case H_BLACKLIST: {
       StringAccum sa;
       for (ATIter iter = td->_blacklist.begin(); iter.live(); iter++) {
@@ -657,6 +659,7 @@ LinkTableBase<T,U>::write_handler(const String &in_s, Element *e, void *vparam, 
 template <typename T, typename U>
 void
 LinkTableBase<T,U>::add_handlers() {
+  add_read_handler("ip", read_handler, H_HOST_IP);
   add_read_handler("routes", read_handler, H_ROUTES_FROM);
   add_read_handler("routes_old", read_handler, H_ROUTES_OLD);
   add_read_handler("routes_from", read_handler, H_ROUTES_FROM);

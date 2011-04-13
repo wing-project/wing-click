@@ -387,13 +387,12 @@ LinkTableMulti::dijkstra(bool from_me)
 
 }
 
-enum { H_HOST_IP, H_HOST_INTERFACES };
+enum { H_HOST_INTERFACES };
 
 String 
 LinkTableMulti::read_handler(Element *e, void *thunk) {
   LinkTableMulti *td = (LinkTableMulti *) e;
   switch ((uintptr_t) thunk) {
-    case H_HOST_IP:  return td->_ip._ip.unparse() + "\n";
     case H_HOST_INTERFACES: {
       Vector<int> ifaces = td->get_local_interfaces();
       StringAccum sa;
@@ -456,7 +455,6 @@ LinkTableMulti::write_handler(const String &in_s, Element *e, void *vparam, Erro
 void
 LinkTableMulti::add_handlers() {
     LinkTableBase<NodeAddress, PathMulti>::add_handlers();
-    add_read_handler("ip", read_handler, H_HOST_IP);
     add_read_handler("interfaces", read_handler, H_HOST_INTERFACES);
     add_write_handler("update_link", write_handler, H_UPDATE_LINK);
 }
