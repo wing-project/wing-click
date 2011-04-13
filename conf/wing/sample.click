@@ -16,87 +16,76 @@ lt :: LinkTableMulti(IP 6.35.170.123, IFACES " 1 2", BETA 80);
 metric :: WINGETTMetric(LT lt);
 # 9 "/tmp/wing-mesh.click"
 arp :: ARPTableMulti;
-# 181 "/tmp/wing-mesh.click"
+# 180 "/tmp/wing-mesh.click"
 control :: ControlSocket("TCP", 7777);
-# 183 "/tmp/wing-mesh.click"
-err :: WifiDupeFilter;
-# 184 "/tmp/wing-mesh.click"
-WifiDecap@12 :: WifiDecap;
-# 185 "/tmp/wing-mesh.click"
-WINGCheckHeader@13 :: WINGCheckHeader;
-# 186 "/tmp/wing-mesh.click"
-# 187 "/tmp/wing-mesh.click"
-Discard@15 :: Discard;
+# 205 "/tmp/wing-mesh.click"
+WINGSetHeader@15 :: WINGSetHeader;
+# 205 "/tmp/wing-mesh.click"
+WINGSetHeader@16 :: WINGSetHeader;
 # 212 "/tmp/wing-mesh.click"
-WINGSetHeader@20 :: WINGSetHeader;
-# 212 "/tmp/wing-mesh.click"
-WINGSetHeader@21 :: WINGSetHeader;
-# 212 "/tmp/wing-mesh.click"
-Print@22 :: Print(X);
-# 219 "/tmp/wing-mesh.click"
 outgoing_1 :: PrioSched;
-# 220 "/tmp/wing-mesh.click"
-SetTXPower@27 :: SetTXPower(POWER 60);
-# 221 "/tmp/wing-mesh.click"
-RadiotapEncap@28 :: RadiotapEncap;
-# 224 "/tmp/wing-mesh.click"
-FullNoteQueue@29 :: FullNoteQueue;
-# 224 "/tmp/wing-mesh.click"
-WifiEncap@30 :: WifiEncap(0x0, 00:00:00:00:00:00);
-# 225 "/tmp/wing-mesh.click"
-WifiEncap@31 :: WifiEncap(0x0, 00:00:00:00:00:00);
-# 225 "/tmp/wing-mesh.click"
-Print@32 :: Print(OU);
-# 230 "/tmp/wing-mesh.click"
+# 213 "/tmp/wing-mesh.click"
+SetTXPower@21 :: SetTXPower(POWER 60);
+# 214 "/tmp/wing-mesh.click"
+RadiotapEncap@22 :: RadiotapEncap;
+# 217 "/tmp/wing-mesh.click"
+FullNoteQueue@23 :: FullNoteQueue;
+# 217 "/tmp/wing-mesh.click"
+WifiEncap@24 :: WifiEncap(0x0, 00:00:00:00:00:00);
+# 218 "/tmp/wing-mesh.click"
+WifiEncap@25 :: WifiEncap(0x0, 00:00:00:00:00:00);
+# 223 "/tmp/wing-mesh.click"
 outgoing_2 :: PrioSched;
+# 224 "/tmp/wing-mesh.click"
+SetTXPower@30 :: SetTXPower(POWER 60);
+# 225 "/tmp/wing-mesh.click"
+RadiotapEncap@31 :: RadiotapEncap;
+# 228 "/tmp/wing-mesh.click"
+FullNoteQueue@32 :: FullNoteQueue;
+# 228 "/tmp/wing-mesh.click"
+WifiEncap@33 :: WifiEncap(0x0, 00:00:00:00:00:00);
+# 229 "/tmp/wing-mesh.click"
+WifiEncap@34 :: WifiEncap(0x0, 00:00:00:00:00:00);
 # 231 "/tmp/wing-mesh.click"
-SetTXPower@37 :: SetTXPower(POWER 60);
-# 232 "/tmp/wing-mesh.click"
-RadiotapEncap@38 :: RadiotapEncap;
-# 235 "/tmp/wing-mesh.click"
-FullNoteQueue@39 :: FullNoteQueue;
-# 235 "/tmp/wing-mesh.click"
-WifiEncap@40 :: WifiEncap(0x0, 00:00:00:00:00:00);
-# 236 "/tmp/wing-mesh.click"
-WifiEncap@41 :: WifiEncap(0x0, 00:00:00:00:00:00);
-# 236 "/tmp/wing-mesh.click"
-Print@42 :: Print(OU);
-# 238 "/tmp/wing-mesh.click"
 cl :: Classifier(12/06AA);
+# 231 "/tmp/wing-mesh.click"
+WINGCheckHeader@36 :: WINGCheckHeader;
+# 236 "/tmp/wing-mesh.click"
+RadiotapDecap@37 :: RadiotapDecap;
+# 237 "/tmp/wing-mesh.click"
+FilterPhyErr@38 :: FilterPhyErr;
 # 238 "/tmp/wing-mesh.click"
-WINGCheckHeader@44 :: WINGCheckHeader;
-# 243 "/tmp/wing-mesh.click"
-RadiotapDecap@45 :: RadiotapDecap;
-# 244 "/tmp/wing-mesh.click"
-FilterPhyErr@46 :: FilterPhyErr;
-# 245 "/tmp/wing-mesh.click"
-Classifier@47 :: Classifier(0/08%0c);
-# 245 "/tmp/wing-mesh.click"
+Classifier@39 :: Classifier(0/08%0c);
+# 238 "/tmp/wing-mesh.click"
 tx_filter_1 :: FilterTX;
-# 247 "/tmp/wing-mesh.click"
-WifiDupeFilter@49 :: WifiDupeFilter;
-# 248 "/tmp/wing-mesh.click"
-WifiDecap@50 :: WifiDecap;
+# 240 "/tmp/wing-mesh.click"
+WifiDupeFilter@41 :: WifiDupeFilter;
+# 241 "/tmp/wing-mesh.click"
+WifiDecap@42 :: WifiDecap;
+# 242 "/tmp/wing-mesh.click"
+HostEtherFilter@43 :: HostEtherFilter(06:0C:42:23:AA:7B, DROP_OTHER true, DROP_OWN true);
+# 243 "/tmp/wing-mesh.click"
+Paint@44 :: Paint(0);
+# 246 "/tmp/wing-mesh.click"
+Discard@45 :: Discard;
 # 249 "/tmp/wing-mesh.click"
-HostEtherFilter@51 :: HostEtherFilter(06:0C:42:23:AA:7B, DROP_OTHER true, DROP_OWN true);
+RadiotapDecap@46 :: RadiotapDecap;
 # 250 "/tmp/wing-mesh.click"
-Paint@52 :: Paint(0);
-# 256 "/tmp/wing-mesh.click"
-RadiotapDecap@53 :: RadiotapDecap;
-# 257 "/tmp/wing-mesh.click"
-FilterPhyErr@54 :: FilterPhyErr;
-# 258 "/tmp/wing-mesh.click"
-Classifier@55 :: Classifier(0/08%0c);
-# 258 "/tmp/wing-mesh.click"
+FilterPhyErr@47 :: FilterPhyErr;
+# 251 "/tmp/wing-mesh.click"
+Classifier@48 :: Classifier(0/08%0c);
+# 251 "/tmp/wing-mesh.click"
 tx_filter_2 :: FilterTX;
-# 260 "/tmp/wing-mesh.click"
-WifiDupeFilter@57 :: WifiDupeFilter;
-# 261 "/tmp/wing-mesh.click"
-WifiDecap@58 :: WifiDecap;
-# 262 "/tmp/wing-mesh.click"
-HostEtherFilter@59 :: HostEtherFilter(00:0C:42:23:AA:70, DROP_OTHER true, DROP_OWN true);
-# 263 "/tmp/wing-mesh.click"
-Paint@60 :: Paint(1);
+# 253 "/tmp/wing-mesh.click"
+WifiDupeFilter@50 :: WifiDupeFilter;
+# 254 "/tmp/wing-mesh.click"
+WifiDecap@51 :: WifiDecap;
+# 255 "/tmp/wing-mesh.click"
+HostEtherFilter@52 :: HostEtherFilter(00:0C:42:23:AA:70, DROP_OTHER true, DROP_OWN true);
+# 256 "/tmp/wing-mesh.click"
+Paint@53 :: Paint(1);
+# 259 "/tmp/wing-mesh.click"
+Discard@54 :: Discard;
 # 46 "/tmp/wing-mesh.click"
 wr/outgoing :: SetTXRate(12);
 # 19 "/tmp/wing-mesh.click"
@@ -154,84 +143,78 @@ wr/query_responder :: WINGQueryResponder(IP 6.35.170.123,
                                      ARP arp,
                                      DEBUG false);
 # 92 "/tmp/wing-mesh.click"
-wr/gw_responder :: WINGGatewayResponder(
-                                 PERIOD 15000,
+wr/gw_responder :: WINGGatewayResponder(PERIOD 15000,
                                  SEL gw, 
                                  LT lt, 
                                  RESPONDER query_responder,
                                  DEBUG false);
-# 110 "/tmp/wing-mesh.click"
+# 109 "/tmp/wing-mesh.click"
 wr/host_cl :: IPClassifier(dst net 6.35.170.123 mask 255.0.0.0, -);
-# 122 "/tmp/wing-mesh.click"
+# 121 "/tmp/wing-mesh.click"
 wr/dt :: DecIPTTL;
-# 127 "/tmp/wing-mesh.click"
+# 126 "/tmp/wing-mesh.click"
 wr/ICMPError@13 :: ICMPError(6.35.170.123, timeexceeded, 0);
-# 132 "/tmp/wing-mesh.click"
+# 131 "/tmp/wing-mesh.click"
 wr/SetTimestamp@14 :: SetTimestamp;
-# 135 "/tmp/wing-mesh.click"
+# 134 "/tmp/wing-mesh.click"
 wr/WINGStripHeader@15 :: WINGStripHeader;
+# 136 "/tmp/wing-mesh.click"
+wr/check_ip :: CheckIPHeader(CHECKSUM false);
 # 137 "/tmp/wing-mesh.click"
-wr/CheckIPHeader@16 :: CheckIPHeader(CHECKSUM false);
-# 138 "/tmp/wing-mesh.click"
 wr/from_gw_cl :: IPClassifier(src net 6.35.170.123 mask 255.0.0.0, -);
-# 146 "/tmp/wing-mesh.click"
+# 145 "/tmp/wing-mesh.click"
 wr/ncl :: Classifier(15/01 , // forwarder
                        15/02 , // queries
                        15/03 , // replies
                        15/04 , // es
                        15/05 , // gw
-		       15/06 , // bcast
+                       15/06 , // bcast
                       );
-# 160 "/tmp/wing-mesh.click"
+# 159 "/tmp/wing-mesh.click"
 wr/Strip@19 :: Strip(22);
-# 160 "/tmp/wing-mesh.click"
-wr/Print@20 :: Print;
-# 160 "/tmp/wing-mesh.click"
-wr/Discard@21 :: Discard;
-# 193 "/tmp/wing-mesh.click"
+# 186 "/tmp/wing-mesh.click"
 linux_ip_host/KernelTun@1 :: KernelTun(6.35.170.123/255.0.0.0, MTU 1500, DEVNAME wing-mesh);
-# 194 "/tmp/wing-mesh.click"
+# 187 "/tmp/wing-mesh.click"
 linux_ip_host/CheckIPHeader@2 :: CheckIPHeader(CHECKSUM false);
 # 12 "/tmp/wing-mesh.click"
 rc_split/cl :: Classifier(6/060C4223AA7B, 6/000C4223AA70);
 # 12 "/tmp/wing-mesh.click"
 sl_split/cl :: Classifier(6/060C4223AA7B, 6/000C4223AA70);
-# 200 "/tmp/wing-mesh.click"
+# 193 "/tmp/wing-mesh.click"
 sniff_dev_1/from_dev :: FromDevice(ath1, PROMISC false, OUTBOUND true, SNIFFER false);
-# 202 "/tmp/wing-mesh.click"
+# 195 "/tmp/wing-mesh.click"
 sniff_dev_1/to_dev :: ToDevice(ath1);
-# 167 "/tmp/wing-mesh.click"
+# 166 "/tmp/wing-mesh.click"
 rc_1/rate_control :: Minstrel(OFFSET 4, RT rates_1);
-# 177 "/tmp/wing-mesh.click"
+# 176 "/tmp/wing-mesh.click"
 ls_1/FullNoteQueue@1 :: FullNoteQueue(10);
-# 200 "/tmp/wing-mesh.click"
+# 193 "/tmp/wing-mesh.click"
 sniff_dev_2/from_dev :: FromDevice(ath2, PROMISC false, OUTBOUND true, SNIFFER false);
-# 202 "/tmp/wing-mesh.click"
+# 195 "/tmp/wing-mesh.click"
 sniff_dev_2/to_dev :: ToDevice(ath2);
-# 167 "/tmp/wing-mesh.click"
+# 166 "/tmp/wing-mesh.click"
 rc_2/rate_control :: Minstrel(OFFSET 4, RT rates_2);
-# 177 "/tmp/wing-mesh.click"
+# 176 "/tmp/wing-mesh.click"
 ls_2/FullNoteQueue@1 :: FullNoteQueue(10);
 # 0 "<click-align>"
-Align@click_align@86 :: Align(4, 0);
+Align@click_align@78 :: Align(4, 0);
 # 0 "<click-align>"
-Align@click_align@87 :: Align(4, 0);
+Align@click_align@79 :: Align(4, 0);
 # 0 "<click-align>"
-Align@click_align@88 :: Align(4, 0);
+Align@click_align@80 :: Align(4, 0);
 # 0 "<click-align>"
-AlignmentInfo@click_align@89 :: AlignmentInfo(cl  4 2,
-  Classifier@47  4 0,
-  Classifier@55  4 0,
-  wr/CheckIPHeader@16  4 0,
+AlignmentInfo@click_align@81 :: AlignmentInfo(cl  4 2,
+  Classifier@39  4 0,
+  Classifier@48  4 0,
+  wr/check_ip  4 0,
   wr/ncl  4 2,
   linux_ip_host/CheckIPHeader@2  4 0,
   rc_split/cl  4 2,
   sl_split/cl  4 0);
-# 232 ""
+# 215 ""
 rc_split/cl [1] -> ls_2/FullNoteQueue@1
-    -> WifiEncap@41
+    -> WifiEncap@34
     -> rc_2/rate_control
-    -> Print@42
     -> [1] outgoing_2;
 tx_filter_2 [1] -> [1] rc_2/rate_control;
 tx_filter_1 [1] -> [1] rc_1/rate_control;
@@ -239,67 +222,61 @@ wr/track_flows [1] -> linux_ip_host/KernelTun@1
     -> linux_ip_host/CheckIPHeader@2
     -> wr/host_cl
     -> wr/querier
-    -> WINGSetHeader@21
-    -> Print@22
+    -> WINGSetHeader@16
     -> rc_split/cl
     -> ls_1/FullNoteQueue@1
-    -> WifiEncap@31
+    -> WifiEncap@25
     -> rc_1/rate_control
-    -> Print@32
     -> [1] outgoing_1;
 wr/ncl [3] -> wr/es/ps
     -> wr/es/es_1
     -> wr/SetTimestamp@14
-    -> WINGSetHeader@20
-    -> Align@click_align@88
+    -> WINGSetHeader@15
+    -> Align@click_align@80
     -> sl_split/cl
-    -> FullNoteQueue@29
-    -> WifiEncap@30
+    -> FullNoteQueue@23
+    -> WifiEncap@24
     -> outgoing_1
-    -> SetTXPower@27
-    -> RadiotapEncap@28
+    -> SetTXPower@21
+    -> RadiotapEncap@22
     -> sniff_dev_1/to_dev;
-rc_2/rate_control [1] -> err
-    -> WifiDecap@12
-    -> WINGCheckHeader@13
-    -> WINGRouteResponder@14
-    -> Discard@15;
-sniff_dev_2/from_dev -> RadiotapDecap@53
-    -> FilterPhyErr@54
-    -> Align@click_align@87
-    -> Classifier@55
+rc_2/rate_control [1] -> Discard@54;
+sniff_dev_2/from_dev -> RadiotapDecap@46
+    -> FilterPhyErr@47
+    -> Align@click_align@79
+    -> Classifier@48
     -> tx_filter_2
-    -> WifiDupeFilter@57
-    -> WifiDecap@58
-    -> HostEtherFilter@59
-    -> Paint@60
+    -> WifiDupeFilter@50
+    -> WifiDecap@51
+    -> HostEtherFilter@52
+    -> Paint@53
     -> cl
-    -> WINGCheckHeader@44
+    -> WINGCheckHeader@36
     -> wr/ncl
     -> wr/forwarder
     -> wr/dt
-    -> WINGSetHeader@21;
-rc_1/rate_control [1] -> err;
-sniff_dev_1/from_dev -> RadiotapDecap@45
-    -> FilterPhyErr@46
-    -> Align@click_align@86
-    -> Classifier@47
+    -> WINGSetHeader@16;
+rc_1/rate_control [1] -> Discard@45;
+sniff_dev_1/from_dev -> RadiotapDecap@37
+    -> FilterPhyErr@38
+    -> Align@click_align@78
+    -> Classifier@39
     -> tx_filter_1
-    -> WifiDupeFilter@49
-    -> WifiDecap@50
-    -> HostEtherFilter@51
-    -> Paint@52
+    -> WifiDupeFilter@41
+    -> WifiDecap@42
+    -> HostEtherFilter@43
+    -> Paint@44
     -> cl;
-sl_split/cl [1] -> FullNoteQueue@39
-    -> WifiEncap@40
+sl_split/cl [1] -> FullNoteQueue@32
+    -> WifiEncap@33
     -> outgoing_2
-    -> SetTXPower@37
-    -> RadiotapEncap@38
+    -> SetTXPower@30
+    -> RadiotapEncap@31
     -> sniff_dev_2/to_dev;
 wr/es/ps [1] -> wr/es/es_2
     -> wr/SetTimestamp@14;
 wr/gw_responder -> wr/outgoing
-    -> WINGSetHeader@20;
+    -> WINGSetHeader@15;
 wr/query_forwarder [1] -> wr/query_responder
     -> wr/outgoing;
 wr/host_cl [1] -> wr/set_gateway
@@ -310,15 +287,14 @@ wr/dt [1] -> wr/ICMPError@13
     -> wr/querier;
 wr/querier [1] -> wr/query_forwarder
     -> wr/outgoing;
-wr/forwarder [1] -> wr/WINGStripHeader@15
-    -> wr/CheckIPHeader@16
+wr/ncl [5] -> wr/Strip@19
+    -> wr/check_ip
     -> wr/from_gw_cl
     -> linux_ip_host/KernelTun@1;
-wr/ncl [5] -> wr/Strip@19
-    -> wr/Print@20
-    -> wr/Discard@21;
-wr/from_gw_cl [1] -> [1] wr/track_flows;
+wr/forwarder [1] -> wr/WINGStripHeader@15
+    -> wr/check_ip;
 wr/ncl [4] -> wr/gw
     -> wr/outgoing;
+wr/from_gw_cl [1] -> [1] wr/track_flows;
 wr/ncl [2] -> [1] wr/query_responder;
 wr/ncl [1] -> [1] wr/query_forwarder;
