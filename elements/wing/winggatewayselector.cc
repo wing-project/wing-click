@@ -72,13 +72,11 @@ void WINGGatewaySelector::run_timer(Timer *) {
 	// send HNAs
 	if (_hnas.size() > 0) {
 		_hna_index = (_hna_index + 1) % _hnas.size();
-		if (_hna_index < _hnas.size()) {
-			Vector<int> ifs = _link_table->get_local_interfaces();
-			for (int i = 0; i < ifs.size(); i++) {
-				start_ad(ifs[i]);
-			}
-			_seq++;
+		Vector<int> ifs = _link_table->get_local_interfaces();
+		for (int i = 0; i < ifs.size(); i++) {
+			start_ad(ifs[i]);
 		}
+		_seq++;
 	}
 
 	// schedule next transmission
@@ -90,7 +88,14 @@ void WINGGatewaySelector::run_timer(Timer *) {
 }
 
 void WINGGatewaySelector::start_ad(int iface) {
-	HNAInfo hna = _hnas[_hna_index];
+	HNAIter itr =  _hnas.begin();
+	for (unsigned i = 0; i < _hnas.size(); i++) {
+		if (i == _hna_index) {
+			break;
+		}
+		itr++;
+	}
+	HNAInfo hna = itr.key();
 	if (_debug) {
 		click_chatter("%{element} :: %s :: hna %s seq %d iface %u", 
 				this, 
@@ -223,17 +228,36 @@ enum {
 	H_HNA_CLEAR
 };
 
+int WINGGatewaySelector::hna_add(IPAddress addr, IPAddress mask, bool mapped) {
+	_hnas.find_force(HNAInfo(addr, mask, _ip), mapped);
+	return 0;
+}
+
+int WINGGatewaySelector::hna_del(IPAddress addr, IPAddress mask) {
+	_hnas.erase(HNAInfo(addr, mask, _ip));
+	return 0;
+}
+
+void WINGGatewaySelector::hna_clear() {
+	_hnas.clear();
+}
+
+String WINGGatewaySelector::hnas() {
+	StringAccum sa;
+	for (HNAIter iter = _hnas.begin(); iter.live(); iter++) {
+		HNAInfo hna = iter.key();
+		sa << hna.unparse().c_str() << "\n";
+	}
+	return sa.take_string();
+}
+
 String WINGGatewaySelector::read_handler(Element *e, void *thunk) {
 	WINGGatewaySelector *f = (WINGGatewaySelector *) e;
 	switch ((uintptr_t) thunk) {
 		case H_GATEWAY_STATS:
 			return f->print_gateway_stats();
 		case H_HNA: {
-			StringAccum sa;
-			for (int x = 0; x < f->_hnas.size(); x++) {
-				sa << f->_hnas[x].unparse().c_str() << "\n";
-			}
-			return sa.take_string();
+			return f->hnas();
 		}
 		case H_IS_GATEWAY: {
 			return String(f->is_gateway()) + "\n";
@@ -259,13 +283,7 @@ int WINGGatewaySelector::write_handler(const String &in_s, Element *e, void *vpa
 			if (!cp_ip_prefix(args[0], &addr, &mask)) {
 				return errh->error("error param %s: must be an ip prefix", args[0].c_str());
 			}
-			HNAInfo route = HNAInfo(addr, mask, f->_ip);
-			for (Vector<HNAInfo>::iterator it = f->_hnas.begin(); it!=f->_hnas.end(); ++it) {
-				if (*it == route) {
-					return 0;
-				}
-			}
-			f->_hnas.push_back(route);
+			f->hna_add(addr, mask, true);
 			break;
 		}
 		case H_HNA_DEL: {
@@ -279,34 +297,11 @@ int WINGGatewaySelector::write_handler(const String &in_s, Element *e, void *vpa
 			if (!cp_ip_prefix(args[0], &addr, &mask)) {
 				return errh->error("error param %s: must be an ip prefix (ADDR/MASK)", args[0].c_str());
 			}
-			HNAInfo route = HNAInfo(addr, mask, f->_ip);
-			for (Vector<HNAInfo>::iterator it = f->_hnas.begin(); it != f->_hnas.end();) {
-				(*it == route) ? it = f->_hnas.erase(it) : ++it;
-			}
+			f->hna_del(addr, mask);
 			break;
 		}
 		case H_HNA_CLEAR: {
-			f->_hnas.clear();
-			break;
-		}
-		case H_IS_GATEWAY: {
-			bool b;
-			if (!cp_bool(s, &b)) {
-				return errh->error("is_gateway parameter must be boolean");
-			}
-			HNAInfo route = HNAInfo(IPAddress(), IPAddress(), f->_ip);
-			if (b) {
-				for (Vector<HNAInfo>::iterator it = f->_hnas.begin(); it!=f->_hnas.end(); ++it) {
-					if (*it == route) {
-						return 0;
-					}
-				}
-				f->_hnas.push_back(route);
-			} else {
-				for (Vector<HNAInfo>::iterator it = f->_hnas.begin(); it != f->_hnas.end();) {
-					(*it == route) ? it = f->_hnas.erase(it) : ++it;
-				}
-			}
+			f->hna_clear();
 			break;
 		}
 		default: {
@@ -322,7 +317,6 @@ void WINGGatewaySelector::add_handlers() {
 	add_read_handler("is_gateway", read_handler, (void *) H_IS_GATEWAY);
 	add_read_handler("gateway_stats", read_handler, (void *) H_GATEWAY_STATS);
 	add_read_handler("hna", read_handler, (void *) H_HNA);
-	add_write_handler("is_gateway", write_handler, (void *) H_IS_GATEWAY);
 	add_write_handler("hna_add", write_handler, (void *) H_HNA_ADD);
 	add_write_handler("hna_del", write_handler, (void *) H_HNA_DEL);
 	add_write_handler("hna_clear", write_handler, (void *) H_HNA_CLEAR);

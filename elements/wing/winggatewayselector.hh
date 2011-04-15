@@ -74,18 +74,27 @@ public:
 	void push(int, Packet *);
 	void run_timer(Timer *);
 
+	void hna_clear();
+	int hna_add(IPAddress, IPAddress, bool);
+	int hna_del(IPAddress, IPAddress);
+	String hnas();
+
 	IPAddress best_gateway(IPAddress);
 	IPAddress best_gateway() {
 		return best_gateway(IPAddress());
 	}
 
-	bool is_gateway() {
-		for (int x = 0; x < _hnas.size(); x++) {
-			if (_hnas[x]._dst == IPAddress() && _hnas[x]._nm == IPAddress()) {
+	bool is_gateway(IPAddress dst, IPAddress nm) {
+		for (HNAIter iter = _hnas.begin(); iter.live(); iter++) {
+			HNAInfo hna = iter.key();
+			if (hna._dst == dst && hna._nm == nm) {
 				return true;
 			}
 		}
 		return false;
+	}
+	bool is_gateway() {
+		return is_gateway(IPAddress(), IPAddress());
 	}
 
 private:
@@ -128,12 +137,15 @@ private:
 	typedef HashMap<HNAInfo, GWInfo> GWTable;
 	typedef GWTable::const_iterator GWIter;
 
-	Vector<HNAInfo> _hnas;
+	typedef HashMap<HNAInfo, bool> HNATable;
+	typedef HNATable::const_iterator HNAIter;
+
+	HNATable _hnas;
 	GWTable _gateways;
 
 	uint32_t _seq; // Next query sequence number to use.
 
-	int _hna_index;
+	unsigned int _hna_index;
 	unsigned int _period; // msecs
 	unsigned int _expire; // msecs
 
