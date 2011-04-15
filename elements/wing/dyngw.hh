@@ -3,6 +3,7 @@
 #include <click/element.hh>
 #include <click/error.hh>
 #include <click/timer.hh>
+#include <click/vector.hh>
 #include "winggatewayselector.hh"
 CLICK_DECLS
 
@@ -24,20 +25,15 @@ class DynGW : public Element {
 	/* handler stuff */
 	void add_handlers();
 
-  private:
+	Vector<HNAInfo> fetch_hnas();
 
-	class WINGGatewaySelector *_gw_sel;
+  private:
 
 	bool _debug;
 	String _dev_name;
-	unsigned int _period; // msecs
-
-	void refresh_hnas();
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);
-
-	Timer _timer;
 
 };
 

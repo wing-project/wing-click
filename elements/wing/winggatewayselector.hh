@@ -75,7 +75,7 @@ public:
 	void run_timer(Timer *);
 
 	void hna_clear();
-	int hna_add(IPAddress, IPAddress, bool);
+	int hna_add(IPAddress, IPAddress);
 	int hna_del(IPAddress, IPAddress);
 	String hnas();
 
@@ -85,9 +85,8 @@ public:
 	}
 
 	bool is_gateway(IPAddress dst, IPAddress nm) {
-		for (HNAIter iter = _hnas.begin(); iter.live(); iter++) {
-			HNAInfo hna = iter.key();
-			if (hna._dst == dst && hna._nm == nm) {
+		for (int x = 0; x < _hnas.size(); x++) {
+			if (_hnas[x]._dst == dst && _hnas[x]._nm == nm) {
 				return true;
 			}
 		}
@@ -137,15 +136,13 @@ private:
 	typedef HashMap<HNAInfo, GWInfo> GWTable;
 	typedef GWTable::const_iterator GWIter;
 
-	typedef HashMap<HNAInfo, bool> HNATable;
-	typedef HNATable::const_iterator HNAIter;
-
-	HNATable _hnas;
+	Vector<HNAInfo> _hnas;
 	GWTable _gateways;
+
+	class DynGW *_dyn_gw;
 
 	uint32_t _seq; // Next query sequence number to use.
 
-	unsigned int _hna_index;
 	unsigned int _period; // msecs
 	unsigned int _expire; // msecs
 

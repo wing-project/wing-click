@@ -18,12 +18,13 @@
 #include <click/config.h>
 #include "dyngw.hh"
 #include <click/confparse.hh>
+#include "winggatewayselector.hh"
 CLICK_DECLS
 
 #define PROCENTRY_ROUTE "/proc/net/route"
 
-DynGW::DynGW() :
-	_period(5000), _timer(this) {
+DynGW::DynGW()
+{
 }
 
 
@@ -35,38 +36,18 @@ int DynGW::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	if (cp_va_kparse(conf, this, errh,
 			"DEVNAME", cpkM, cpString, &_dev_name,
-			"SEL", cpkM, cpElementCast, "WINGGatewaySelector", &_gw_sel,
-			"PERIOD", 0, cpUnsigned, &_period,
 			"DEBUG", 0, cpBool, &_debug, 
 			cpEnd) < 0)
-	return -1;
+		return -1;
 
 	return 0;
 
 }
 
-int DynGW::initialize(ErrorHandler *) {
-	_timer.initialize(this);
-	_timer.schedule_now();
-	return 0;
-}
+Vector<HNAInfo> DynGW::fetch_hnas() {
 
-void DynGW::run_timer(Timer *) {
-	// refresh HNAs
-	refresh_hnas();
-	// re-schedule timer
-	_timer.schedule_at(Timestamp::now() + Timestamp::make_msec(_period));
-}
+	Vector<HNAInfo> hnas;
 
-void DynGW::refresh_hnas() {
-
-	// clear current hnas
-	_gw_sel->hna_clear();
-	if (_debug) {
-		click_chatter("%{element} :: %s :: clearing HNAs", this, __func__);
-	}
-
-	// re-add hnas
 	char buff[1024], iface[17];
 	uint32_t gate_addr, dest_addr, netmask;
 	unsigned int iflags;
@@ -97,7 +78,6 @@ void DynGW::refresh_hnas() {
 						__func__,
 						iface);
 			}
-			_gw_sel->hna_add(IPAddress(dest_addr), IPAddress(netmask), false);
 			found = true;
 		}
 	}
@@ -113,11 +93,12 @@ void DynGW::refresh_hnas() {
 		}
 	}
 
+	return hnas;
+
 }
 
 enum {
-	H_DEBUG,
-	H_REFRESH
+	H_DEBUG
 };
 
 String DynGW::read_handler(Element *e, void *thunk) {
@@ -125,9 +106,6 @@ String DynGW::read_handler(Element *e, void *thunk) {
 	switch ((uintptr_t) thunk) {
 	case H_DEBUG:
 		return String(td->_debug) + "\n";
-	case H_REFRESH:
-		td->refresh_hnas();
-		return String();
 	default:
 		return String();
 	}
@@ -149,7 +127,6 @@ int DynGW::write_handler(const String &in_s, Element *e, void *vparam, ErrorHand
 }
 
 void DynGW::add_handlers() {
-	add_read_handler("refresh", read_handler, H_REFRESH);
 	add_read_handler("debug", read_handler, H_DEBUG);
 	add_write_handler("debug", write_handler, H_DEBUG);
 }

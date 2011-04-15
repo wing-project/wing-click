@@ -19,10 +19,11 @@
 #include <click/config.h>
 #include "winggatewayselector.hh"
 #include <click/confparse.hh>
+#include "dyngw.hh"
 CLICK_DECLS
 
 WINGGatewaySelector::WINGGatewaySelector() :
-	_hna_index(0), _period(5000), _expire(30000), _timer(this) {
+	_period(5000), _expire(30000), _timer(this) {
 	_seq = Timestamp::now().usec();
 }
 
@@ -35,6 +36,7 @@ int WINGGatewaySelector::configure(Vector<String> &conf, ErrorHandler *errh) {
 				"IP", cpkM, cpIPAddress, &_ip, 
 				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
 				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
+				"DYNGW", 0, cpElementCast, "WINGDynGW", &_dyn_gw, 
 				"PERIOD", 0, cpUnsigned, &_period, 
 				"EXPIRE", 0, cpUnsigned, &_expire, 
 				"DEBUG", 0, cpBool, &_debug, 
@@ -70,14 +72,11 @@ void WINGGatewaySelector::run_timer(Timer *) {
 	}
 
 	// send HNAs
-	if (_hnas.size() > 0) {
-		_hna_index = (_hna_index + 1) % _hnas.size();
-		Vector<int> ifs = _link_table->get_local_interfaces();
-		for (int i = 0; i < ifs.size(); i++) {
-			start_ad(ifs[i]);
-		}
-		_seq++;
+	Vector<int> ifs = _link_table->get_local_interfaces();
+	for (int i = 0; i < ifs.size(); i++) {
+		start_ad(ifs[i]);
 	}
+	_seq++;
 
 	// schedule next transmission
 	unsigned max_jitter = _period / 10;
@@ -88,43 +87,40 @@ void WINGGatewaySelector::run_timer(Timer *) {
 }
 
 void WINGGatewaySelector::start_ad(int iface) {
-	HNAIter itr =  _hnas.begin();
-	for (unsigned i = 0; i < _hnas.size(); i++) {
-		if (i == _hna_index) {
-			break;
+	if (_dyn_gw) {
+		_hnas = _dyn_gw->fetch_hnas();
+	}
+	for (int x = 0; x < _hnas.size(); x++) {
+		if (_debug) {
+			click_chatter("%{element} :: %s :: hna %s seq %d iface %u", 
+					this, 
+					__func__,
+					_hnas[x].unparse().c_str(), 
+					_seq,
+					iface);
 		}
-		itr++;
+		Packet * p = create_wing_packet(NodeAddress(_ip, iface), 
+					NodeAddress(), 
+					WING_PT_GATEWAY, 
+					_hnas[x]._dst, 
+					_hnas[x]._nm, 
+					_hnas[x]._gw, 
+					_seq, 
+					PathMulti(),
+					0);
+		if (!p) {
+			return;
+		}
+		output(0).push(p);
 	}
-	HNAInfo hna = itr.key();
-	if (_debug) {
-		click_chatter("%{element} :: %s :: hna %s seq %d iface %u", 
-				this, 
-				__func__,
-				hna.unparse().c_str(), 
-				_seq,
-				iface);
-	}
-	Packet * p = create_wing_packet(NodeAddress(_ip, iface), 
-				NodeAddress(), 
-				WING_PT_GATEWAY, 
-				hna._dst, 
-				hna._nm, 
-				hna._gw, 
-				_seq, 
-				PathMulti(),
-				0);
-	if (!p) {
-		return;
-	}
-	append_seen(hna, _seq);
-	output(0).push(p);
 }
 
 void WINGGatewaySelector::forward_seen(int iface, Seen *s) {
 	PathMulti best = _link_table->best_route(s->_seen._gw, false);
 	if (_debug) {
 		click_chatter("%{element} :: %s :: hna %s seq %d iface %u", 
-				this, __func__,
+				this, 
+				__func__,
 				s->_seen.unparse().c_str(), 
 				s->_seq,
 				iface);
@@ -222,19 +218,28 @@ String WINGGatewaySelector::print_gateway_stats() {
 enum {
 	H_GATEWAY_STATS,
 	H_IS_GATEWAY,
-	H_HNA,
+	H_HNAS,
 	H_HNA_ADD,
 	H_HNA_DEL,
 	H_HNA_CLEAR
 };
 
-int WINGGatewaySelector::hna_add(IPAddress addr, IPAddress mask, bool mapped) {
-	_hnas.find_force(HNAInfo(addr, mask, _ip), mapped);
+int WINGGatewaySelector::hna_add(IPAddress addr, IPAddress mask) {
+	HNAInfo route = HNAInfo(addr, mask, _ip);
+	for (Vector<HNAInfo>::iterator it = _hnas.begin(); it!=_hnas.end(); ++it) {
+		if (*it == route) {
+			return 1;
+		}
+	}
+	_hnas.push_back(route);
 	return 0;
 }
 
 int WINGGatewaySelector::hna_del(IPAddress addr, IPAddress mask) {
-	_hnas.erase(HNAInfo(addr, mask, _ip));
+	HNAInfo route = HNAInfo(addr, mask, _ip);
+	for (Vector<HNAInfo>::iterator it = _hnas.begin(); it != _hnas.end();) {
+		(*it == route) ? it = _hnas.erase(it) : ++it;
+	}
 	return 0;
 }
 
@@ -244,9 +249,8 @@ void WINGGatewaySelector::hna_clear() {
 
 String WINGGatewaySelector::hnas() {
 	StringAccum sa;
-	for (HNAIter iter = _hnas.begin(); iter.live(); iter++) {
-		HNAInfo hna = iter.key();
-		sa << hna.unparse().c_str() << "\n";
+	for (Vector<HNAInfo>::iterator it = _hnas.begin(); it != _hnas.end();) {
+		sa << it->unparse().c_str() << "\n";
 	}
 	return sa.take_string();
 }
@@ -256,7 +260,7 @@ String WINGGatewaySelector::read_handler(Element *e, void *thunk) {
 	switch ((uintptr_t) thunk) {
 		case H_GATEWAY_STATS:
 			return f->print_gateway_stats();
-		case H_HNA: {
+		case H_HNAS: {
 			return f->hnas();
 		}
 		case H_IS_GATEWAY: {
@@ -273,6 +277,9 @@ int WINGGatewaySelector::write_handler(const String &in_s, Element *e, void *vpa
 	String s = cp_uncomment(in_s);
 	switch ((intptr_t) vparam) {
 		case H_HNA_ADD: {
+			if (f->_dyn_gw != 0) {
+				return errh->error("dynamic gateway selection active");
+			}
 			Vector<String> args;
 			cp_spacevec(s, args);
 			if (args.size() != 1) {
@@ -283,10 +290,13 @@ int WINGGatewaySelector::write_handler(const String &in_s, Element *e, void *vpa
 			if (!cp_ip_prefix(args[0], &addr, &mask)) {
 				return errh->error("error param %s: must be an ip prefix", args[0].c_str());
 			}
-			f->hna_add(addr, mask, true);
+			f->hna_add(addr, mask);
 			break;
 		}
 		case H_HNA_DEL: {
+			if (f->_dyn_gw != 0) {
+				return errh->error("dynamic gateway selection active");
+			}
 			Vector<String> args;
 			cp_spacevec(s, args);
 			if (args.size() != 1) {
@@ -301,6 +311,9 @@ int WINGGatewaySelector::write_handler(const String &in_s, Element *e, void *vpa
 			break;
 		}
 		case H_HNA_CLEAR: {
+			if (f->_dyn_gw != 0) {
+				return errh->error("dynamic gateway selection active");
+			}
 			f->hna_clear();
 			break;
 		}
@@ -316,7 +329,7 @@ void WINGGatewaySelector::add_handlers() {
 	WINGBase<HNAInfo>::add_handlers();
 	add_read_handler("is_gateway", read_handler, (void *) H_IS_GATEWAY);
 	add_read_handler("gateway_stats", read_handler, (void *) H_GATEWAY_STATS);
-	add_read_handler("hna", read_handler, (void *) H_HNA);
+	add_read_handler("hnas", read_handler, (void *) H_HNAS);
 	add_write_handler("hna_add", write_handler, (void *) H_HNA_ADD);
 	add_write_handler("hna_del", write_handler, (void *) H_HNA_DEL);
 	add_write_handler("hna_clear", write_handler, (void *) H_HNA_CLEAR);

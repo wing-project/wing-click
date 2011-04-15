@@ -14,6 +14,7 @@ gw :: WINGGatewaySelector(IP $ip,
                          EXPIRE 30000,
                          LT lt, 
                          ARP arp,
+                         DYNGW dyn,
                          DEBUG $debug);
 
 
