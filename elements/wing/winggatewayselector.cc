@@ -87,7 +87,7 @@ void WINGGatewaySelector::run_timer(Timer *) {
 }
 
 void WINGGatewaySelector::start_ad(int iface) {
-	if (_dyn_gw) {
+	if (_dyn_gw && _dyn_gw->enabled()) {
 		_dyn_gw->fetch_hnas(&_hnas);
 	}
 	for (int x = 0; x < _hnas.size(); x++) {
@@ -277,7 +277,7 @@ int WINGGatewaySelector::write_handler(const String &in_s, Element *e, void *vpa
 	String s = cp_uncomment(in_s);
 	switch ((intptr_t) vparam) {
 		case H_HNA_ADD: {
-			if (f->_dyn_gw != 0) {
+			if (f->_dyn_gw && f->_dyn_gw->enabled()) {
 				return errh->error("dynamic gateway selection active");
 			}
 			Vector<String> args;
@@ -294,7 +294,7 @@ int WINGGatewaySelector::write_handler(const String &in_s, Element *e, void *vpa
 			break;
 		}
 		case H_HNA_DEL: {
-			if (f->_dyn_gw != 0) {
+			if (f->_dyn_gw && f->_dyn_gw->enabled()) {
 				return errh->error("dynamic gateway selection active");
 			}
 			Vector<String> args;
@@ -311,7 +311,7 @@ int WINGGatewaySelector::write_handler(const String &in_s, Element *e, void *vpa
 			break;
 		}
 		case H_HNA_CLEAR: {
-			if (f->_dyn_gw != 0) {
+			if (f->_dyn_gw && f->_dyn_gw->enabled()) {
 				return errh->error("dynamic gateway selection active");
 			}
 			f->hna_clear();

@@ -23,7 +23,8 @@ CLICK_DECLS
 
 #define PROCENTRY_ROUTE "/proc/net/route"
 
-DynGW::DynGW()
+DynGW::DynGW() :
+  _enabled(true)
 {
 }
 
@@ -78,6 +79,40 @@ void DynGW::fetch_hnas(Vector<HNAInfo> *hnas) {
 
 	fclose(fp);
 
+}
+
+enum {
+	H_ENABLED
+};
+
+String DynGW::read_handler(Element *e, void *thunk) {
+	DynGW *c = (DynGW *) e;
+	switch ((intptr_t) (thunk)) {
+	case H_ENABLED:
+		return String(c->_enabled) + "\n";
+	default:
+		return "<error>\n";
+	}
+}
+
+int DynGW::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *errh) {
+	DynGW *td = (DynGW *) e;
+	String s = cp_uncomment(in_s);
+	switch ((intptr_t) vparam) {
+		case H_ENABLED: {
+			bool enabled;
+			if (!cp_bool(s, &enabled))
+				return errh->error("debug parameter must be boolean");
+			td->_enabled = enabled;
+			break;
+		}
+	}
+	return 0;
+}
+
+void DynGW::add_handlers() {
+	add_read_handler("debug", read_handler, H_ENABLED);
+	add_write_handler("enabled", write_handler, H_ENABLED);
 }
 
 CLICK_ENDDECLS

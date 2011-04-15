@@ -20,6 +20,11 @@ class DynGW : public Element {
 
 	int configure(Vector<String> &, ErrorHandler *);
 
+	bool enabled() { return _enabled; }
+
+	/* handler stuff */
+	void add_handlers();
+
 	void fetch_hnas(Vector<HNAInfo> *);
 
   private:
@@ -27,6 +32,11 @@ class DynGW : public Element {
 	String _dev_name;
 	IPAddress _ip; // My address.
 	IPAddress _netmask; // My address.
+
+	bool _enabled;
+
+	static int write_handler(const String &, Element *, void *, ErrorHandler *);
+	static String read_handler(Element *, void *);
 
 };
 
