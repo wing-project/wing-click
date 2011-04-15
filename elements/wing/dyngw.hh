@@ -19,21 +19,14 @@ class DynGW : public Element {
 	bool can_live_reconfigure() const { return true; }
 
 	int configure(Vector<String> &, ErrorHandler *);
-	int initialize(ErrorHandler *);
-	void run_timer(Timer *);
 
-	/* handler stuff */
-	void add_handlers();
-
-	Vector<HNAInfo> fetch_hnas();
+	void fetch_hnas(Vector<HNAInfo> *);
 
   private:
 
-	bool _debug;
 	String _dev_name;
-
-	static int write_handler(const String &, Element *, void *, ErrorHandler *);
-	static String read_handler(Element *, void *);
+	IPAddress _ip; // My address.
+	IPAddress _netmask; // My address.
 
 };
 

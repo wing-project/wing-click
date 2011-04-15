@@ -35,8 +35,9 @@ DynGW::~DynGW()
 int DynGW::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	if (cp_va_kparse(conf, this, errh,
-			"DEVNAME", cpkM, cpString, &_dev_name,
-			"DEBUG", 0, cpBool, &_debug, 
+			"DEVNAME", cpkP+cpkM, cpString, &_dev_name,
+			"IP", cpkP+cpkM, cpIPAddress, &_ip, 
+			"MASK", cpkP+cpkM, cpIPAddress, &_netmask, 
 			cpEnd) < 0)
 		return -1;
 
@@ -44,15 +45,14 @@ int DynGW::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 }
 
-Vector<HNAInfo> DynGW::fetch_hnas() {
+void DynGW::fetch_hnas(Vector<HNAInfo> *hnas) {
 
-	Vector<HNAInfo> hnas;
+	hnas->clear();
 
 	char buff[1024], iface[17];
 	uint32_t gate_addr, dest_addr, netmask;
 	unsigned int iflags;
 	int num, metric, refcnt, use;
-	bool found = false;
 
 	FILE *fp = fopen(PROCENTRY_ROUTE, "r");
 
@@ -72,63 +72,12 @@ Vector<HNAInfo> DynGW::fetch_hnas() {
 			continue;
 		}
 		if ((iflags & 1) && (metric == 0) && (iface != _dev_name)) {
-			if (_debug) {
-				click_chatter("%{element} :: %s :: gateway via %s detected in routing table", 
-						this, 
-						__func__,
-						iface);
-			}
-			found = true;
+			hnas->push_back(HNAInfo(IPAddress(dest_addr), IPAddress(netmask), _ip));
 		}
 	}
 
 	fclose(fp);
 
-	if (!found) {
-		if (_debug) {
-			click_chatter("%{element} :: %s :: no gateways detected", 
-					this, 
-					__func__,
-					iface);
-		}
-	}
-
-	return hnas;
-
-}
-
-enum {
-	H_DEBUG
-};
-
-String DynGW::read_handler(Element *e, void *thunk) {
-	DynGW *td = (DynGW *) e;
-	switch ((uintptr_t) thunk) {
-	case H_DEBUG:
-		return String(td->_debug) + "\n";
-	default:
-		return String();
-	}
-}
-
-int DynGW::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *errh) {
-	DynGW *f = (DynGW *) e;
-	String s = cp_uncomment(in_s);
-	switch ((intptr_t) vparam) {
-		case H_DEBUG: {
-			bool debug;
-			if (!cp_bool(s, &debug))
-				return errh->error("debug parameter must be boolean");
-			f->_debug = debug;
-			break;
-		}
-	}
-	return 0;
-}
-
-void DynGW::add_handlers() {
-	add_read_handler("debug", read_handler, H_DEBUG);
-	add_write_handler("debug", write_handler, H_DEBUG);
 }
 
 CLICK_ENDDECLS

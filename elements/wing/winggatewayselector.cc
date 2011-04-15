@@ -88,7 +88,7 @@ void WINGGatewaySelector::run_timer(Timer *) {
 
 void WINGGatewaySelector::start_ad(int iface) {
 	if (_dyn_gw) {
-		_hnas = _dyn_gw->fetch_hnas();
+		_dyn_gw->fetch_hnas(&_hnas);
 	}
 	for (int x = 0; x < _hnas.size(); x++) {
 		if (_debug) {
