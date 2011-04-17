@@ -50,7 +50,7 @@ query_responder :: WINGQueryResponder(IP $ip,
 gw_responder ::  WINGGatewayResponder(PERIOD 15000,
                                  SEL gw, 
                                  LT lt, 
-                                 RESPONDER query_responder);
+                                 MF query_forwarder);
 
 
 gw -> outgoing;
