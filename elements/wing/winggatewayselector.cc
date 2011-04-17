@@ -23,7 +23,7 @@
 CLICK_DECLS
 
 WINGGatewaySelector::WINGGatewaySelector() :
-	_period(5000), _expire(30000), _timer(this) {
+	_period(10000), _expire(30000), _timer(this) {
 	_seq = Timestamp::now().usec();
 }
 
@@ -36,7 +36,7 @@ int WINGGatewaySelector::configure(Vector<String> &conf, ErrorHandler *errh) {
 				"IP", cpkM, cpIPAddress, &_ip, 
 				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
 				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
-				"DYNGW", 0, cpElementCast, "WINGDynGW", &_dyn_gw, 
+				"DYNGW", 0, cpElementCast, "DynGW", &_dyn_gw, 
 				"PERIOD", 0, cpUnsigned, &_period, 
 				"EXPIRE", 0, cpUnsigned, &_expire, 
 				"DEBUG", 0, cpBool, &_debug, 
@@ -251,6 +251,7 @@ String WINGGatewaySelector::hnas() {
 	StringAccum sa;
 	for (Vector<HNAInfo>::iterator it = _hnas.begin(); it != _hnas.end();) {
 		sa << it->unparse().c_str() << "\n";
+		it++;
 	}
 	return sa.take_string();
 }

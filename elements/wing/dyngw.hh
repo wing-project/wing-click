@@ -3,7 +3,8 @@
 #include <click/element.hh>
 #include <click/error.hh>
 #include <click/timer.hh>
-#include <click/vector.hh>
+#include <click/hashtable.hh>
+#include <click/ipaddress.hh>
 #include "winggatewayselector.hh"
 CLICK_DECLS
 
@@ -28,6 +29,26 @@ class DynGW : public Element {
 	void fetch_hnas(Vector<HNAInfo> *);
 
   private:
+
+	class AddressPair {
+	  public:
+		IPAddress _net;
+		IPAddress _mask;
+		AddressPair()
+		  : _net(), _mask() {
+		}
+		AddressPair(IPAddress net, IPAddress mask)
+		  : _net(net), _mask(mask) {
+		}
+		inline hashcode_t hashcode() const {
+			return CLICK_NAME(hashcode)(_net) + CLICK_NAME(hashcode)(_mask);
+		}
+		inline bool operator==(AddressPair other) const {
+			return (other._net == _net && other._mask == _mask);
+		}
+	};
+
+	HashTable<AddressPair, bool> _allow;
 
 	String _dev_name;
 	IPAddress _ip; // My address.

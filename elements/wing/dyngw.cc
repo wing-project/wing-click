@@ -34,16 +34,31 @@ DynGW::~DynGW()
 }
 
 int DynGW::configure(Vector<String> &conf, ErrorHandler *errh) {
-
+	String allow;
 	if (cp_va_kparse(conf, this, errh,
 			"DEVNAME", cpkP+cpkM, cpString, &_dev_name,
 			"IP", cpkP+cpkM, cpIPAddress, &_ip, 
 			"MASK", cpkP+cpkM, cpIPAddress, &_netmask, 
+			"ALLOW", 0, cpString, &allow, 
 			cpEnd) < 0)
 		return -1;
 
+	Vector<String> args;
+	cp_spacevec(allow, args);
+	if (args.size() == 0) {
+		_allow.set(AddressPair(), true);
+		return 0;
+	}
+	for (int x = 0; x < args.size(); x++) {
+		int iface;
+		IPAddress addr;
+		IPAddress mask;
+		if (!cp_ip_prefix(args[x], &addr, &mask)) {
+			return errh->error("error param %s: must be an ip prefix", args[x].c_str());
+		}
+		_allow.set(AddressPair(addr, mask), true);
+	}
 	return 0;
-
 }
 
 void DynGW::fetch_hnas(Vector<HNAInfo> *hnas) {
@@ -73,7 +88,10 @@ void DynGW::fetch_hnas(Vector<HNAInfo> *hnas) {
 			continue;
 		}
 		if ((iflags & 1) && (metric == 0) && (iface != _dev_name)) {
-			hnas->push_back(HNAInfo(IPAddress(dest_addr), IPAddress(netmask), _ip));
+			AddressPair pair = AddressPair(dest_addr, netmask);
+			if (_allow.find(pair) != _allow.end()) {
+				hnas->push_back(HNAInfo(IPAddress(dest_addr), IPAddress(netmask), _ip));
+			}
 		}
 	}
 
