@@ -285,14 +285,12 @@ String WINGQuerier::print_routes() {
 }
 
 enum {
-	H_DEBUG, H_RESET, H_QUERIES, H_ROUTES, H_CLEAR_ROUTES, H_CLEAR_QUERIES, H_ADD, H_DEL
+	H_RESET, H_QUERIES, H_ROUTES, H_CLEAR_ROUTES, H_CLEAR_QUERIES, H_ADD, H_DEL
 };
 
 String WINGQuerier::read_handler(Element *e, void *thunk) {
 	WINGQuerier *c = (WINGQuerier *) e;
 	switch ((intptr_t) (thunk)) {
-	case H_DEBUG:
-		return String(c->_debug) + "\n";
 	case H_QUERIES:
 		return c->print_queries();
 	case H_ROUTES:
@@ -307,13 +305,6 @@ int WINGQuerier::write_handler(const String &in_s, Element *e, void *vparam,
 	WINGQuerier *td = (WINGQuerier *) e;
 	String s = cp_uncomment(in_s);
 	switch ((intptr_t) vparam) {
-	case H_DEBUG: {
-		bool debug;
-		if (!cp_bool(s, &debug))
-			return errh->error("debug parameter must be boolean");
-		td->_debug = debug;
-		break;
-	}
 	case H_ADD: {
 		Vector<String> args;
 		PathMulti p;
@@ -359,10 +350,8 @@ int WINGQuerier::write_handler(const String &in_s, Element *e, void *vparam,
 }
 
 void WINGQuerier::add_handlers() {
-	add_read_handler("debug", read_handler, H_DEBUG);
 	add_read_handler("queries", read_handler, H_QUERIES);
 	add_read_handler("static_routes", read_handler, H_ROUTES);
-	add_write_handler("debug", write_handler, H_DEBUG);
 	add_write_handler("clear_static_routes", write_handler, H_CLEAR_ROUTES);
 	add_write_handler("clear_queries", write_handler, H_CLEAR_QUERIES);
 	add_write_handler("add_static_route", write_handler, H_ADD);

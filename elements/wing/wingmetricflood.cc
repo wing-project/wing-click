@@ -91,22 +91,81 @@ void WINGMetricFlood::process_flood(Packet *p_in) {
 	}
 
 	/* update the metrics from the packet */
-	if (!update_link_table(p_in)) {
+	if (!_link_table->update_link_table(p_in)) {
 		p_in->kill();
 		return;
 	}
 
 	if (pk->qdst() == _ip) {
+
 		/* don't forward queries for me */
-		/* just spit them out the output */
-		output(1).push(p_in);
-		return;
+
+		if (process_seen(query, seq, false)) {
+
+			PathMulti best = _link_table->best_route(pk->qsrc(), false);
+			if (!_link_table->valid_route(best)) {
+				click_chatter("%{element} :: %s :: invalid route %s", 
+						this,
+						__func__, 
+						route_to_string(best).c_str());
+				p_in->kill();
+				return;
+			}
+			if (_debug) {
+				click_chatter("%{element} :: %s :: generating reply %s seq %d", 
+						this, 
+						__func__,
+						query.unparse().c_str(), 
+						seq);
+			}
+			/* start reply */
+			start_reply(best, seq);
+			p_in->kill();
+			return;
+
+		}
+
 	}
 
 	/* process query */
 	process_seen(query, seq, true);
 	p_in->kill();
 	return;
+}
+
+void WINGMetricFlood::start_reply(PathMulti best, uint32_t seq) {
+
+	int hops = best.size() - 1;
+	NodeAddress src = best[hops].arr();
+	NodeAddress dst = best[hops - 1].dep();
+
+	if (_debug) {
+		click_chatter("%{element} :: %s :: starting reply %s < %s seq %u next %u (%s)", 
+				this,
+				__func__, 
+				best[0].dep().unparse().c_str(),
+				best[hops].arr()._ip.unparse().c_str(),
+				seq,
+				hops - 1,
+				route_to_string(best).c_str());
+	}
+
+	Packet * p = create_wing_packet(src, 
+			dst, 
+			WING_PT_REPLY, 
+			NodeAddress(), 
+			NodeAddress(), 
+			NodeAddress(), 
+			seq, 
+			best,
+			hops - 1);
+
+	if (!p) {
+		return;
+	}
+
+	output(0).push(p);
+
 }
 
 void WINGMetricFlood::start_query(IPAddress dst, int iface) {
@@ -181,16 +240,13 @@ String WINGMetricFlood::read_handler(Element *e, void *thunk) {
 	}
 }
 
-int WINGMetricFlood::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *errh) {
+int WINGMetricFlood::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *) {
 	WINGMetricFlood *f = (WINGMetricFlood *) e;
 	String s = cp_uncomment(in_s);
 	switch ((intptr_t) vparam) {
 		case H_CLEAR_SEEN: {
 			f->_seen.clear();
 			break;
-		}
-		default: {
-			return WINGBase<QueryInfo>::write_handler(in_s, e, vparam, errh);
 		}
 	}
 	return 0;

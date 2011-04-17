@@ -183,7 +183,7 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 	}
 
 	/* update the metrics from the packet */
-	if (!update_link_table(p_in)) {
+	if (!_link_table->update_link_table(p_in)) {
 		p_in->kill();
 		return;
 	}
@@ -317,10 +317,6 @@ int WINGGatewaySelector::write_handler(const String &in_s, Element *e, void *vpa
 			f->hna_clear();
 			break;
 		}
-		default: {
-			return WINGBase<HNAInfo>::write_handler(in_s, e, vparam, errh);
-		}
-
 	}
 	return 0;
 }

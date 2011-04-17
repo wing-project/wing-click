@@ -90,7 +90,6 @@ private:
 	void push_rev(Packet *);
 	void cleanup();
 
-	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);
 
 };

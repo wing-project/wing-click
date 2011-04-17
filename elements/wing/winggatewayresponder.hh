@@ -32,7 +32,7 @@ private:
 	unsigned int _period; // msecs
 
 	class WINGGatewaySelector *_gw_sel;
-	class WINGQueryResponder *_responder;
+	class WINGMetricFlood *_metric_flood;
 	class LinkTableMulti *_link_table;
 
 	Timer _timer;

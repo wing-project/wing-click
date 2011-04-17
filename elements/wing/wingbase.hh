@@ -58,7 +58,6 @@ protected:
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);
 
-	bool update_link_table(Packet *);
 	Packet * create_wing_packet(NodeAddress, NodeAddress, int, IPAddress, IPAddress, IPAddress, int, PathMulti, int);
 
 	virtual void forward_seen(int, Seen *) = 0;
@@ -214,78 +213,8 @@ WINGBase<T>::create_wing_packet(NodeAddress src, NodeAddress dst, int type, IPAd
 
 }
 
-template <typename T>
-bool
-WINGBase<T>::update_link_table(Packet *p) {
-	click_ether *eh = (click_ether *) p->data();
-	struct wing_packet *pk = (struct wing_packet *) (eh + 1);
-	/* update the metrics from the packet */
-	for (int i = 0; i < pk->num_links(); i++) {
-		NodeAddress a = pk->get_link_dep(i);
-		NodeAddress b = pk->get_link_arr(i);
-		uint32_t fwd_m = pk->get_link_fwd(i);
-		uint32_t rev_m = pk->get_link_rev(i);
-		uint32_t seq = pk->get_link_seq(i);
-		uint32_t age = pk->get_link_age(i);
-		uint32_t channel = pk->get_link_channel(i);
-		if (!fwd_m || !rev_m || !seq || !channel) {
-			click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u, %u) > %s",
-					this, 
-					__func__, 
-					a.unparse().c_str(), 
-					fwd_m,
-					rev_m,
-					seq,
-					channel,
-					b.unparse().c_str());
-			return false;
-		}
-		if (_debug) {
-			click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u, %u) > %s",
-					this, 
-					__func__, 
-					a.unparse().c_str(), 
-					seq,
-					age,
-					fwd_m,
-					channel,
-					b.unparse().c_str());
-		}
-		if (fwd_m && !_link_table->update_link(a, b, seq, age, fwd_m, channel)) {
-			click_chatter("%{element} :: %s :: couldn't update fwd_m %s > %d > %s",
-					this, 
-					__func__, 
-					a.unparse().c_str(), 
-					fwd_m,
-					b.unparse().c_str());
-		}
-		if (_debug) {
-			click_chatter("%{element} :: %s :: updating link %s > (%u, %u, %u, %u) > %s",
-					this, 
-					__func__, 
-					b.unparse().c_str(), 
-					seq,
-					age,
-					rev_m,
-					channel,
-					a.unparse().c_str());
-		}
-		if (rev_m && !_link_table->update_link(b, a, seq, age, rev_m, channel)) {
-			click_chatter("%{element} :: %s :: couldn't update rev_m %s < %d < %s",
-					this, 
-					__func__, 
-					b.unparse().c_str(), 	
-					rev_m,
-					a.unparse().c_str());
-		}
-	}
-	_link_table->dijkstra(true);
-	_link_table->dijkstra(false);
-	return true;
-}
-
 enum {
-	H_BASE_DEBUG, H_BASE_IP
+	H_BASE_IP
 };
 
 template <typename T>
@@ -293,8 +222,6 @@ String
 WINGBase<T>::read_handler(Element *e, void *thunk) {
 	WINGBase<T> *td = (WINGBase<T> *) e;
 	switch ((uintptr_t) thunk) {
-	case H_BASE_DEBUG:
-		return String(td->_debug) + "\n";
 	case H_BASE_IP:
 		return td->_ip.unparse() + "\n";
 	default:
@@ -303,29 +230,9 @@ WINGBase<T>::read_handler(Element *e, void *thunk) {
 }
 
 template <typename T>
-int
-WINGBase<T>::write_handler(const String &in_s, Element *e,
-		void *vparam, ErrorHandler *errh) {
-	WINGBase<T> *f = (WINGBase<T> *) e;
-	String s = cp_uncomment(in_s);
-	switch ((intptr_t) vparam) {
-		case H_BASE_DEBUG: {
-			bool debug;
-			if (!cp_bool(s, &debug))
-				return errh->error("debug parameter must be boolean");
-			f->_debug = debug;
-			break;
-		}
-	}
-	return 0;
-}
-
-template <typename T>
 void
 WINGBase<T>::add_handlers() {
 	add_read_handler("ip", read_handler, H_BASE_IP);
-	add_read_handler("debug", read_handler, H_BASE_DEBUG);
-	add_write_handler("debug", write_handler, H_BASE_DEBUG);
 }
 
 CLICK_ENDDECLS

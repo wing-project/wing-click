@@ -55,6 +55,9 @@ public:
 	void add_handlers();
 	void push(int, Packet *);
 
+	void start_query(IPAddress, int);
+	void start_reply(PathMulti, uint32_t);
+
 private:
 
 	uint32_t _seq; // Next query sequence number to use.
@@ -62,7 +65,6 @@ private:
 	void start_flood(Packet *);
 	void process_flood(Packet *);
 
-	void start_query(IPAddress, int);
 	void forward_seen(int, Seen *);
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);

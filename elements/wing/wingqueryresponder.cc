@@ -21,8 +21,8 @@
 #include <click/confparse.hh>
 CLICK_DECLS
 
-WINGQueryResponder::WINGQueryResponder() :
-	WINGBase<ReplyInfo>() {
+WINGQueryResponder::WINGQueryResponder() 
+{
 }
 
 WINGQueryResponder::~WINGQueryResponder() {
@@ -42,91 +42,7 @@ int WINGQueryResponder::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 }
 
-void WINGQueryResponder::start_reply(PathMulti best, uint32_t seq) {
-
-	int hops = best.size() - 1;
-	NodeAddress src = best[hops].arr();
-	NodeAddress dst = best[hops - 1].dep();
-
-	if (_debug) {
-		click_chatter("%{element} :: %s :: starting reply %s < %s seq %u next %u (%s)", 
-				this,
-				__func__, 
-				best[0].dep().unparse().c_str(),
-				best[hops].arr()._ip.unparse().c_str(),
-				seq,
-				hops - 1,
-				route_to_string(best).c_str());
-	}
-
-	Packet * p = create_wing_packet(src, 
-			dst, 
-			WING_PT_REPLY, 
-			NodeAddress(), 
-			NodeAddress(), 
-			NodeAddress(), 
-			seq, 
-			best,
-			hops - 1);
-
-	if (!p) {
-		return;
-	}
-
-	output(0).push(p);
-
-}
-
-void WINGQueryResponder::process_query(Packet *p_in) {
-	click_ether *eh = (click_ether *) p_in->data();
-	struct wing_packet *pk = (struct wing_packet *) (eh + 1);
-	if (pk->_type != WING_PT_QUERY) {
-		click_chatter("%{element} :: %s :: bad packet_type %04x", 
-				this,
-				__func__, 
-				_ip.unparse().c_str(), 
-				pk->_type);
-		p_in->kill();
-		return;
-	}
-	IPAddress dst = pk->qdst();
-	if (dst != _ip) {
-		click_chatter("%{element} :: %s :: query not for me %s dst %s", 
-				this,
-				__func__, 
-				_ip.unparse().c_str(), 
-				dst.unparse().c_str());
-		p_in->kill();
-		return;
-	}
-	PathMulti best = _link_table->best_route(pk->qsrc(), false);
-	if (!_link_table->valid_route(best)) {
-		click_chatter("%{element} :: %s :: invalid route %s", 
-				this,
-				__func__, 
-				route_to_string(best).c_str());
-		p_in->kill();
-		return;
-	}
-	ReplyInfo reply = ReplyInfo(pk->qsrc(), best);
-	uint32_t seq = pk->seq();
-	if (_debug) {
-		click_chatter("%{element} :: %s :: generating reply %s seq %d", 
-				this, 
-				__func__,
-				reply.unparse().c_str(), 
-				seq);
-	}
-	/* process query */
-	if (process_seen(reply, seq, false)) {
-		/* start reply */
-		start_reply(best, seq);
-	}
-	p_in->kill();
-	return;
-}
-
-void WINGQueryResponder::process_reply(Packet *p_in) {
+void WINGQueryResponder::push(int, Packet *p_in) {
 	WritablePacket *p = p_in->uniqueify();
 	if (!p) {
 		return;
@@ -170,7 +86,7 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 		return;
 	}
 	/* update the metrics from the packet */
-	if (!update_link_table(p_in)) {
+	if (!_link_table->update_link_table(p_in)) {
 		p_in->kill();
 		return;
 	}
@@ -222,16 +138,6 @@ void WINGQueryResponder::process_reply(Packet *p_in) {
 	memcpy(eh->ether_dhost, eth_dst.data(), 6);
 	memcpy(eh->ether_shost, eth_src.data(), 6);
 	output(0).push(p);
-}
-
-void WINGQueryResponder::push(int port, Packet *p_in) {
-	if (port == 0) {
-		process_query(p_in);
-	} else if (port == 1) {
-		process_reply(p_in);
-	} else {
-		p_in->kill();
-	}	
 }
 
 CLICK_ENDDECLS

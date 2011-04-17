@@ -20,7 +20,7 @@
 #include "winggatewayresponder.hh"
 #include <click/confparse.hh>
 #include "winggatewayselector.hh"
-#include "wingqueryresponder.hh"
+#include "wingmetricflood.hh"
 CLICK_DECLS
 
 WINGGatewayResponder::WINGGatewayResponder() :
@@ -35,7 +35,7 @@ int WINGGatewayResponder::configure(Vector<String> &conf, ErrorHandler *errh) {
 	if (cp_va_kparse(conf, this, errh, 
 				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
 				"SEL", cpkM, cpElementCast, "WINGGatewaySelector", &_gw_sel, 
-				"RESPONDER", cpkM, cpElementCast, "WINGQueryResponder", &_responder, 
+				"MF", cpkM, cpElementCast, "WINGMetricFlood", &_metric_flood, 
 				"PERIOD", 0, cpUnsigned, &_period, 
 				cpEnd) < 0)
 		return -1;
@@ -55,7 +55,7 @@ void WINGGatewayResponder::run_timer(Timer *) {
 		IPAddress gateway = _gw_sel->best_gateway();
 		PathMulti best = _link_table->best_route(gateway, false);
 		if (_link_table->valid_route(best)) {
-			_responder->start_reply(best, 0);
+			_metric_flood->start_reply(best, 0);
 		}
 	}
 	unsigned max_jitter = _period / 10;

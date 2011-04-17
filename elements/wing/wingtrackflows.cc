@@ -185,40 +185,21 @@ String WINGTrackFlows::print_flows() {
 }
 
 enum {
-	H_FLOWS, H_DEBUG
+	H_FLOWS
 };
 
 String WINGTrackFlows::read_handler(Element *e, void *thunk) {
 	WINGTrackFlows *c = (WINGTrackFlows *) e;
 	switch ((intptr_t) (thunk)) {
-	case H_DEBUG:
-		return String(c->_debug) + "\n";
-	case H_FLOWS:
-		return c->print_flows();
-	default:
-		return "<error>\n";
+		case H_FLOWS:
+			return c->print_flows();
+		default:
+			return "<error>\n";
 	}
-}
-
-int WINGTrackFlows::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *errh) {
-	WINGTrackFlows *d = (WINGTrackFlows *) e;
-	String s = cp_uncomment(in_s);
-	switch ((intptr_t) vparam) {
-	case H_DEBUG: {
-		bool debug;
-		if (!cp_bool(s, &debug))
-			return errh->error("debug parameter must be boolean");
-		d->_debug = debug;
-		break;
-	}
-	}
-	return 0;
 }
 
 void WINGTrackFlows::add_handlers() {
 	add_read_handler("flows", read_handler, H_FLOWS);
-	add_read_handler("debug", read_handler, H_DEBUG);
-	add_write_handler("debug", write_handler, H_DEBUG);
 }
 
 CLICK_ENDDECLS

@@ -92,7 +92,7 @@ void WINGSetGateway::push(int, Packet *p_in) {
 }
 
 enum {
-	H_GATEWAY, H_DEBUG
+	H_GATEWAY
 };
 
 String WINGSetGateway::read_handler(Element *e, void *thunk) {
@@ -110,25 +110,23 @@ int WINGSetGateway::write_handler(const String &in_s, Element *e, void *vparam, 
 	WINGSetGateway *d = (WINGSetGateway *) e;
 	String s = cp_uncomment(in_s);
 	switch ((intptr_t) vparam) {
-	case H_GATEWAY: {
-		IPAddress ip;
-		if (!cp_ip_address(s, &ip)) {
-			return errh->error("gateway parameter must be IPAddress");
+		case H_GATEWAY: {
+			IPAddress ip;
+			if (!cp_ip_address(s, &ip)) {
+				return errh->error("gateway parameter must be IPAddress");
+			}
+			if (!ip && !d->_gw_sel) {
+				return errh->error("gateway cannot be %s if _gw_sel is unspecified");
+			}
+			d->_gw = ip;
+			break;
 		}
-		if (!ip && !d->_gw_sel) {
-			return errh->error("gateway cannot be %s if _gw_sel is unspecified");
-		}
-		d->_gw = ip;
-		break;
-	}
 	}
 	return 0;
 }
 
 void WINGSetGateway::add_handlers() {
-	add_read_handler("debug", read_handler, H_DEBUG);
 	add_read_handler("gateway", read_handler, H_GATEWAY);
-	add_write_handler("debug", write_handler, H_DEBUG);
 	add_write_handler("gateway", write_handler, H_GATEWAY);
 }
 

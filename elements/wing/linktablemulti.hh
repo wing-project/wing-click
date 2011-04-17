@@ -1,6 +1,7 @@
 #ifndef CLICK_LINKTABLEMULTI_HH
 #define CLICK_LINKTABLEMULTI_HH
 #include <elements/wifi/linktable.hh>
+#include <clicknet/ether.h>
 #include "wingpacket.hh"
 CLICK_DECLS
 
@@ -50,6 +51,8 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
       return false;
     }
 
+    bool update_link_table(Packet *);
+
     inline Vector<int> get_local_interfaces() {
         Vector<int> ifaces;
         for (HTIter iter = _hosts.begin(); iter.live(); iter++) {
@@ -63,6 +66,7 @@ class LinkTableMulti : public LinkTableBase<NodeAddress, PathMulti> {
   protected:
 
     uint32_t _beta;
+    bool _debug;
 
     static String read_handler(Element *, void *);
     static int write_handler(const String &, Element *, void *, ErrorHandler *);
