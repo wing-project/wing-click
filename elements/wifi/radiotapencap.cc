@@ -95,8 +95,8 @@ RadiotapEncap::simple_action(Packet *p) {
 	}
 
 	if (ceh->rate1 != 0) {
-		crh->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
-		crh->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_EXT);
+		crh->wt_ihdr.it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
+		crh->wt_ihdr.it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_EXT);
 		crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RATE);
 		crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
 		crh->wt_rate1 = ceh->rate1;
