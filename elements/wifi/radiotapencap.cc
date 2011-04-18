@@ -32,8 +32,6 @@ CLICK_DECLS
 	(1 << IEEE80211_RADIOTAP_DBM_TX_POWER)		| \
 	(1 << IEEE80211_RADIOTAP_RTS_RETRIES)		| \
 	(1 << IEEE80211_RADIOTAP_DATA_RETRIES)		| \
-	(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE)	| \
-	(1 << IEEE80211_RADIOTAP_EXT)			| \
 	0)
 
 struct click_radiotap_header {
@@ -96,13 +94,9 @@ RadiotapEncap::simple_action(Packet *p) {
 		crh->wt_data_retries = WIFI_MAX_RETRIES + 1;
 	}
 
-	crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
-	crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_EXT);
-
-	crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
-	crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_EXT);
-
 	if (ceh->rate1 != 0) {
+		crh->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
+		crh->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_EXT);
 		crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RATE);
 		crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
 		crh->wt_rate1 = ceh->rate1;
@@ -112,6 +106,8 @@ RadiotapEncap::simple_action(Packet *p) {
 			crh->wt_data_retries1 = WIFI_MAX_RETRIES + 1;
 		}
 		if (ceh->rate2 != 0) {
+			crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
+			crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_EXT);
 			crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RATE);
 			crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
 			crh->wt_rate2 = ceh->rate2;
@@ -121,6 +117,8 @@ RadiotapEncap::simple_action(Packet *p) {
 				crh->wt_data_retries2 = WIFI_MAX_RETRIES + 1;
 			}
 			if (ceh->rate3 != 0) {
+				crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
+				crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_EXT);
 				crh->it_present3 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RATE);
 				crh->it_present3 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
 				crh->wt_rate3 = ceh->rate3;
