@@ -7,7 +7,7 @@
 #include <clicknet/ether.h>
 #include <click/task.hh>
 #include <click/timer.hh>
-#include <elements/standard/notifierqueue.hh>
+#include <elements/standard/simplequeue.hh>
 CLICK_DECLS
 
 /*
@@ -34,7 +34,7 @@ CLICK_DECLS
 
 class FairBufferQueue;
 
-class FairBuffer : public NotifierQueue { public:
+class FairBuffer : public SimpleQueue { public:
 
     FairBuffer();
     ~FairBuffer();
@@ -45,6 +45,7 @@ class FairBuffer : public NotifierQueue { public:
     void *cast(const char *);
 
     int configure(Vector<String> &conf, ErrorHandler *);
+    int initialize(ErrorHandler *);
 
     void push(int port, Packet *);
     Packet *pull(int port);
@@ -65,27 +66,29 @@ class FairBuffer : public NotifierQueue { public:
 
     String list_queues();
 
+    bool run_task(Task *);
     void reset();
 
   protected:
 
-    enum { SLEEPINESS_TRIGGER = 9 };
     enum { TRASH_TRIGGER = 9 };
+    enum { SLEEPINESS_TRIGGER = 9 };
 
     int _sleepiness;
-    ActiveNotifier _full_note;
+    ActiveNotifier _empty_note;
+
+    Task _task;
+    Timer _timer;
 
     typedef HashTable<EtherAddress, FairBufferQueue*> FairTable;
-    typedef FairTable::const_iterator TableItr;
+    typedef FairTable::iterator TableItr;
 
     typedef HashTable<EtherAddress, Packet*> HeadTable;
-    typedef HeadTable::const_iterator HeadItr;
+    typedef HeadTable::iterator HeadItr;
 
     typedef Vector<FairBufferQueue*> QueuePool;
     typedef QueuePool::iterator PoolItr;
 
-    ReadWriteLock _map_lock;
-    ReadWriteLock _pool_lock;
     FairTable* _fair_table;
     HeadTable* _head_table;
     QueuePool* _queue_pool;
@@ -160,7 +163,7 @@ class FairBufferQueue {
       _drops = 0;
       _head = 0;
       _tail = 0;
-      _deficit = _fair_buffer->quantum();;
+      _deficit = 0;
       _trash = 0;
       _last_update = Timestamp(0);
     }
@@ -198,7 +201,7 @@ class FairBufferQueue {
 
     Packet* aggregate() {
 
-      if (_size == 0) {
+      if (!ready()) {
         return 0;
       }
 

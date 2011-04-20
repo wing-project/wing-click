@@ -61,7 +61,8 @@ enum { H_RESET,
 	H_AGGREGATOR_ACTIVE 
 };
 
-FairBuffer::FairBuffer() 
+FairBuffer::FairBuffer() : 
+  _task(this), _timer(&_task)
 {
   _fair_table = new FairTable();
   _head_table = new HeadTable();
@@ -71,9 +72,6 @@ FairBuffer::FairBuffer()
 
 FairBuffer::~FairBuffer()
 {
-
-  _map_lock.acquire_write();
-  _pool_lock.acquire_write();
 
   // de-allocate fair-table
   TableItr itr = _fair_table->begin();
@@ -113,8 +111,6 @@ FairBuffer::~FairBuffer()
   _queue_pool->clear();
   delete _queue_pool;
 
-  _map_lock.release_write();
-  _pool_lock.release_write();
 }
 
 uint32_t 
@@ -128,15 +124,15 @@ FairBuffer::compute_deficit(Packet* p)
   return _lt->get_host_metric_from_me(to);
 }
 
-void * 
+void *
 FairBuffer::cast(const char *n)
 {
     if (strcmp(n, "FairBuffer") == 0)
 	return (FairBuffer *)this;
-    else if (strcmp(n, Notifier::FULL_NOTIFIER) == 0)
-	return static_cast<Notifier*>(&_full_note);
+    else if (strcmp(n, Notifier::EMPTY_NOTIFIER) == 0)
+	return static_cast<Notifier *>(&_empty_note);
     else
-	return NotifierQueue::cast(n);
+	return SimpleQueue::cast(n);
 }
 
 void 
@@ -160,9 +156,9 @@ FairBuffer::configure(Vector<String>& conf, ErrorHandler* errh)
   _lt=0;
   _et=0x0642;
   _arp_table=0;
-  _capacity=500;
-  _quantum=1534;
-  _max_burst=1500;
+  _capacity=1000;
+  _quantum=1470;
+  _max_burst=1470;
   _max_delay=5;
   _scheduler_active = true;
   _aggregator_active = false;
@@ -179,12 +175,17 @@ FairBuffer::configure(Vector<String>& conf, ErrorHandler* errh)
  			"ARP", 0, cpElementCast, "ARPTableMulti", &_arp_table, 
 			cpEnd);
 
-  _full_note.initialize(Notifier::FULL_NOTIFIER, router());
-  _full_note.set_active(true, false);
   _empty_note.initialize(Notifier::EMPTY_NOTIFIER, router());
-
   return res;
 
+}
+
+int
+FairBuffer::initialize(ErrorHandler *errh)
+{
+    ScheduleInfo::initialize_task(this, &_task, errh);
+    _timer.initialize(this);
+    return 0;
 }
 
 void 
@@ -194,7 +195,6 @@ FairBuffer::push(int, Packet* p)
   click_ether *e = (click_ether *)p->data();
   EtherAddress dhost = EtherAddress(e->ether_dhost);
 
-  _map_lock.acquire_write();
   // get queue for dhost
   FairBufferQueue* q = _fair_table->get(dhost);
   
@@ -202,8 +202,10 @@ FairBuffer::push(int, Packet* p)
   if(!q){
     // this also resets the deficit counter
     q = request_queue();
-    if(_fair_table->empty()) 
+    if(_fair_table->empty()) {
       _next = dhost;
+      _empty_note.wake();
+     }
     _fair_table->set(dhost, q);  
     _head_table->set(dhost, 0);  
   } // end if 
@@ -216,9 +218,6 @@ FairBuffer::push(int, Packet* p)
   // push packet on queue or fail
   if(q->push(p)){
     _empty_note.wake();
-    if (q->_size == q->_capacity) {
-      _full_note.sleep();
-    }
   } else {
     // queue overflow, destroy the packet
     if (_drops == 0) {
@@ -228,14 +227,19 @@ FairBuffer::push(int, Packet* p)
     p->kill();
     _drops++;
   } // end if
-  _map_lock.release_write();
+
+}
+
+bool
+FairBuffer::run_task(Task *)
+{
+  _empty_note.wake();
+  return true;
 }
 
 Packet * 
 FairBuffer::pull(int)
 {
-
-    _map_lock.acquire_write();
 
     if (_fair_table->empty()) {
         if (++_sleepiness == SLEEPINESS_TRIGGER) {
@@ -250,17 +254,13 @@ FairBuffer::pull(int)
     TableItr active = _fair_table->find(_next);
     HeadItr head = _head_table->find(_next);
 
-    EtherAddress key = active.key();
     FairBufferQueue* queue = active.value();
-
-    _sleepiness = 0;
 
     Packet *p = 0;
     if (head.value()) {
       p = head.value();
       _head_table->set(_next, 0);
     } else if (queue->ready()) {
-      // packet ready for output
       p = queue->aggregate();
     } 
 
@@ -270,47 +270,30 @@ FairBuffer::pull(int)
           trash = true;
       }
     } else if (!scheduler_active() || (compute_deficit(p) <= queue->_deficit)) {
-      // packet ready for output
       queue->_deficit -= compute_deficit(p);
-      _full_note.wake();
       send = true;
     } else {
-      _head_table->set(_next, p);
       queue->_trash = 0;
+      _head_table->set(_next, p);
     }
-  
-    active++;
 
     if (trash) {
         release_queue(queue);
-        _fair_table->erase(key);
-    } 
+        active = _fair_table->erase(active);
+        _head_table->erase(head);
+    } else {
+       active++;
+    }
 
     if (!_fair_table->empty()) {
       if (active == _fair_table->end()) {
         active = _fair_table->begin();
       }
+      active.value()->_deficit += _quantum;
       _next = active.key();
     } else {
       _next = EtherAddress();
     }
-
-    // Check if there is a queue that will expire earlier
-    TableItr itr = _fair_table->begin();
-    Timestamp expire = Timestamp(0);
-
-    while(itr != _fair_table->end()) {
-      itr.value()->_deficit += _quantum;
-      if (itr.value()->top()) {
-        if ((expire == Timestamp(0)) || (expire > itr.value()->top()->timestamp_anno())) {
-          _next = itr.key();
-          expire = itr.value()->top()->timestamp_anno();
-        }
-      }
-      itr++;
-    }
-
-    _map_lock.release_write();
 
     return (send) ? p : 0;
 
@@ -320,8 +303,6 @@ String
 FairBuffer::list_queues()
 {
   StringAccum result;
-
-  _map_lock.acquire_read();
   TableItr itr = _fair_table->begin();
   result << "Key,Capacity,Packets,Bytes\n";
   while(itr != _fair_table->end()){
@@ -331,8 +312,6 @@ FairBuffer::list_queues()
 	   << itr.value()->_bsize << "\n";
     itr++;
   } // end while
-  _map_lock.release_read();
-
   return(result.take_string());
 }
 
@@ -340,28 +319,21 @@ FairBufferQueue *
 FairBuffer::request_queue() 
 {
   FairBufferQueue* q = 0;
-  _pool_lock.acquire_write();
-
   if(_queue_pool->size() == 0){
     _queue_pool->push_back(new FairBufferQueue(this));
     _creates++;
   } // end if
-
   // check out queue and remove from queue pool
   q = _queue_pool->back();
   _queue_pool->pop_back();
-  _pool_lock.release_write();
   q->reset();
-
   return(q);
 }
 
 void 
 FairBuffer::release_queue(FairBufferQueue* q)
 {
-  _pool_lock.acquire_write();    
   _queue_pool->push_back(q);
-  _pool_lock.release_write();
 }
 
 void 
