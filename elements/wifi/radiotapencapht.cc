@@ -34,10 +34,10 @@ CLICK_DECLS
 
 struct click_radiotap_header {
 	struct ieee80211_radiotap_header wt_ihdr;
+	u_int8_t	wt_data_retries;
 	u_int8_t	wt_known;
 	u_int8_t	wt_flags;
 	u_int8_t	wt_mcs;
-	u_int8_t	wt_data_retries;
 } __attribute__((__packed__));
 
 RadiotapEncapHT::RadiotapEncapHT() {
