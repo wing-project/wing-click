@@ -24,78 +24,91 @@ CLICK_DECLS
 #define PROCENTRY_ROUTE "/proc/net/route"
 
 DynGW::DynGW() :
-  _enabled(true)
+  _period(5000), _enabled(true)
 {
 }
-
 
 DynGW::~DynGW()
 {
 }
 
 int DynGW::configure(Vector<String> &conf, ErrorHandler *errh) {
-	String allow;
+
 	if (cp_va_kparse(conf, this, errh,
-			"DEVNAME", cpkP+cpkM, cpString, &_dev_name,
-			"IP", cpkP+cpkM, cpIPAddress, &_ip, 
-			"MASK", cpkP+cpkM, cpIPAddress, &_netmask, 
-			"ALLOW", 0, cpString, &allow, 
+			"DEVNAME", cpkM, cpString, &_dev_name,
+			"SEL", cpkM, cpElementCast, "WINGGatewaySelector", &_sel,
+			"PERIOD", 0, cpUnsigned, &_period, 
+			"ENABLED", 0, cpBool, &_enabled, 
 			cpEnd) < 0)
 		return -1;
 
-	Vector<String> args;
-	cp_spacevec(allow, args);
-	if (args.size() == 0) {
-		_allow.set(AddressPair(), true);
-		return 0;
-	}
-	for (int x = 0; x < args.size(); x++) {
-		int iface;
-		IPAddress addr;
-		IPAddress mask;
-		if (!cp_ip_prefix(args[x], &addr, &mask)) {
-			return errh->error("error param %s: must be an ip prefix", args[x].c_str());
-		}
-		_allow.set(AddressPair(addr, mask), true);
-	}
+	return 0;
+
+}
+
+int DynGW::initialize(ErrorHandler *) {
+	_timer.initialize(this);
+	_timer.schedule_now();
 	return 0;
 }
 
-void DynGW::fetch_hnas(Vector<HNAInfo> *hnas) {
+void DynGW::run_timer(Timer *) {
 
-	hnas->clear();
+	if (_enabled) {
 
-	char buff[1024], iface[17];
-	uint32_t gate_addr, dest_addr, netmask;
-	unsigned int iflags;
-	int num, metric, refcnt, use;
+		// clear current HNAs
+		_sel->hnas_clear();
 
-	FILE *fp = fopen(PROCENTRY_ROUTE, "r");
+		// setup new HNAs
+		char buff[1024], iface[17];
+		uint32_t gate_addr, dest_addr, netmask;
+		unsigned int iflags;
+		int num, metric, refcnt, use;
+		bool found = false;
 
-	if (!fp) {
-		click_chatter("%{element} :: %s :: cannot read proc file %s errno %s", 
-				this, 
-				__func__,
-				PROCENTRY_ROUTE, 
-				strerror(errno));
-	}
+		FILE *fp = fopen(PROCENTRY_ROUTE, "r");
 
-	rewind(fp);
-
-	while (fgets(buff, 1023, fp)) {
-		num = sscanf(buff, "%16s %128X %128X %X %d %d %d %128X \n", iface, &dest_addr, &gate_addr, &iflags, &refcnt, &use, &metric, &netmask);
-		if (num < 8) {
-			continue;
+		if (!fp) {
+			click_chatter("%{element} :: %s :: cannot read proc file %s errno %s", 
+					this, 
+					__func__,
+					PROCENTRY_ROUTE, 
+					strerror(errno));
 		}
-		if ((iflags & 1) && (metric == 0) && (iface != _dev_name)) {
-			AddressPair pair = AddressPair(dest_addr, netmask);
-			if (_allow.find(pair) != _allow.end()) {
-				hnas->push_back(HNAInfo(IPAddress(dest_addr), IPAddress(netmask), _ip));
+
+		rewind(fp);
+
+		while (fgets(buff, 1023, fp)) {
+			num = sscanf(buff, "%16s %128X %128X %X %d %d %d %128X \n", iface, &dest_addr, &gate_addr, &iflags, &refcnt, &use, &metric, &netmask);
+			if (num < 8) {
+				continue;
+			}
+			if ((iflags & 1) && (metric == 0) && (iface != _dev_name)) {
+				IPAddress addr = IPAddress(dest_addr);
+				IPAddress mask = IPAddress(netmask);
+				if ((addr == IPAddress()) && (mask == IPAddress())) {
+					_sel->hna_add(addr, mask);
+					found = true;
+				}
 			}
 		}
+
+		String cmd = (found) ? "/sbin/route -n add default dev " + _dev_name : "/sbin/route -n del default dev " + _dev_name;
+
+		if (system(cmd.c_str()) != 0) {
+			click_chatter("%{element} :: %s :: unable to execute command \"%s\", errno %s", 
+					this, 
+					__func__,
+					cmd.c_str(), 
+					strerror(errno));
+		}
+
+		fclose(fp);
+
 	}
 
-	fclose(fp);
+	// schedule next transmission
+	_timer.schedule_at(Timestamp::now() + Timestamp::make_msec(_period));
 
 }
 

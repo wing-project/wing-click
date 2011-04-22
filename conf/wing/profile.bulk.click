@@ -1,5 +1,5 @@
 elementclass WingRouter {
-  $ip, $nm, $rate, $debug|
+  $ip, $nm, $debug|
 
 
 outgoing :: SetTXRate($rate)
@@ -14,7 +14,6 @@ gw :: WINGGatewaySelector(IP $ip,
                          EXPIRE 30000,
                          LT lt, 
                          ARP arp,
-                         DYNGW dyn,
                          DEBUG $debug);
 
 

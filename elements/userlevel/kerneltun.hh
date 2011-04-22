@@ -148,6 +148,8 @@ class KernelTun : public Element { public:
     bool _printed_read_err;
     bool _adjust_headroom;
 
+    unsigned _burst;
+
     static String print_dev_name(Element *e, void *);
 
 #if HAVE_LINUX_IF_TUN_H

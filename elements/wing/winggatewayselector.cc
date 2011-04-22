@@ -36,7 +36,6 @@ int WINGGatewaySelector::configure(Vector<String> &conf, ErrorHandler *errh) {
 				"IP", cpkM, cpIPAddress, &_ip, 
 				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
 				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
-				"DYNGW", 0, cpElementCast, "DynGW", &_dyn_gw, 
 				"PERIOD", 0, cpUnsigned, &_period, 
 				"EXPIRE", 0, cpUnsigned, &_expire, 
 				"DEBUG", 0, cpBool, &_debug, 
@@ -87,9 +86,6 @@ void WINGGatewaySelector::run_timer(Timer *) {
 }
 
 void WINGGatewaySelector::start_ad(int iface) {
-	if (_dyn_gw && _dyn_gw->enabled()) {
-		_dyn_gw->fetch_hnas(&_hnas);
-	}
 	for (int x = 0; x < _hnas.size(); x++) {
 		if (_debug) {
 			click_chatter("%{element} :: %s :: hna %s seq %d iface %u", 
@@ -243,7 +239,7 @@ int WINGGatewaySelector::hna_del(IPAddress addr, IPAddress mask) {
 	return 0;
 }
 
-void WINGGatewaySelector::hna_clear() {
+void WINGGatewaySelector::hnas_clear() {
 	_hnas.clear();
 }
 
@@ -315,7 +311,7 @@ int WINGGatewaySelector::write_handler(const String &in_s, Element *e, void *vpa
 			if (f->_dyn_gw && f->_dyn_gw->enabled()) {
 				return errh->error("dynamic gateway selection active");
 			}
-			f->hna_clear();
+			f->hnas_clear();
 			break;
 		}
 	}

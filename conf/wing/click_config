@@ -226,9 +226,9 @@ elementclass SniffDevice {
   input -> to_dev :: ToDevice(\$device);
 }
 
-wr :: WingRouter ($XR_IP, $XR_NM, $TX_RATE, $DEBUG);
+wr :: WingRouter ($XR_IP, $XR_NM, $DEBUG);
 
-dyn :: DynGW($XR_IFNAME, $XR_IP, $XR_NM);
+dyn :: DynGW(DEVNAME $XR_IFNAME, SEL wr/gw);
 
 linux_ip_host :: LinuxIPHost($XR_IFNAME, $XR_IP, $XR_NM) -> [1] wr;
 

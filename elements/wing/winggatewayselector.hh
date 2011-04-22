@@ -74,7 +74,7 @@ public:
 	void push(int, Packet *);
 	void run_timer(Timer *);
 
-	void hna_clear();
+	void hnas_clear();
 	int hna_add(IPAddress, IPAddress);
 	int hna_del(IPAddress, IPAddress);
 	String hnas();
