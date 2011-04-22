@@ -69,7 +69,7 @@ CLICK_DECLS
 
 KernelTun::KernelTun()
     : _fd(-1), _tap(false), _task(this), _ignore_q_errs(false),
-      _printed_write_err(false), _printed_read_err(false), _burst(8)
+      _printed_write_err(false), _printed_read_err(false)
 {
 }
 
@@ -98,7 +98,6 @@ KernelTun::configure(Vector<String> &conf, ErrorHandler *errh)
 		     "ADDR", cpkP+cpkM, cpIPPrefix, &_near, &_mask,
 		     "GATEWAY", cpkP, cpIPAddress, &_gw,
 		     "TAP", 0, cpBool, &_tap,
-		     "BURST", 0, cpUnsigned, &_burst,
 		     "HEADROOM", cpkC, &_adjust_headroom, cpUnsigned, &_headroom,
 		     "ETHER", 0, cpEthernetAddress, &_macaddr,
 		     "IGNORE_QUEUE_OVERFLOWS", 0, cpBool, &_ignore_q_errs,
@@ -511,9 +510,6 @@ KernelTun::selected(int fd, int)
 	return;
     }
 
-    int npq = 0;
-    while (npq < _burst) {
-
     int cc = read(_fd, p->data(), _mtu_in);
     if (cc > 0) {
 	p->take(_mtu_in - cc);
@@ -567,8 +563,6 @@ KernelTun::selected(int fd, int)
 	    _printed_read_err = true;
 	    perror("KernelTun read");
 	}
-    }
-
     }
 
 }

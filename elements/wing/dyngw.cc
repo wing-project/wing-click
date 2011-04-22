@@ -24,7 +24,7 @@ CLICK_DECLS
 #define PROCENTRY_ROUTE "/proc/net/route"
 
 DynGW::DynGW() :
-  _period(5000), _enabled(true)
+  _period(5000), _enabled(true), _timer(this)
 {
 }
 
@@ -64,7 +64,8 @@ void DynGW::run_timer(Timer *) {
 		uint32_t gate_addr, dest_addr, netmask;
 		unsigned int iflags;
 		int num, metric, refcnt, use;
-		bool found = false;
+		bool route_found = false;
+		bool mesh_found = false;
 
 		FILE *fp = fopen(PROCENTRY_ROUTE, "r");
 
@@ -83,31 +84,48 @@ void DynGW::run_timer(Timer *) {
 			if (num < 8) {
 				continue;
 			}
-			if ((iflags & 1) && (metric == 0) && (iface != _dev_name)) {
+			if ((iflags & 1) && (metric == 0)) {
 				IPAddress addr = IPAddress(dest_addr);
 				IPAddress mask = IPAddress(netmask);
 				if ((addr == IPAddress()) && (mask == IPAddress())) {
-					_sel->hna_add(addr, mask);
-					found = true;
+					if (iface == _dev_name) {
+						mesh_found = true;
+					} else {
+						route_found = true;
+						_sel->hna_add(addr, mask);
+					}
 				}
 			}
 		}
 
-		String cmd = (found) ? "/sbin/route -n add default dev " + _dev_name : "/sbin/route -n del default dev " + _dev_name;
-
-		if (system(cmd.c_str()) != 0) {
-			click_chatter("%{element} :: %s :: unable to execute command \"%s\", errno %s", 
-					this, 
-					__func__,
-					cmd.c_str(), 
-					strerror(errno));
+		if ((mesh_found && route_found) || (!mesh_found && !route_found)) {
+			String cmd;
+			if (mesh_found && route_found) {
+				// del default route
+				cmd = "/sbin/route -n del default dev " + _dev_name;
+			} else {
+				// route add route
+				cmd = "/sbin/route -n add default dev " + _dev_name;
+			}
+			if (system(cmd.c_str()) != 0) {
+				click_chatter("%{element} :: %s :: unable to execute command \"%s\", errno %s", 
+						this, 
+						__func__,
+						cmd.c_str(), 
+						strerror(errno));
+			} else {
+				click_chatter("%{element} :: %s :: %s", 
+						this, 
+						__func__,
+						cmd.c_str());
+			}
 		}
 
 		fclose(fp);
 
 	}
 
-	// schedule next transmission
+	// schedule next timer
 	_timer.schedule_at(Timestamp::now() + Timestamp::make_msec(_period));
 
 }
