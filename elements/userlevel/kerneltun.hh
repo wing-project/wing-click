@@ -129,6 +129,7 @@ class KernelTun : public Element { public:
     enum Type { LINUX_UNIVERSAL, LINUX_ETHERTAP, BSD_TUN, BSD_TAP, OSX_TUN,
 		NETBSD_TUN, NETBSD_TAP };
 
+    unsigned _burst;
     int _fd;
     int _mtu_in;
     int _mtu_out;

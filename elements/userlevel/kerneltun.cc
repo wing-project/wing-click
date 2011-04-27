@@ -94,10 +94,12 @@ KernelTun::configure(Vector<String> &conf, ErrorHandler *errh)
     _adjust_headroom = false;
     _headroom += (4 - _headroom % 4) % 4; // default 4/0 alignment
     _mtu_out = DEFAULT_MTU;
+    _burst = 1;
     if (cp_va_kparse(conf, this, errh,
 		     "ADDR", cpkP+cpkM, cpIPPrefix, &_near, &_mask,
 		     "GATEWAY", cpkP, cpIPAddress, &_gw,
 		     "TAP", 0, cpBool, &_tap,
+		     "BURST", 0, cpUnsigned, &_burst,
 		     "HEADROOM", cpkC, &_adjust_headroom, cpUnsigned, &_headroom,
 		     "ETHER", 0, cpEthernetAddress, &_macaddr,
 		     "IGNORE_QUEUE_OVERFLOWS", 0, cpBool, &_ignore_q_errs,
@@ -504,65 +506,75 @@ KernelTun::selected(int fd, int)
 {
     if (fd != _fd)
 	return;
-    WritablePacket *p = Packet::make(_headroom, 0, _mtu_in, 0);
-    if (!p) {
-	click_chatter("out of memory!");
-	return;
-    }
 
-    int cc = read(_fd, p->data(), _mtu_in);
-    if (cc > 0) {
-	p->take(_mtu_in - cc);
-	bool ok = false;
+    for (unsigned i = 0; i < _burst; i++) {
 
-	if (_tap) {
-	    if (_type == LINUX_UNIVERSAL)
-		// 2-byte padding, 2-byte Ethernet type, then Ethernet header
-		p->pull(4);
-	    else if (_type == LINUX_ETHERTAP)
-		// 2-byte padding, then Ethernet header
-		p->pull(2);
-	    ok = true;
-	} else if (_type == LINUX_UNIVERSAL) {
-	    // 2-byte padding followed by an Ethernet type
-	    uint16_t etype = *(uint16_t *)(p->data() + 2);
-	    p->pull(4);
-	    if (etype != htons(ETHERTYPE_IP) && etype != htons(ETHERTYPE_IP6))
-		checked_output_push(1, p->clone());
-	    else
-		ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
-	} else if (_type == BSD_TUN) {
-	    // 4-byte address family followed by IP header
-	    int af = ntohl(*(unsigned *)p->data());
-	    p->pull(4);
-	    if (af != AF_INET && af != AF_INET6) {
-		click_chatter("KernelTun(%s): don't know AF %d", _dev_name.c_str(), af);
-		checked_output_push(1, p->clone());
-	    } else
-		ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
-	} else if (_type == OSX_TUN || _type == NETBSD_TUN) {
-	    ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
-	} else { /* _type == LINUX_ETHERTAP */
-	    // 2-byte padding followed by a mostly-useless Ethernet header
-	    uint16_t etype = *(uint16_t *)(p->data() + 14);
-	    p->pull(16);
-	    if (etype != htons(ETHERTYPE_IP) && etype != htons(ETHERTYPE_IP6))
-		checked_output_push(1, p->clone());
-	    else
-		ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
-	}
+	    WritablePacket *p = Packet::make(_headroom, 0, _mtu_in, 0);
+	    if (!p) {
+		click_chatter("out of memory!");
+		return;
+	    }
 
-	if (ok) {
-	    p->timestamp_anno().assign_now();
-	    output(0).push(p);
-	} else
-	    checked_output_push(1, p);
+	    int cc = read(_fd, p->data(), _mtu_in);
 
-    } else {
-	if (!_ignore_q_errs || !_printed_read_err || (errno != ENOBUFS)) {
-	    _printed_read_err = true;
-	    perror("KernelTun read");
-	}
+	    if (cc == -EAGAIN) {
+		break;
+	    }
+
+	    if (cc > 0) {
+		p->take(_mtu_in - cc);
+		bool ok = false;
+
+		if (_tap) {
+		    if (_type == LINUX_UNIVERSAL)
+			// 2-byte padding, 2-byte Ethernet type, then Ethernet header
+			p->pull(4);
+		    else if (_type == LINUX_ETHERTAP)
+			// 2-byte padding, then Ethernet header
+			p->pull(2);
+		    ok = true;
+		} else if (_type == LINUX_UNIVERSAL) {
+		    // 2-byte padding followed by an Ethernet type
+		    uint16_t etype = *(uint16_t *)(p->data() + 2);
+		    p->pull(4);
+		    if (etype != htons(ETHERTYPE_IP) && etype != htons(ETHERTYPE_IP6))
+			checked_output_push(1, p->clone());
+		    else
+			ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
+		} else if (_type == BSD_TUN) {
+		    // 4-byte address family followed by IP header
+		    int af = ntohl(*(unsigned *)p->data());
+		    p->pull(4);
+		    if (af != AF_INET && af != AF_INET6) {
+			click_chatter("KernelTun(%s): don't know AF %d", _dev_name.c_str(), af);
+			checked_output_push(1, p->clone());
+		    } else
+			ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
+		} else if (_type == OSX_TUN || _type == NETBSD_TUN) {
+		    ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
+		} else { /* _type == LINUX_ETHERTAP */
+		    // 2-byte padding followed by a mostly-useless Ethernet header
+		    uint16_t etype = *(uint16_t *)(p->data() + 14);
+		    p->pull(16);
+		    if (etype != htons(ETHERTYPE_IP) && etype != htons(ETHERTYPE_IP6))
+			checked_output_push(1, p->clone());
+		    else
+			ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
+		}
+
+		if (ok) {
+		    p->timestamp_anno().assign_now();
+		    output(0).push(p);
+		} else
+		    checked_output_push(1, p);
+
+	    } else {
+		if (!_ignore_q_errs || !_printed_read_err || (errno != ENOBUFS)) {
+		    _printed_read_err = true;
+		    perror("KernelTun read");
+		}
+	    }
+
     }
 
 }
