@@ -28,8 +28,8 @@
 CLICK_DECLS
 
 #define CLICK_RADIOTAP_PRESENT (			\
-	(1 << IEEE80211_RADIOTAP_MCS)			| \
 	(1 << IEEE80211_RADIOTAP_DATA_RETRIES)		| \
+	(1 << IEEE80211_RADIOTAP_MCS)			| \
 	0)
 
 struct click_radiotap_header {
@@ -73,9 +73,14 @@ RadiotapEncapHT::simple_action(Packet *p) {
 
 	crh->wt_ihdr.it_present = cpu_to_le32(CLICK_RADIOTAP_PRESENT);
 
-	crh->wt_known |= IEEE80211_RADIOTAP_MCS_HAVE_MCS;
-	crh->wt_flags = 0;
-	crh->wt_mcs = 1;
+	crh->wt_known |= IEEE80211_RADIOTAP_MCS_HAVE_BW | 
+	                 IEEE80211_RADIOTAP_MCS_HAVE_MCS | 
+	                 IEEE80211_RADIOTAP_MCS_HAVE_GI;
+
+	crh->wt_flags |= IEEE80211_RADIOTAP_MCS_BW_40 | 
+	                 IEEE80211_RADIOTAP_MCS_SGI;
+
+	crh->wt_mcs = ceh->mcs;
 
 	if (ceh->max_tries > 0) {
 		crh->wt_data_retries = ceh->max_tries;

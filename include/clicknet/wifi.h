@@ -50,7 +50,8 @@ struct click_wifi_extra {
 
   uint8_t virt_col;
   uint8_t retries;
-  uint16_t len;
+  uint8_t mcs;
+  uint8_t len;
 } CLICK_SIZE_PACKED_ATTRIBUTE;
 
 
