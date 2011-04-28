@@ -1,5 +1,5 @@
 /*
- * wingsetgateway.{cc,hh} 
+ * wingtrackflows.{cc,hh} 
  * John Bicket, Alexander Yip, Roberto Riggio, Stefano Testi
  *
  * Copyright (c) 1999-2001 Massachusetts Institute of Technology
@@ -17,44 +17,82 @@
  */
 
 #include <click/config.h>
-#include "wingsetgateway.hh"
+#include "wingtrackflows.hh"
 #include <click/confparse.hh>
 #include "winggatewayselector.hh"
 CLICK_DECLS
 
-WINGSetGateway::WINGSetGateway() :
-	_gw_sel(0), _gw(IPAddress()) {
+WINGTrackFlows::WINGTrackFlows() :
+	_timer(this), _period(60000) {
 }
 
-WINGSetGateway::~WINGSetGateway() {
+WINGTrackFlows::~WINGTrackFlows() {
 }
 
-int WINGSetGateway::configure(Vector<String> &conf, ErrorHandler *errh) {
-
+int WINGTrackFlows::configure(Vector<String> &conf, ErrorHandler *errh) {
 	if (cp_va_kparse(conf, this, errh, 
 				"GW", 0, cpIPAddress, &_gw, 
 				"SEL", 0, cpElementCast, "WINGGatewaySelector", &_gw_sel, 
+				"PERIOD", 0, cpUnsigned, &_period, 
 				"DEBUG", 0, cpBool, &_debug, 
 				cpEnd) < 0)
 		return -1;
+	return 0;
+}
 
-	if (!_gw_sel && !_gw) {
-		return errh->error("Either GW or SEL must be specified!\n");
+int WINGTrackFlows::initialize(ErrorHandler *) {
+	_timer.initialize(this);
+	_timer.schedule_now();
+	return 0;
+}
+
+void WINGTrackFlows::run_timer(Timer *) {
+	// clean up flows
+	FlowTable new_table;
+	Timestamp timeout = Timestamp::make_msec(_period);
+	for (FTIter i = _flow_table.begin(); i.live(); i++) {
+		FlowTableEntry f = i.value();
+		if ((f.age() < timeout && ((f._fwd_alive) || f._rev_alive))) {
+			new_table.insert(f._id, f);
+		}
 	}
-
-	return 0;
+	_flow_table.clear();
+	for (FTIter i = new_table.begin(); i.live(); i++) {
+		FlowTableEntry f = i.value();
+		_flow_table.insert(f._id, f);
+	}
+	// re-schedule timer
+	_timer.schedule_after_msec(_period);
 }
 
-int WINGSetGateway::initialize(ErrorHandler *) {
-	return 0;
-}
-
-void WINGSetGateway::push(int, Packet *p_in) {
-	if (_gw) {
-		p_in->set_dst_ip_anno(_gw);
+void WINGTrackFlows::push_fwd(Packet *p_in) {
+	const click_tcp *tcph = p_in->tcp_header();
+	IPFlowID flowid = IPFlowID(p_in);
+	FlowTableEntry *match = _flow_table.findp(flowid);
+	if ((tcph->th_flags & TH_SYN) && match && match->is_pending()) {
+		match->_outstanding_syns++;
+		p_in->set_dst_ip_anno(match->_gw);
 		output(0).push(p_in);
 		return;
-	} 
+	} else if (!(tcph->th_flags & TH_SYN)) {
+		if (match) {
+			match->saw_forward_packet();
+			if (tcph->th_flags & (TH_RST | TH_FIN)) {
+				match->_fwd_alive = false; // forward flow is over
+			}
+			if (tcph->th_flags & TH_RST) {
+				match->_rev_alive = false; // rev flow is over
+			}
+			p_in->set_dst_ip_anno(match->_gw);
+			output(0).push(p_in);
+			return;
+		}
+		click_chatter("%{element} :: %s :: no match, guessing for %s", 
+				this,
+				__func__, 
+				flowid.unparse().c_str());
+	}
+	/* no match */
 	IPAddress dst = p_in->dst_ip_anno();
 	if (!dst) {	
 		click_chatter("%{element} :: %s :: dst annotation not set %s", 
@@ -62,20 +100,6 @@ void WINGSetGateway::push(int, Packet *p_in) {
 				__func__,
 				dst.unparse().c_str());
 		p_in->kill();
-		return;
-	}
-	if (dst == IPAddress::make_broadcast()) {
-		if (_debug) {
-			click_chatter("%{element} :: %s :: got broadcast packet %s", 
-					this, 
-					__func__,
-					dst.unparse().c_str());
-		}
-		if (noutputs() == 2) {
-			output(1).push(p_in);
-		} else {
-			p_in->kill();
-		}
 		return;
 	}
 	IPAddress gw = _gw_sel->best_gateway(dst);
@@ -87,27 +111,144 @@ void WINGSetGateway::push(int, Packet *p_in) {
 		p_in->kill();
 		return;
 	}
+	_flow_table.insert(flowid, FlowTableEntry());
+	match = _flow_table.findp(flowid);
+	match->_id = flowid;
+	match->_gw = gw;
+	match->saw_forward_packet();
+	match->_outstanding_syns++;
 	p_in->set_dst_ip_anno(gw);
 	output(0).push(p_in);
 }
 
+void WINGTrackFlows::push_rev(Packet *p_in) {
+	const click_tcp *tcph = p_in->tcp_header();
+	IPFlowID flowid = IPFlowID(p_in).reverse();
+	FlowTableEntry *match = _flow_table.findp(flowid);
+	if ((tcph->th_flags & TH_SYN) && (tcph->th_flags & TH_ACK)) {
+		if (match) {
+			if (match->_gw != MISC_IP_ANNO(p_in)) {
+				click_chatter("%{element} :: %s :: flow %s got packet from weird gw %s, expected %s",
+						this, 
+						__func__, flowid.unparse().c_str(),
+						p_in->dst_ip_anno().unparse().c_str(),
+						match->_gw.unparse().c_str());
+				p_in->kill();
+				return;
+			}
+			match->saw_reply_packet();
+			match->_outstanding_syns = 0;
+			output(1).push(p_in);
+			return;
+		}
+		click_chatter("%{element} :: %s :: no match, killing SYN_ACK", this, __func__);
+		p_in->kill();
+		return;
+	}
+	/* not a syn-ack packet */
+	if (match) {
+		match->saw_reply_packet();
+		if (tcph->th_flags & (TH_FIN | TH_RST)) {
+			match->_rev_alive = false;
+		}
+		if (tcph->th_flags & TH_RST) {
+			match->_fwd_alive = false;
+		}
+		output(1).push(p_in);
+		return;
+	}
+	click_chatter("%{element} :: %s :: couldn't find non-pending match, creating %s",
+			this, 
+			__func__, 
+			flowid.unparse().c_str());
+	_flow_table.insert(flowid, FlowTableEntry());
+	match = _flow_table.findp(flowid);
+	match->_id = flowid;
+	match->_gw = MISC_IP_ANNO(p_in);
+	match->saw_reply_packet();
+	output(1).push(p_in);
+	return;
+}
+
+void WINGTrackFlows::push(int port, Packet *p_in) {
+
+	if (_gw) {
+		if (port == 0) {
+			p_in->set_dst_ip_anno(_gw);
+		} else {
+			p_in->set_dst_ip_anno(IPAddress());
+		}
+		output(port).push(p_in);
+		return;
+	}
+
+	if (p_in->ip_header()->ip_p != IP_PROTO_TCP) {
+		/* non tcp packets always go to best gw */
+		if (port == 0) {
+			IPAddress dst = p_in->dst_ip_anno();
+			if (!dst) {	
+				click_chatter("%{element} :: %s :: dst annotation not set %s", 
+						this, 
+						__func__,
+						dst.unparse().c_str());
+				p_in->kill();
+				return;
+			}
+			IPAddress gw = _gw_sel->best_gateway(dst);
+			if (!gw) {	
+				click_chatter("%{element} :: %s :: unable to find gw for %s", 
+						this, 
+						__func__,
+						dst.unparse().c_str());
+				p_in->kill();
+				return;
+			}
+			p_in->set_dst_ip_anno(gw);
+		} else {
+			p_in->set_dst_ip_anno(IPAddress());
+		}
+		output(port).push(p_in);
+		return;
+	}
+
+	if (port == 0) {
+		/* outgoing packet */
+		push_fwd(p_in);
+	} else {
+		/* incoming packet */
+		push_rev(p_in);
+	}
+
+}
+
+String WINGTrackFlows::print_flows() {
+	StringAccum sa;
+	for (FTIter iter = _flow_table.begin(); iter.live(); iter++) {
+		FlowTableEntry f = iter.value();
+		sa << f._id << " gw " << f._gw << " age " << f.age() << "\n";
+	}
+	return sa.take_string();
+}
+
 enum {
-	H_GATEWAY
+	H_GATEWAY, H_FLOWS
 };
 
-String WINGSetGateway::read_handler(Element *e, void *thunk) {
-	WINGSetGateway *c = (WINGSetGateway *) e;
+String WINGTrackFlows::read_handler(Element *e, void *thunk) {
+	WINGTrackFlows *c = (WINGTrackFlows *) e;
 	switch ((intptr_t) (thunk)) {
-	case H_GATEWAY:
-		return (c->_gw) ? c->_gw.unparse() + "\n"
-				: c->_gw_sel->best_gateway().unparse() + "\n";
-	default:
-		return "<error>\n";
+		case H_GATEWAY:
+			return (c->_gw) ? c->_gw.unparse() + "\n"
+					: c->_gw_sel->best_gateway().unparse() + "\n";
+		case H_FLOWS:
+			return c->print_flows();
+		default:
+			return "<error>\n";
 	}
 }
 
-int WINGSetGateway::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *errh) {
-	WINGSetGateway *d = (WINGSetGateway *) e;
+int WINGTrackFlows::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *errh) {
+	WINGTrackFlows *d = (WINGTrackFlows *) e;
 	String s = cp_uncomment(in_s);
 	switch ((intptr_t) vparam) {
 		case H_GATEWAY: {
@@ -125,11 +266,11 @@ int WINGSetGateway::write_handler(const String &in_s, Element *e, void *vparam, 
 	return 0;
 }
 
-void WINGSetGateway::add_handlers() {
+void WINGTrackFlows::add_handlers() {
+	add_read_handler("flows", read_handler, H_FLOWS);
 	add_read_handler("gateway", read_handler, H_GATEWAY);
 	add_write_handler("gateway", write_handler, H_GATEWAY);
 }
 
 CLICK_ENDDECLS
-ELEMENT_REQUIRES(WINGGatewaySelector)
-EXPORT_ELEMENT(WINGSetGateway)
+EXPORT_ELEMENT(WINGTrackFlows)
