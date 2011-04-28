@@ -17,9 +17,6 @@ gw :: WINGGatewaySelector(IP $ip,
                          DEBUG $debug);
 
 
-track_flows :: WINGTrackFlows();
-
-
 set_gateway :: WINGSetGateway(SEL gw);
 
 
@@ -67,7 +64,7 @@ input [1]
 -> [1] output;
 
 
-host_cl [1] -> set_gateway -> [0] track_flows [0] -> querier;
+host_cl [1] -> [0] set_gateway [0] -> querier;
 
 
 set_gateway [1] -> querier;  
@@ -94,7 +91,7 @@ forwarder[1] // IP packets to me
   -> [2] output;
 
 
-from_gw_cl [1] -> [1] track_flows [1] -> [2] output;
+from_gw_cl [1] -> [1] set_gateway [1] -> [2] output;
 
 
 input [0]

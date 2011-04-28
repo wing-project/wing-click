@@ -188,11 +188,6 @@ void WINGQuerier::push(int, Packet *p_in) {
 		p_in->kill();
 		return;
 	}
-	/* handle broadcast addresses */
-	if (dst == IPAddress::make_broadcast()) {
-		encap(p_in);
-		return;
-	}
 	/* look for static routes first */
 	PathMulti *p = _routes.findp(dst);
 	if (p) {
