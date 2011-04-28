@@ -67,9 +67,6 @@ input [1]
 host_cl [1] -> [0] set_gateway [0] -> querier;
 
 
-set_gateway [1] -> querier;  
-
-
 forwarder[0] 
   -> dt ::DecIPTTL
   -> [1] output;
