@@ -1,5 +1,5 @@
 elementclass WingRouter {
-  $ip, $nm, $debug|
+  $ip, $nm, $rate, $debug|
 
 
 outgoing :: SetTXRate($rate)
