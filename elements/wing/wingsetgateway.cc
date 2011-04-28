@@ -1,5 +1,5 @@
 /*
- * wingtrackflows.{cc,hh} 
+ * wingsetgateway.{cc,hh} 
  * John Bicket, Alexander Yip, Roberto Riggio, Stefano Testi
  *
  * Copyright (c) 1999-2001 Massachusetts Institute of Technology
@@ -17,19 +17,19 @@
  */
 
 #include <click/config.h>
-#include "wingtrackflows.hh"
+#include "wingsetgateway.hh"
 #include <click/confparse.hh>
 #include "winggatewayselector.hh"
 CLICK_DECLS
 
-WINGTrackFlows::WINGTrackFlows() :
+WINGSetGateway::WINGSetGateway() :
 	_timer(this), _period(60000) {
 }
 
-WINGTrackFlows::~WINGTrackFlows() {
+WINGSetGateway::~WINGSetGateway() {
 }
 
-int WINGTrackFlows::configure(Vector<String> &conf, ErrorHandler *errh) {
+int WINGSetGateway::configure(Vector<String> &conf, ErrorHandler *errh) {
 	if (cp_va_kparse(conf, this, errh, 
 				"GW", 0, cpIPAddress, &_gw, 
 				"SEL", 0, cpElementCast, "WINGGatewaySelector", &_gw_sel, 
@@ -40,13 +40,13 @@ int WINGTrackFlows::configure(Vector<String> &conf, ErrorHandler *errh) {
 	return 0;
 }
 
-int WINGTrackFlows::initialize(ErrorHandler *) {
+int WINGSetGateway::initialize(ErrorHandler *) {
 	_timer.initialize(this);
 	_timer.schedule_now();
 	return 0;
 }
 
-void WINGTrackFlows::run_timer(Timer *) {
+void WINGSetGateway::run_timer(Timer *) {
 	// clean up flows
 	FlowTable new_table;
 	Timestamp timeout = Timestamp::make_msec(_period);
@@ -65,7 +65,7 @@ void WINGTrackFlows::run_timer(Timer *) {
 	_timer.schedule_after_msec(_period);
 }
 
-void WINGTrackFlows::push_fwd(Packet *p_in) {
+void WINGSetGateway::push_fwd(Packet *p_in) {
 	const click_tcp *tcph = p_in->tcp_header();
 	IPFlowID flowid = IPFlowID(p_in);
 	FlowTableEntry *match = _flow_table.findp(flowid);
@@ -121,7 +121,7 @@ void WINGTrackFlows::push_fwd(Packet *p_in) {
 	output(0).push(p_in);
 }
 
-void WINGTrackFlows::push_rev(Packet *p_in) {
+void WINGSetGateway::push_rev(Packet *p_in) {
 	const click_tcp *tcph = p_in->tcp_header();
 	IPFlowID flowid = IPFlowID(p_in).reverse();
 	FlowTableEntry *match = _flow_table.findp(flowid);
@@ -170,7 +170,7 @@ void WINGTrackFlows::push_rev(Packet *p_in) {
 	return;
 }
 
-void WINGTrackFlows::push(int port, Packet *p_in) {
+void WINGSetGateway::push(int port, Packet *p_in) {
 
 	if (_gw) {
 		if (port == 0) {
@@ -221,7 +221,7 @@ void WINGTrackFlows::push(int port, Packet *p_in) {
 
 }
 
-String WINGTrackFlows::print_flows() {
+String WINGSetGateway::print_flows() {
 	StringAccum sa;
 	for (FTIter iter = _flow_table.begin(); iter.live(); iter++) {
 		FlowTableEntry f = iter.value();
@@ -234,8 +234,8 @@ enum {
 	H_GATEWAY, H_FLOWS
 };
 
-String WINGTrackFlows::read_handler(Element *e, void *thunk) {
-	WINGTrackFlows *c = (WINGTrackFlows *) e;
+String WINGSetGateway::read_handler(Element *e, void *thunk) {
+	WINGSetGateway *c = (WINGSetGateway *) e;
 	switch ((intptr_t) (thunk)) {
 		case H_GATEWAY:
 			return (c->_gw) ? c->_gw.unparse() + "\n"
@@ -247,8 +247,8 @@ String WINGTrackFlows::read_handler(Element *e, void *thunk) {
 	}
 }
 
-int WINGTrackFlows::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *errh) {
-	WINGTrackFlows *d = (WINGTrackFlows *) e;
+int WINGSetGateway::write_handler(const String &in_s, Element *e, void *vparam, ErrorHandler *errh) {
+	WINGSetGateway *d = (WINGSetGateway *) e;
 	String s = cp_uncomment(in_s);
 	switch ((intptr_t) vparam) {
 		case H_GATEWAY: {
@@ -266,11 +266,11 @@ int WINGTrackFlows::write_handler(const String &in_s, Element *e, void *vparam, 
 	return 0;
 }
 
-void WINGTrackFlows::add_handlers() {
+void WINGSetGateway::add_handlers() {
 	add_read_handler("flows", read_handler, H_FLOWS);
 	add_read_handler("gateway", read_handler, H_GATEWAY);
 	add_write_handler("gateway", write_handler, H_GATEWAY);
 }
 
 CLICK_ENDDECLS
-EXPORT_ELEMENT(WINGTrackFlows)
+EXPORT_ELEMENT(WINGSetGateway)

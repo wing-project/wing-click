@@ -1,5 +1,5 @@
-#ifndef CLICK_WINGTRACKFLOWS_HH
-#define CLICK_WINGTRACKFLOWS_HH
+#ifndef CLICK_SETGATEWAY_HH
+#define CLICK_SETGATEWAY_HH
 #include <click/element.hh>
 #include "wingbase.hh"
 #include <click/ipflowid.hh>
@@ -8,20 +8,20 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGTrackFlows([PERIOD], [DEBUG])
+ * WINGSetGateway([PERIOD], [DEBUG])
  * =s Wifi, Wireless Routing
- * Tracks a TCP flow current default route.
+ * WINGSetGateway a TCP flow current default route.
  * =d
  * This element marks the gateway for a packet to be sent to.
  */
 
-class WINGTrackFlows: public Element {
+class WINGSetGateway: public Element {
 public:
 
-	WINGTrackFlows();
-	~WINGTrackFlows();
+	WINGSetGateway();
+	~WINGSetGateway();
 
-	const char *class_name() const { return "WINGTrackFlows"; }
+	const char *class_name() const { return "WINGSetGateway"; }
 	const char *port_count() const { return "2/2"; }
 	const char *processing() const { return PUSH; }
 	const char *flow_code() const { return "#/#"; }
