@@ -49,13 +49,8 @@ void WINGLinkStat::run_timer(Timer *) {
 }
 
 int WINGLinkStat::initialize(ErrorHandler *) {
-	if (noutputs() > 0) {
-		int p = _period / _ads_rs.size();
-		unsigned max_jitter = p / 10;
-		unsigned j = click_random(0, 2 * max_jitter);
-		_timer.initialize(this);
-		_timer.reschedule_after_msec(p + j - max_jitter);
-	}
+	_timer.initialize(this);
+	_timer.schedule_now();
 	_node = NodeAddress(_link_table->ip(), _dev->ifid());
 	reset();
 	return 0;

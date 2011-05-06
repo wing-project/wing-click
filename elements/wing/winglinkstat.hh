@@ -143,7 +143,7 @@ public:
 	~WINGLinkStat();
 
 	const char *class_name() const { return "WINGLinkStat"; }
-	const char *port_count() const { return "1/0-1"; }
+	const char *port_count() const { return PORTS_1_1; }
 	const char *processing() const { return PUSH; }
 
 	int configure(Vector<String> &, ErrorHandler *);

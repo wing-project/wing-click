@@ -125,19 +125,19 @@ METRIC=$(echo $METRIC | tr '[a-z]' '[A-Z]')
 
 if [ $METRIC = "WCETT" ]; then
 	echo "lt :: LinkTableMulti(IP $XR_IP, IFACES \"$LTM\", BETA 80, DEBUG $DEBUG);"
-	echo "metric :: WINGETTMetric(LT lt);"
+	echo "metric :: WINGETTMetric(LT lt, DEBUG $DEBUG);"
 elif [ $METRIC = "ETT" ]; then
 	echo "lt :: LinkTableMulti(IP $XR_IP, IFACES \"$LTM\", BETA 0, DEBUG $DEBUG);"
-	echo "metric :: WINGETTMetric(LT lt);"
+	echo "metric :: WINGETTMetric(LT lt, DEBUG $DEBUG);"
 elif [ $METRIC = "ETX" ]; then
 	echo "lt :: LinkTableMulti(IP $XR_IP, IFACES \"$LTM\", DEBUG $DEBUG);"
-	echo "metric :: WINGETXMetric(LT lt);"
+	echo "metric :: WINGETXMetric(LT lt, DEBUG $DEBUG);"
 elif [ $METRIC = "HOPCOUNT" ]; then
 	echo "lt :: LinkTableMulti(IP $XR_IP, IFACES \"$LTM\", DEBUG $DEBUG);"
-	echo "metric :: WINGHopCountMetric(LT lt);"
+	echo "metric :: WINGHopCountMetric(LT lt, DEBUG $DEBUG);"
 else
 	echo "lt :: LinkTableMulti(IP $XR_IP, IFACES \"$LTM\", DEBUG $DEBUG);"
-	echo "metric :: WINGETTMetric(LT lt);"
+	echo "metric :: WINGETTMetric(LT lt, DEBUG $DEBUG);"
 fi
 
 echo "arp :: ARPTableMulti();
