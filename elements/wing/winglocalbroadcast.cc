@@ -1,5 +1,5 @@
 /*
- * WINGLocalBroadCast.{cc,hh}
+ * winglocalbroadcast.{cc,hh}
  * John Bicket, Roberto Riggio, Stefano Testi
  *
  * Copyright (c) 1999-2001 Massachusetts Institute of Technology
@@ -21,13 +21,13 @@
 #include <click/confparse.hh>
 CLICK_DECLS
 
-WINGLocalBroadCast::WINGLocalBroadCast() {
+WINGLocalBroadcast::WINGLocalBroadcast() {
 }
 
-WINGLocalBroadCast::~WINGLocalBroadCast() {
+WINGLocalBroadcast::~WINGLocalBroadcast() {
 }
 
-int WINGLocalBroadCast::configure(Vector<String> &conf, ErrorHandler *errh) {
+int WINGLocalBroadcast::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	if (cp_va_kparse(conf, this, errh, 
 				"IP", cpkM, cpIPAddress, &_ip, 
@@ -42,7 +42,7 @@ int WINGLocalBroadCast::configure(Vector<String> &conf, ErrorHandler *errh) {
 }
 
 void 
-WINGLocalBroadCast::push(int, Packet *p_in) 
+WINGLocalBroadcast::push(int, Packet *p_in) 
 {
 
 	int data_len = p_in->length();
@@ -100,4 +100,4 @@ WINGLocalBroadCast::push(int, Packet *p_in)
 
 CLICK_ENDDECLS
 ELEMENT_REQUIRES(ARPTableMulti LinkTableMulti)
-EXPORT_ELEMENT(WINGLocalBroadCast)
+EXPORT_ELEMENT(WINGLocalBroadcast)

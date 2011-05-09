@@ -6,19 +6,19 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGLocalBroadCast(IP, LT LinkTableMulti element, ARP ARPTableMulti element, [TIME_BEFORE_SWITCH], [QUERY_WAIT], [DEBUG])
+ * WINGLocalBroadcast(IP, LT LinkTableMulti element, ARP ARPTableMulti element, [TIME_BEFORE_SWITCH], [QUERY_WAIT], [DEBUG])
  * =s Wifi, Wireless Routing
  *
  */
 
-class WINGLocalBroadCast: public Element {
+class WINGLocalBroadcast: public Element {
 public:
 
-	WINGLocalBroadCast();
-	~WINGLocalBroadCast();
+	WINGLocalBroadcast();
+	~WINGLocalBroadcast();
 
-	const char *class_name() const { return "WINGLocalBroadCast"; }
-	const char *port_count() const { return "1/2"; }
+	const char *class_name() const { return "WINGLocalBroadcast"; }
+	const char *port_count() const { return PORTS_1_1; }
 	const char *processing() const { return PUSH; }
 	const char *flow_code() const { return "#/#"; }
 
