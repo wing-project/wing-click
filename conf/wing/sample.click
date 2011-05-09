@@ -145,6 +145,7 @@ wr/gw_responder :: WINGGatewayResponder(PERIOD 15000,
                                  MF query_forwarder);
 # 101 "/tmp/wing-mesh.click"
 wr/host_cl :: IPClassifier(dst net 6.35.170.123 mask 255.0.0.0, -);
+lb :: WINGLocalBroadCast();
 # 110 "/tmp/wing-mesh.click"
 wr/dt :: DecIPTTL;
 # 115 "/tmp/wing-mesh.click"
