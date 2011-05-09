@@ -31,6 +31,12 @@ querier :: WINGQuerier(IP $ip,
                        DEBUG $debug);
 
 
+lb :: WINGLocalBroadCast(IP $ip,
+                         LT lt, 
+                         ARP arp,
+                         DEBUG $debug);
+
+
 query_forwarder :: WINGMetricFlood(IP $ip, 
                                   LT lt, 
                                   ARP arp,
@@ -59,12 +65,15 @@ query_forwarder [1] -> [0] query_responder;
 
 
 input [1] 
--> host_cl :: IPClassifier(dst net $ip mask $nm, -)
+-> host_cl :: IPClassifier(dst net $ip mask $nm, dst host 255.255.255.255, -)
 -> querier
 -> [1] output;
 
 
-host_cl [1] -> [0] set_gateway [0] -> querier;
+host_cl [1] -> lb -> output;
+
+
+host_cl [2] -> [0] set_gateway [0] -> querier;
 
 
 forwarder[0] 
@@ -97,7 +106,6 @@ input [0]
                        15/03 , // replies
                        15/04 , // es
                        15/05 , // gw
-                       15/06 , // bcast
                       );
  
  
@@ -106,7 +114,6 @@ input [0]
  ncl[2] -> [1] query_responder;
  ncl[3] -> es;
  ncl[4] -> gw;
- ncl[5] -> Strip(22) -> check_ip;
 
 }
 

@@ -125,6 +125,7 @@ WINGQuerier::encap(Packet *p_in, PathMulti best)
 	return p;
 
 }
+
 void
 WINGQuerier::encap(Packet *p_in)
 {
@@ -354,5 +355,5 @@ void WINGQuerier::add_handlers() {
 }
 
 CLICK_ENDDECLS
-ELEMENT_REQUIRES(WINGForwarder LinkTableMulti)
+ELEMENT_REQUIRES(ARPTableMulti LinkTableMulti)
 EXPORT_ELEMENT(WINGQuerier)

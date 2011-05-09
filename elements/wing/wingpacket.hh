@@ -252,9 +252,6 @@ private:
 public:  
 	uint32_t     data_len()                       { return ntohl(_data_len); }
 	void         set_data_len(uint32_t data_len)  { _data_len = htonl(data_len); }
-	/* remember that if you call this you must have set the number
-	 * of links in this packet!
-	 */
 	u_char *data() { return (((u_char *)this) + sizeof(struct wing_bcast_data)); }
 	void set_checksum() {
 		_cksum = 0;
