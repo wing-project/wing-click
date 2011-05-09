@@ -129,7 +129,7 @@ wr/querier :: WINGQuerier(IP 6.35.170.123,
                        ARP arp,
                        DEBUG false);
 # 73 "/tmp/wing-mesh.click"
-wr/lb :: WINGLocalBroadCast(IP 6.35.170.123,
+wr/lb :: WINGLocalBroadcast(IP 6.35.170.123,
                          LT lt, 
                          ARP arp,
                          DEBUG false);
