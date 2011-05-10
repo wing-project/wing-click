@@ -94,10 +94,12 @@ KernelTun::configure(Vector<String> &conf, ErrorHandler *errh)
     _adjust_headroom = false;
     _headroom += (4 - _headroom % 4) % 4; // default 4/0 alignment
     _mtu_out = DEFAULT_MTU;
+    _burst = 1;
     if (Args(conf, this, errh)
 	.read_mp("ADDR", IPPrefixArg(), _near, _mask)
 	.read_p("GATEWAY", _gw)
 	.read("TAP", _tap)
+	.read("BURST", _burst)
 	.read("HEADROOM", _headroom).read_status(_adjust_headroom)
 	.read("ETHER", _macaddr)
 	.read("IGNORE_QUEUE_OVERFLOWS", _ignore_q_errs)
@@ -515,8 +517,9 @@ KernelTun::selected(int fd, int)
 
 	    int cc = read(_fd, p->data(), _mtu_in);
 
-	    if (cc == -EAGAIN) {
-		break;
+	    if ((cc == -1) && errno == EAGAIN) {
+		    p->kill();
+		    break;
 	    }
 
 	    if (cc > 0) {
@@ -572,9 +575,7 @@ KernelTun::selected(int fd, int)
 		    perror("KernelTun read");
 		}
 	    }
-
     }
-
 }
 
 bool
