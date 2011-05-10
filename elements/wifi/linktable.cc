@@ -18,7 +18,6 @@
 #include <click/config.h>
 #include "linktable.hh"
 #include <click/ipaddress.hh>
-#include <click/confparse.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
 #include <click/straccum.hh>
@@ -44,6 +43,22 @@ LinkTable::get_route_metric(const Path &route)
     metric += m;
   }
   return metric;
+}
+
+int
+LinkTable::configure (Vector<String> &conf, ErrorHandler *errh)
+{
+  int ret;
+  int stale_period = 120;
+
+  ret = Args(conf, this, errh)
+      .read("IP", _ip)
+      .read("STALE", stale_period)
+      .complete();
+
+  _stale_timeout.assign(stale_period, 0);
+  _hosts.insert(_ip, HostInfo(_ip));
+  return ret;
 }
 
 Path

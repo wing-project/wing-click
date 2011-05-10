@@ -16,7 +16,7 @@
  */
 
 #include <click/config.h>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
 #include <click/packet_anno.hh>
@@ -115,18 +115,19 @@ int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 	_period = 500;
 	_active = true;
 	_debug = false;
-	if (cp_va_kparse(conf, this, errh,
-				"RT", cpkM, cpElement, &_rtable,
-				"OFFSET", 0, cpUnsigned, &_offset,
-				"PERIOD", 0, cpUnsigned, &_period,
-				"LOOKAROUND_RATE", 0, cpUnsigned, &_lookaround_rate,
-				"EWMA_LEVEL", 0, cpUnsigned, &_ewma_level,
-				"ACTIVE", 0, cpBool, &_active,
-				"DEBUG", 0, cpBool, &_debug,
-			 cpEnd) < 0)
-		return -1;
 
-	return 0;
+	int ret = Args(conf, this, errh)
+		      .read("OFFSET", _offset)
+		      .read_m("RT", ElementCastArg("AvailableRates"), _rtable)
+		      .read("LOOKAROUND_RATE", _lookaround_rate)
+		      .read("EWMA_LEVEL", _ewma_level)
+		      .read("PERIOD", _period)
+		      .read("ACTIVE",  _active)
+		      .read("DEBUG",  _debug)
+		      .complete();
+
+	return ret;
+
 }
 
 void Minstrel::process_feedback(Packet *p_in) {

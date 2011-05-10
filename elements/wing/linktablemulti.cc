@@ -18,7 +18,7 @@
 
 #include <click/config.h>
 #include "linktablemulti.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 CLICK_DECLS
 
 bool
@@ -58,14 +58,15 @@ LinkTableMulti::configure(Vector<String> &conf, ErrorHandler *errh) {
     int stale_period = 120;
     IPAddress ip;
     String ifaces;
-    if (cp_va_kparse(conf, this, errh, 
-            "IP", cpkM, cpIPAddress, &ip,
-            "IFACES", cpkM, cpString, &ifaces,
-            "BETA", 0, cpUnsigned, &_beta, 
-            "STALE", 0, cpUnsigned, &stale_period, 
-            "DEBUG", 0, cpBool, &_debug, 
-            cpEnd) < 0)
-        return -1;
+
+    if (Args(conf, this, errh)
+          .read("IP", ip)
+          .read("IFACES", ifaces)
+          .read("BETA", _beta)
+          .read("STALE", stale_period)
+          .read("DEBUG", _debug)
+          .complete())
+      return -1;
 
     _ip = NodeAddress(ip, 0);
     _hosts.insert(_ip, HostInfo(_ip));

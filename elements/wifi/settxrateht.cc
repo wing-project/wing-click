@@ -16,7 +16,7 @@
  */
 
 #include <click/config.h>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
 #include <click/packet_anno.hh>
@@ -41,12 +41,12 @@ SetTXRateHT::configure(Vector<String> &conf, ErrorHandler *errh)
 	_et = 0;
 	_offset = 0;
 	_tries = WIFI_MAX_RETRIES + 1;
-	if (cp_va_kparse(conf, this, errh,
-			"MCS", cpkP, cpUnsigned, &_mcs,
-			"TRIES", 0, cpUnsigned, &_tries,
-			"ETHTYPE", 0, cpUnsignedShort, &_et,
-			"OFFSET", 0, cpUnsigned, &_offset,
-			cpEnd) < 0) {
+	if (Args(conf, this, errh)
+		.read_p("MCS", _mcs)
+		.read("TRIES", _tries)
+		.read("ETHTYPE", _et)
+		.read("OFFSET", _offset)
+		.complete() < 0) {
 		return -1;
 	}
 	if (_mcs < 0) {
@@ -97,16 +97,16 @@ SetTXRateHT::write_handler(const String &arg, Element *e, void *vparam, ErrorHan
 	switch((intptr_t)vparam) {
 		case H_MCS: {
 			unsigned m;
-			if (!cp_unsigned(s, &m))
-				return errh->error("mcs parameter must be an unsigned");
+			if (!IntArg().parse(s, m))
+				return errh->error("rate parameter must be unsigned");
 			f->_mcs = m;
 			break;
 		}
 		case H_TRIES: {
-			unsigned m;
-			if (!cp_unsigned(s, &m))
+			unsigned t;
+			if (!IntArg().parse(s, t))
 				return errh->error("tries parameter must be unsigned");
-			f->_tries = m;
+			f->_tries = t;
 			break;
 		}
 	}

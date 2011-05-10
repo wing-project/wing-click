@@ -6,7 +6,7 @@
 #include <click/element.hh>
 #include <click/bighashmap.hh>
 #include <click/hashmap.hh>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
 #include <click/straccum.hh>
@@ -34,7 +34,7 @@ public:
   ~LinkTableBase();
   void add_handlers();
   const char* class_name() const { return "LinkTableBase"; }
-  int configure (Vector<String> &, ErrorHandler *);
+  virtual int configure (Vector<String> &, ErrorHandler *) = 0;
   int initialize(ErrorHandler *);
   void run_timer(Timer *);
   void take_state(Element *, ErrorHandler *);
@@ -237,22 +237,6 @@ LinkTableBase<T,U>::LinkTableBase()
 template <typename T, typename U>
 LinkTableBase<T,U>::~LinkTableBase()
 {
-}
-
-template <typename T, typename U>
-int
-LinkTableBase<T,U>::configure (Vector<String> &conf, ErrorHandler *errh)
-{
-  int ret;
-  int stale_period = 120;
-  ret = cp_va_kparse(conf, this, errh,
-		     "IP", cpkM, cpIPAddress, &_ip,
-		     "STALE", 0, cpUnsigned, &stale_period,
-		     cpEnd);
-
-  _stale_timeout.assign(stale_period, 0);
-  _hosts.insert(_ip, HostInfo(_ip));
-  return ret;
 }
 
 template <typename T, typename U>
@@ -682,6 +666,7 @@ class LinkTable : public LinkTableBase<IPAddress, Path> { public:
     ~LinkTable();
 
     const char *class_name() const		{ return "LinkTable"; }
+    int configure (Vector<String> &, ErrorHandler *) ;
 
     Path best_route(IPAddress, bool);
     String print_routes(bool, bool);

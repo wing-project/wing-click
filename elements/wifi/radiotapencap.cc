@@ -18,7 +18,6 @@
 #include <click/config.h>
 #include "radiotapencap.hh"
 #include <click/etheraddress.hh>
-#include <click/confparse.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
 #include <clicknet/wifi.h>
