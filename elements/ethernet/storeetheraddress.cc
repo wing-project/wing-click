@@ -17,7 +17,7 @@
 
 #include <click/config.h>
 #include "storeetheraddress.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 CLICK_DECLS
 
@@ -33,16 +33,16 @@ int
 StoreEtherAddress::configure(Vector<String> &conf, ErrorHandler *errh)
 {
     String off;
-    if (cp_va_kparse(conf, this, errh,
-		     "ADDR", cpkP+cpkM, cpEtherAddress, &_address,
-		     "OFFSET", cpkP+cpkM, cpWord, &off,
-		     cpEnd) < 0)
+    if (Args(conf, this, errh)
+	.read_mp("ADDR", _address)
+	.read_mp("OFFSET", WordArg(), off)
+	.complete() < 0)
 	return -1;
     if (off.lower() == "src")
 	_offset = 6;
     else if (off.lower() == "dst")
 	_offset = 0;
-    else if (!cp_integer(off, &_offset))
+    else if (!IntArg().parse(off, _offset))
 	return errh->error("type mismatch: bad OFFSET");
     return 0;
 }

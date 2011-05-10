@@ -20,7 +20,7 @@
 #include <click/config.h>
 
 #include "fromipsumdump.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/router.hh>
 #include <click/standard/scheduleinfo.hh>
 #include <click/error.hh>
@@ -75,21 +75,21 @@ FromIPSummaryDump::configure(Vector<String> &conf, ErrorHandler *errh)
     _sampling_prob = (1 << SAMPLING_SHIFT);
     String default_contents, default_flowid;
 
-    if (cp_va_kparse(conf, this, errh,
-		     "FILENAME", cpkP+cpkM, cpFilename, &_ff.filename(),
-		     "STOP", 0, cpBool, &stop,
-		     "ACTIVE", 0, cpBool, &active,
-		     "ZERO", 0, cpBool, &zero,
-		     "TIMING", 0, cpBool, &timing,
-		     "CHECKSUM", 0, cpBool, &checksum,
-		     "SAMPLE", 0, cpUnsignedReal2, SAMPLING_SHIFT, &_sampling_prob,
-		     "PROTO", 0, cpByte, &default_proto,
-		     "MULTIPACKET", 0, cpBool, &multipacket,
-		     "DEFAULT_CONTENTS", 0, cpArgument, &default_contents,
-		     "DEFAULT_FLOWID", 0, cpArgument, &default_flowid,
-		     "CONTENTS", 0, cpArgument, &default_contents,
-		     "FLOWID", 0, cpArgument, &default_flowid,
-		     cpEnd) < 0)
+    if (Args(conf, this, errh)
+	.read_mp("FILENAME", FilenameArg(), _ff.filename())
+	.read("STOP", stop)
+	.read("ACTIVE", active)
+	.read("ZERO", zero)
+	.read("TIMING", timing)
+	.read("CHECKSUM", checksum)
+	.read("SAMPLE", FixedPointArg(SAMPLING_SHIFT), _sampling_prob)
+	.read("PROTO", default_proto)
+	.read("MULTIPACKET", multipacket)
+	.read("DEFAULT_CONTENTS", AnyArg(), default_contents)
+	.read("DEFAULT_FLOWID", AnyArg(), default_flowid)
+	.read("CONTENTS", AnyArg(), default_contents)
+	.read("FLOWID", AnyArg(), default_flowid)
+	.complete() < 0)
 	return -1;
     if (_sampling_prob > (1 << SAMPLING_SHIFT)) {
 	errh->warning("SAMPLE probability reduced to 1");
@@ -270,10 +270,10 @@ FromIPSummaryDump::bang_flowid(const String &line, ErrorHandler *errh)
     IPAddress src, dst;
     uint32_t sport = 0, dport = 0;
     if (words.size() < 5
-	|| (!cp_ip_address(words[1], &src) && words[1] != "-")
-	|| (!cp_integer(words[2], &sport) && words[2] != "-")
-	|| (!cp_ip_address(words[3], &dst) && words[3] != "-")
-	|| (!cp_integer(words[4], &dport) && words[4] != "-")
+	|| (!IPAddressArg().parse(words[1], src) && words[1] != "-")
+	|| (!IntArg().parse(words[2], sport) && words[2] != "-")
+	|| (!IPAddressArg().parse(words[3], dst) && words[3] != "-")
+	|| (!IntArg().parse(words[4], dport) && words[4] != "-")
 	|| sport > 65535 || dport > 65535) {
 	_ff.error(errh, "bad !flowid specification");
 	_have_flowid = false;
@@ -292,7 +292,7 @@ FromIPSummaryDump::bang_aggregate(const String &line, ErrorHandler *errh)
     cp_spacevec(line, words);
 
     if (words.size() != 2
-	|| !cp_integer(words[1], &_aggregate)) {
+	|| !IntArg().parse(words[1], _aggregate)) {
 	_ff.error(errh, "bad !aggregate specification");
 	_have_aggregate = false;
     } else
@@ -762,7 +762,7 @@ FromIPSummaryDump::write_handler(const String &s_in, Element *e, void *thunk, Er
     switch ((intptr_t)thunk) {
       case H_ACTIVE: {
 	  bool active;
-	  if (cp_bool(s, &active)) {
+	  if (BoolArg().parse(s, active)) {
 	      fd->_active = active;
 	      if (fd->output_is_push(0) && active && !fd->_task.scheduled())
 		  fd->_task.reschedule();
@@ -770,7 +770,7 @@ FromIPSummaryDump::write_handler(const String &s_in, Element *e, void *thunk, Er
 		  fd->_notifier.set_active(active, true);
 	      return 0;
 	  } else
-	      return errh->error("'active' should be Boolean");
+	      return errh->error("type mismatch");
       }
       case H_STOP:
 	fd->_active = false;

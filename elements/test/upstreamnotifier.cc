@@ -16,7 +16,7 @@
  */
 
 #include <click/config.h>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
@@ -48,9 +48,7 @@ UpstreamNotifier::configure(Vector<String> &conf, ErrorHandler *errh)
     bool signal;
     _notifier.initialize(Notifier::FULL_NOTIFIER, router());
 
-    if (cp_va_kparse(conf, this, errh,
-		     "SIGNAL", cpkP+cpkM, cpBool, &signal,
-		     cpEnd) < 0)
+    if (Args(conf, this, errh).read_mp("SIGNAL", signal).complete() < 0)
 	return -1;
 
     _notifier.set_active(signal, false);
@@ -83,7 +81,7 @@ write_param(const String &s, Element *e, void *vparam,
     switch ((intptr_t) vparam) {
       case H_SIGNAL: {
 	  bool signal;
-	  if (!cp_bool(s, &signal))
+	  if (!BoolArg().parse(s, signal))
 	      return errh->error("signal parameter must be boolean");
 	  f->_notifier.set_active(signal, true);
 	  break;

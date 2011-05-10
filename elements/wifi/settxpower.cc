@@ -16,7 +16,7 @@
  */
 
 #include <click/config.h>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
 #include <click/packet_anno.hh>
@@ -37,15 +37,8 @@ SetTXPower::~SetTXPower()
 int
 SetTXPower::configure(Vector<String> &conf, ErrorHandler *errh)
 {
-  _power = 0;
-
-  if (cp_va_kparse(conf, this, errh,
-		   "POWER", cpkP, cpUnsigned, &_power,
-		   cpEnd) < 0) {
-    return -1;
-  }
-
-  return 0;
+    _power = 0;
+    return Args(conf, this, errh).read_p("POWER", _power).complete();
 }
 
 Packet *
@@ -83,7 +76,7 @@ SetTXPower_write_param(const String &in_s, Element *e, void *vparam,
   switch((intptr_t)vparam) {
   case H_POWER: {
     unsigned m;
-    if (!cp_unsigned(s, &m))
+    if (!IntArg().parse(s, m))
       return errh->error("power parameter must be unsigned");
     f->_power = m;
     break;

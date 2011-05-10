@@ -24,7 +24,7 @@
 #include <click/config.h>
 #include "ipsecencap.hh"
 #include <click/nameinfo.hh>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/packet_anno.hh>
 #include <click/glue.hh>
@@ -54,9 +54,9 @@ IPsecEncap::configure(Vector<String> &conf, ErrorHandler *errh)
    bool ce = false, df = false;
   String ect_str;
 
-  if (cp_va_kparse(conf, this, errh,
-		   "PROTO", cpkP+cpkM, cpNamedInteger, NameInfo::T_IP_PROTO, &proto,
-		   cpEnd) < 0)
+  if (Args(conf, this, errh)
+      .read_mp("PROTO", NamedIntArg(NameInfo::T_IP_PROTO), proto)
+      .complete() < 0)
     return -1;
 
   if (proto < 0 || proto > 255)
@@ -66,7 +66,7 @@ IPsecEncap::configure(Vector<String> &conf, ErrorHandler *errh)
  int ect = 0;
   if (ect_str) {
     bool x;
-    if (cp_bool(ect_str, &x))
+    if (BoolArg().parse(ect_str, x))
       ect = x;
     else if (ect_str == "2")
       ect = 2;

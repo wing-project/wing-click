@@ -16,7 +16,7 @@
  */
 
 #include <click/config.h>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
 #include <click/packet_anno.hh>
@@ -49,15 +49,15 @@ AutoRateFallback::configure(Vector<String> &conf, ErrorHandler *errh)
 {
   _active = true;
   _adaptive_stepup = true;
-  int ret = cp_va_kparse(conf, this, errh,
-			 "OFFSET", 0, cpUnsigned, &_offset,
-			 "ADAPTIVE_STEPUP", 0, cpBool, &_adaptive_stepup,
-			 "STEPUP", 0, cpInteger, &_stepup,
-			 "STEPDOWN", 0, cpInteger, &_stepdown,
-			 "RT", 0, cpElement, &_rtable,
-			 "THRESHOLD", 0, cpUnsigned, &_packet_size_threshold,
-			 "ACTIVE", 0, cpBool, &_active,
-			 cpEnd);
+  int ret = Args(conf, this, errh)
+      .read("OFFSET", _offset)
+      .read("ADAPTIVE_STEPUP", _adaptive_stepup)
+      .read("STEPUP", _stepup)
+      .read("STEPDOWN", _stepdown)
+      .read("RT", ElementCastArg("AvailableRates"), _rtable)
+      .read("THRESHOLD", _packet_size_threshold)
+      .read("ACTIVE", _active)
+      .complete();
   return ret;
 }
 
@@ -299,35 +299,35 @@ AutoRateFallback_write_param(const String &in_s, Element *e, void *vparam,
   switch((intptr_t)vparam) {
   case H_DEBUG: {
     bool debug;
-    if (!cp_bool(s, &debug))
+    if (!BoolArg().parse(s, debug))
       return errh->error("debug parameter must be boolean");
     f->_debug = debug;
     break;
   }
   case H_STEPUP: {
     unsigned m;
-    if (!cp_unsigned(s, &m))
+    if (!IntArg().parse(s, m))
       return errh->error("stepup parameter must be unsigned");
     f->_stepup = m;
     break;
   }
   case H_STEPDOWN: {
     unsigned m;
-    if (!cp_unsigned(s, &m))
+    if (!IntArg().parse(s, m))
       return errh->error("stepdown parameter must be unsigned");
     f->_stepdown = m;
     break;
   }
   case H_THRESHOLD: {
     unsigned m;
-    if (!cp_unsigned(s, &m))
+    if (!IntArg().parse(s, m))
       return errh->error("threshold parameter must be unsigned");
     f->_packet_size_threshold = m;
     break;
   }
   case H_OFFSET: {
     unsigned m;
-    if (!cp_unsigned(s, &m))
+    if (!IntArg().parse(s, m))
       return errh->error("offset parameter must be unsigned");
     f->_offset = m;
     break;
@@ -337,7 +337,7 @@ AutoRateFallback_write_param(const String &in_s, Element *e, void *vparam,
     break;
  case H_ACTIVE: {
     bool active;
-    if (!cp_bool(s, &active))
+    if (!BoolArg().parse(s, active))
       return errh->error("active must be boolean");
     f->_active = active;
     break;

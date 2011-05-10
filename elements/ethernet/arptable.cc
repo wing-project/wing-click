@@ -19,13 +19,6 @@
 
 #include <click/config.h>
 #include "arptable.hh"
-#include <click/etheraddress.hh>
-#include <click/confparse.hh>
-#include <click/bitvector.hh>
-#include <click/straccum.hh>
-#include <click/router.hh>
-#include <click/error.hh>
-#include <click/glue.hh>
 CLICK_DECLS
 
 ARPTable::ARPTable()

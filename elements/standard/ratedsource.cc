@@ -18,7 +18,7 @@
 
 #include <click/config.h>
 #include "ratedsource.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/router.hh>
 #include <click/straccum.hh>
@@ -47,16 +47,16 @@ RatedSource::configure(Vector<String> &conf, ErrorHandler *errh)
   int datasize = -1;
   bool active = true, stop = false;
 
-  if (cp_va_kparse(conf, this, errh,
-		   "DATA", cpkP, cpString, &data,
-		   "RATE", cpkP, cpUnsigned, &rate,
-		   "LIMIT", cpkP, cpInteger, &limit,
-		   "ACTIVE", cpkP, cpBool, &active,
-		   "LENGTH", 0, cpInteger, &datasize,
-		   "DATASIZE", 0, cpInteger, &datasize, // deprecated
-		   "STOP", 0, cpBool, &stop,
-		   cpEnd) < 0)
-    return -1;
+    if (Args(conf, this, errh)
+	.read_p("DATA", data)
+	.read_p("RATE", rate)
+	.read_p("LIMIT", limit)
+	.read_p("ACTIVE", active)
+	.read("LENGTH", datasize)
+	.read("DATASIZE", datasize) // deprecated
+	.read("STOP", stop)
+	.complete() < 0)
+	return -1;
 
   _data = data;
   _datasize = datasize;
@@ -189,7 +189,7 @@ RatedSource::change_param(const String &s, Element *e, void *vparam,
 
    case 1: {			// rate
      unsigned rate;
-     if (!cp_integer(s, &rate))
+     if (!IntArg().parse(s, rate))
        return errh->error("rate parameter must be integer >= 0");
      if (rate > GapRate::MAX_RATE)
        // report error rather than pin to max
@@ -200,7 +200,7 @@ RatedSource::change_param(const String &s, Element *e, void *vparam,
 
    case 2: {			// limit
      int limit;
-     if (!cp_integer(s, &limit))
+     if (!IntArg().parse(s, limit))
        return errh->error("limit parameter must be integer");
      rs->_limit = (limit < 0 ? NO_LIMIT : limit);
      break;
@@ -208,7 +208,7 @@ RatedSource::change_param(const String &s, Element *e, void *vparam,
 
    case 3: {			// active
      bool active;
-     if (!cp_bool(s, &active))
+     if (!BoolArg().parse(s, active))
        return errh->error("active parameter must be boolean");
      rs->_active = active;
      if (rs->output_is_push(0) && !rs->_task.scheduled() && active) {
@@ -228,7 +228,7 @@ RatedSource::change_param(const String &s, Element *e, void *vparam,
 
    case 6: {			// datasize
      int datasize;
-     if (!cp_integer(s, &datasize))
+     if (!IntArg().parse(s, datasize))
        return errh->error("length must be integer");
      rs->_datasize = datasize;
      rs->setup_packet();

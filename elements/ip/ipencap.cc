@@ -43,18 +43,18 @@ IPEncap::configure(Vector<String> &conf, ErrorHandler *errh)
   bool ce = false, df = false;
   String ect_str, dst_str;
 
-  if (cp_va_kparse(conf, this, errh,
-		   "PROTO", cpkP+cpkM, cpNamedInteger, NameInfo::T_IP_PROTO, &proto,
-		   "SRC", cpkP+cpkM, cpIPAddress, &iph.ip_src,
-		   "DST", cpkP+cpkM, cpArgument, &dst_str,
-		   "TOS", 0, cpUnsigned, &tos,
-		   "TTL", 0, cpByte, &iph.ip_ttl,
-		   "DSCP", 0, cpUnsigned, &dscp,
-		   "ECT", 0, cpKeyword, &ect_str,
-		   "CE", 0, cpBool, &ce,
-		   "DF", 0, cpBool, &df,
-		   cpEnd) < 0)
-    return -1;
+    if (Args(conf, this, errh)
+	.read_mp("PROTO", NamedIntArg(NameInfo::T_IP_PROTO), proto)
+	.read_mp("SRC", iph.ip_src)
+	.read_mp("DST", AnyArg(), dst_str)
+	.read("TOS", tos)
+	.read("TTL", iph.ip_ttl)
+	.read("DSCP", dscp)
+	.read("ECT", KeywordArg(), ect_str)
+	.read("CE", ce)
+	.read("DF", df)
+	.complete() < 0)
+	return -1;
 
   if (proto < 0 || proto > 255)
       return errh->error("bad IP protocol");
@@ -63,13 +63,13 @@ IPEncap::configure(Vector<String> &conf, ErrorHandler *errh)
   bool use_dst_anno = dst_str == "DST_ANNO";
   if (use_dst_anno)
       iph.ip_dst.s_addr = 0;
-  else if (!cp_ip_address(dst_str, &iph.ip_dst, this))
+  else if (!IPAddressArg().parse(dst_str, iph.ip_dst, this))
       return errh->error("DST argument should be IP address or 'DST_ANNO'");
 
   int ect = 0;
   if (ect_str) {
     bool x;
-    if (cp_bool(ect_str, &x))
+    if (BoolArg().parse(ect_str, x))
       ect = x;
     else if (ect_str == "2")
       ect = 2;

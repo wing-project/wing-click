@@ -21,7 +21,7 @@
 #include <click/error.hh>
 #include <click/hashmap.hh>
 #include <click/straccum.hh>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <clicknet/ip.h>
 #include <clicknet/tcp.h>
 #include <clicknet/udp.h>
@@ -41,11 +41,11 @@ AggregateIP::configure(Vector<String> &conf, ErrorHandler *errh)
 {
     String arg;
     _incremental = _unshift_ip_addr = false;
-    if (cp_va_kparse(conf, this, errh,
-		     "FIELD", cpkP+cpkM, cpArgument, &arg,
-		     "INCREMENTAL", 0, cpBool, &_incremental,
-		     "UNSHIFT_IP_ADDR", 0, cpBool, &_unshift_ip_addr,
-		     cpEnd) < 0)
+    if (Args(conf, this, errh)
+	.read_mp("FIELD", AnyArg(), arg)
+	.read("INCREMENTAL", _incremental)
+	.read("UNSHIFT_IP_ADDR", _unshift_ip_addr)
+	.complete() < 0)
 	return -1;
     const char *end = IPField::parse(arg.begin(), arg.end(), -1, &_f, errh, this);
     if (end == arg.begin())

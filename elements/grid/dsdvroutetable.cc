@@ -17,7 +17,7 @@
 
 #include <click/config.h>
 #include <stddef.h>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <clicknet/ether.h>
 #include <clicknet/ip.h>
@@ -216,27 +216,27 @@ int
 DSDVRouteTable::configure(Vector<String> &conf, ErrorHandler *errh)
 {
   String logfile;
-  int res = cp_va_kparse(conf, this, errh,
-			 "TIMEOUT", cpkP+cpkM, cpUnsigned, &_timeout,
-			 "PERIOD", cpkP+cpkM, cpUnsigned, &_period,
-			 "JITTER", cpkP+cpkM, cpUnsigned, &_jitter,
-			 "MIN_TRIGGER_PERIOD", cpkP+cpkM, cpUnsigned, &_min_triggered_update_period,
-			 "ETH", cpkP+cpkM, cpEthernetAddress, &_eth,
-			 "IP", cpkP+cpkM, cpIPAddress, &_ip,
-			 "VERBOSE", 0, cpBool, &_verbose,
-			 "GW", 0, cpElement, &_gw_info,
-			 "MAX_HOPS", 0, cpUnsigned, &_max_hops,
-			 "METRIC", 0, cpElement, &_metric,
-			 "LOG", 0, cpElement, &_log,
-			 "WST0", 0, cpUnsigned, &_wst0,
-			 "ALPHA", 0, cpUnsigned, &_alpha,
-			 "SEQ0", 0, cpUnsigned, &_seq_no,
-			 "MTU", 0, cpUnsigned, &_mtu,
-			 "IGNORE_INVALID_ROUTES", 0, cpBool, &_ignore_invalid_routes,
+  int res = Args(conf, this, errh)
+      .read_mp("TIMEOUT", _timeout)
+      .read_mp("PERIOD", _period)
+      .read_mp("JITTER", _jitter)
+      .read_mp("MIN_TRIGGER_PERIOD", _min_triggered_update_period)
+      .read_mp("ETH", _eth)
+      .read_mp("IP", _ip)
+      .read("VERBOSE", _verbose)
+      .read("GW", reinterpret_cast<Element *&>(_gw_info))
+      .read("MAX_HOPS", _max_hops)
+      .read("METRIC", reinterpret_cast<Element *&>(_metric))
+      .read("LOG", reinterpret_cast<Element *&>(_log))
+      .read("WST0", _wst0)
+      .read("ALPHA", _alpha)
+      .read("SEQ0", _seq_no)
+      .read("MTU", _mtu)
+      .read("IGNORE_INVALID_ROUTES", _ignore_invalid_routes)
 #if SEQ_METRIC
-			 "USE_SEQ_METRIC", 0, cpBool, &_use_seq_metric,
+      .read("USE_SEQ_METRIC", _use_seq_metric)
 #endif
-			 cpEnd);
+      .complete();
 
   if (res < 0)
     return res;
@@ -1297,7 +1297,7 @@ DSDVRouteTable::write_seqno(const String &arg, Element *el,
 {
   DSDVRouteTable *rt = (DSDVRouteTable *) el;
   unsigned u;
-  if (!cp_integer(arg, &u))
+  if (!IntArg().parse(arg, u))
     return errh->error("sequence number must be unsigned");
   if (u & 1)
     return errh->error("sequence number must be even");
@@ -1319,8 +1319,8 @@ DSDVRouteTable::write_paused(const String &arg, Element *el,
 {
   DSDVRouteTable *rt = (DSDVRouteTable *) el;
   bool was_paused = rt->_paused;
-  if (!cp_bool(arg, &rt->_paused))
-    return errh->error("`paused' must be a boolean");
+  if (!BoolArg().parse(arg, rt->_paused))
+    return errh->error("type mismatch");
 
   click_chatter("DSDVRouteTable %s: %s",
 		rt->name().c_str(), rt->_paused ? "pausing packet routes (_paused = true)" :
@@ -1373,7 +1373,7 @@ DSDVRouteTable::write_use_old_route(const String &arg, Element *el,
 {
   DSDVRouteTable *rt = (DSDVRouteTable *) el;
   unsigned u;
-  if (!cp_integer(arg, &u))
+  if (!IntArg().parse(arg, u))
     return errh->error("`use_old_route' must be an unsigned integer");
 
   bool use_good = false;

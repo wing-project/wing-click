@@ -16,7 +16,7 @@
  */
 
 #include <click/config.h>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
 #include <click/packet_anno.hh>
@@ -68,14 +68,14 @@ MadwifiRate::configure(Vector<String> &conf, ErrorHandler *errh)
   _alt_rate = false;
   _active = true;
   _period = 1000;
-  int ret = cp_va_kparse(conf, this, errh,
-			 "OFFSET", 0, cpUnsigned, &_offset,
-			 "RT", 0, cpElement, &_rtable,
-			 "THRESHOLD", 0, cpUnsigned, &_packet_size_threshold,
-			 "ALT_RATE", 0, cpBool, &_alt_rate,
-			 "ACTIVE", 0, cpBool, &_active,
-			 "PERIOD", 0, cpUnsigned, &_period,
-			 cpEnd);
+  int ret = Args(conf, this, errh)
+      .read("OFFSET", _offset)
+      .read("RT", ElementCastArg("AvailableRates"), _rtable)
+      .read("THRESHOLD", _packet_size_threshold)
+      .read("ALT_RATE", _alt_rate)
+      .read("ACTIVE", _active)
+      .read("PERIOD", _period)
+      .complete();
   return ret;
 }
 
@@ -359,49 +359,49 @@ MadwifiRate_write_param(const String &in_s, Element *e, void *vparam,
   switch((intptr_t)vparam) {
   case H_DEBUG: {
     bool debug;
-    if (!cp_bool(s, &debug))
+    if (!BoolArg().parse(s, debug))
       return errh->error("debug parameter must be boolean");
     f->_debug = debug;
     break;
   }
   case H_ALT_RATE: {
     bool alt_rate;
-    if (!cp_bool(s, &alt_rate))
+    if (!BoolArg().parse(s, alt_rate))
       return errh->error("alt_rate parameter must be boolean");
     f->_alt_rate = alt_rate;
     break;
   }
   case H_STEPUP: {
     unsigned m;
-    if (!cp_unsigned(s, &m))
+    if (!IntArg().parse(s, m))
       return errh->error("stepup parameter must be unsigned");
     f->_stepup = m;
     break;
   }
   case H_STEPDOWN: {
     unsigned m;
-    if (!cp_unsigned(s, &m))
+    if (!IntArg().parse(s, m))
       return errh->error("stepdown parameter must be unsigned");
     f->_stepdown = m;
     break;
   }
   case H_THRESHOLD: {
     unsigned m;
-    if (!cp_unsigned(s, &m))
+    if (!IntArg().parse(s, m))
       return errh->error("threshold parameter must be unsigned");
     f->_packet_size_threshold = m;
     break;
   }
   case H_OFFSET: {
     unsigned m;
-    if (!cp_unsigned(s, &m))
+    if (!IntArg().parse(s, m))
       return errh->error("offset parameter must be unsigned");
     f->_offset = m;
     break;
   }
   case H_PERIOD: {
     unsigned m;
-    if (!cp_unsigned(s, &m))
+    if (!IntArg().parse(s, m))
       return errh->error("period parameter must be unsigned");
     f->_period = m;
     break;
@@ -412,7 +412,7 @@ MadwifiRate_write_param(const String &in_s, Element *e, void *vparam,
 
  case H_ACTIVE: {
     bool active;
-    if (!cp_bool(s, &active))
+    if (!BoolArg().parse(s, active))
       return errh->error("active must be boolean");
     f->_active = active;
     break;

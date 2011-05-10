@@ -8,7 +8,7 @@
 #include <click/timer.hh>
 #include <click/list.hh>
 #include <click/config.h>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/bitvector.hh>
 #include <click/straccum.hh>
 #include <click/router.hh>
@@ -252,11 +252,11 @@ int
 ARPTableBase<T>::configure(Vector<String> &conf, ErrorHandler *errh)
 {
     Timestamp timeout(300);
-    if (cp_va_kparse(conf, this, errh,
-		     "CAPACITY", 0, cpUnsigned, &_packet_capacity,
-		     "ENTRY_CAPACITY", 0, cpUnsigned, &_entry_capacity,
-		     "TIMEOUT", 0, cpTimestamp, &timeout,
-		     cpEnd) < 0)
+    if (Args(conf, this, errh)
+	  .read("CAPACITY", _packet_capacity)
+	  .read("ENTRY_CAPACITY", _entry_capacity)
+	  .read("TIMEOUT", timeout)
+	  .complete() < 0)
 	return -1;
     set_timeout(timeout);
     if (_timeout_j) {
@@ -526,19 +526,19 @@ ARPTableBase<T>::write_handler(const String &str, Element *e, void *user_data, E
       case h_insert: {
 	  IPAddress ip;
 	  EtherAddress eth;
-	  if (cp_va_space_kparse(str, arpt, errh,
-				 "IP", cpkP+cpkM, cpIPAddress, &ip,
-				 "ETH", cpkP+cpkM, cpEtherAddress, &eth,
-				 cpEnd) < 0)
+	  if (Args(arpt, errh).push_back_words(str)
+	        .read_mp("IP", ip)
+	        .read_mp("ETH", eth)
+	        .complete() < 0)
 	      return -1;
 	  arpt->insert(ip, eth);
 	  return 0;
       }
       case h_delete: {
 	  IPAddress ip;
-	  if (cp_va_space_kparse(str, arpt, errh,
-				 "IP", cpkP+cpkM, cpIPAddress, &ip,
-				 cpEnd) < 0)
+	  if (Args(arpt, errh).push_back_words(str)
+	        .read_mp("IP", ip)
+	        .complete() < 0)
 	      return -1;
 	  arpt->insert(ip, EtherAddress::make_broadcast()); // XXX?
 	  return 0;

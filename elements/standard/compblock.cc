@@ -19,7 +19,7 @@
 #include <click/config.h>
 #include "compblock.hh"
 #include <click/error.hh>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/packet_anno.hh>
 CLICK_DECLS
 
@@ -35,12 +35,11 @@ CompareBlock::~CompareBlock()
 int
 CompareBlock::configure(Vector<String> &conf, ErrorHandler *errh)
 {
-  _bad = 0;
-  return cp_va_kparse(conf, this, errh,
-		      "FWD_WEIGHT", cpkP+cpkM, cpInteger, &_fwd_weight,
-		      "REV_WEIGHT", cpkP+cpkM, cpInteger, &_rev_weight,
-		      "THRESH", cpkP+cpkM, cpInteger, &_thresh,
-		      cpEnd);
+    _bad = 0;
+    return Args(conf, this, errh)
+	.read_mp("FWD_WEIGHT", _fwd_weight)
+	.read_mp("REV_WEIGHT", _rev_weight)
+	.read_mp("THRESH", _thresh).complete();
 }
 
 void
@@ -72,7 +71,7 @@ CompareBlock::fwd_weight_write_handler(const String &conf, Element *e,
     return errh->error("expecting one integer");
   }
   int weight;
-  if(!cp_integer(args[0], &weight)) {
+  if(!IntArg().parse(args[0], weight)) {
     return errh->error("not an integer");
   }
   me->_fwd_weight = weight;
@@ -91,7 +90,7 @@ CompareBlock::rev_weight_write_handler(const String &conf, Element *e,
     return errh->error("expecting one integer");
   }
   int weight;
-  if(!cp_integer(args[0], &weight)) {
+  if(!IntArg().parse(args[0], weight)) {
     return errh->error("not an integer");
   }
   me->_rev_weight = weight;
@@ -110,7 +109,7 @@ CompareBlock::thresh_write_handler(const String &conf, Element *e,
     return errh->error("expecting one integer");
   }
   int thresh;
-  if(!cp_integer(args[0], &thresh)) {
+  if(!IntArg().parse(args[0], thresh)) {
     return errh->error("not an integer");
   }
   me->_thresh = thresh;

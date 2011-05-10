@@ -16,7 +16,7 @@
  */
 
 #include <click/config.h>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
 #include <click/packet_anno.hh>
@@ -36,12 +36,7 @@ SetRTS::~SetRTS()
 int
 SetRTS::configure(Vector<String> &conf, ErrorHandler *errh)
 {
-  if (cp_va_kparse(conf, this, errh,
-		   "RTS", cpkP+cpkM, cpBool, &_rts,
-		   cpEnd) < 0) {
-    return -1;
-  }
-  return 0;
+    return Args(conf, this, errh).read_mp("RTS", _rts).complete();
 }
 
 Packet *
@@ -83,7 +78,7 @@ SetRTS_write_param(const String &in_s, Element *e, void *vparam,
   switch((intptr_t)vparam) {
   case H_RTS: {
     unsigned m;
-    if (!cp_unsigned(s, &m))
+    if (!IntArg().parse(s, m))
       return errh->error("stepup parameter must be unsigned");
     f->_rts = m;
     break;

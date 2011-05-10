@@ -49,7 +49,7 @@
 #include <click/config.h>
 #include "wepdecap.hh"
 #include <click/etheraddress.hh>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
 #include <clicknet/wifi.h>
@@ -72,12 +72,12 @@ WepDecap::configure(Vector<String> &conf, ErrorHandler *errh)
   _debug = false;
   _strict = false;
   _keyid = 0;
-  if (cp_va_kparse(conf, this, errh,
-		   "KEY", cpkP, cpString, &_key,
-		   "KEYID", cpkP, cpUnsigned, &_keyid,
-		   "DEBUG", 0, cpBool, &_debug,
-		   "STRICT", 0, cpBool, &_strict,
-		   cpEnd) < 0)
+  if (Args(conf, this, errh)
+      .read_p("KEY", _key)
+      .read_p("KEYID", _keyid)
+      .read("DEBUG", _debug)
+      .read("STRICT", _strict)
+      .complete() < 0)
     return -1;
   memset(&_rc4, 0,sizeof(_rc4));
   return 0;
@@ -174,14 +174,14 @@ write_param(const String &in_s, Element *e, void *vparam,
   switch((intptr_t)vparam) {
   case H_DEBUG: {    //debug
     bool debug;
-    if (!cp_bool(s, &debug))
+    if (!BoolArg().parse(s, debug))
       return errh->error("debug parameter must be boolean");
     f->_debug = debug;
     break;
   }
   case H_KEYID: {
     unsigned m;
-    if (!cp_unsigned(s, &m))
+    if (!IntArg().parse(s, m))
       return errh->error("keyid parameter must be unsigned");
     f->_keyid = m;
     break;

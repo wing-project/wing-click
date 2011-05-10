@@ -20,7 +20,7 @@
 
 #include <click/config.h>
 #include "unqueue.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/standard/scheduleinfo.hh>
 CLICK_DECLS
@@ -40,11 +40,10 @@ Unqueue::configure(Vector<String> &conf, ErrorHandler *errh)
     _burst = 1;
     _limit = -1;
     _active = true;
-    return cp_va_kparse(conf, this, errh,
-			"BURST", cpkP, cpInteger, &_burst,
-			"ACTIVE", 0, cpBool, &_active,
-			"LIMIT", 0, cpInteger, &_limit,
-			cpEnd);
+    return Args(conf, this, errh)
+	.read_p("BURST", _burst)
+	.read("ACTIVE", _active)
+	.read("LIMIT", _limit).complete();
 }
 
 int
@@ -107,18 +106,18 @@ Unqueue::write_param(const String &conf, Element *e, void *user_data,
     Unqueue *u = static_cast<Unqueue *>(e);
     switch (reinterpret_cast<intptr_t>(user_data)) {
     case h_active:
-	if (!cp_bool(conf, &u->_active))
+	if (!BoolArg().parse(conf, u->_active))
 	    return errh->error("syntax error");
 	break;
     case h_reset:
 	u->_count = 0;
 	break;
     case h_limit:
-	if (!cp_integer(conf, &u->_limit))
+	if (!IntArg().parse(conf, u->_limit))
 	    return errh->error("syntax error");
 	break;
     case h_burst:
-	if (!cp_integer(conf, &u->_burst))
+	if (!IntArg().parse(conf, u->_burst))
 	    return errh->error("syntax error");
 	if (u->_burst < 0)
 	    u->_burst = 0x7FFFFFFF;

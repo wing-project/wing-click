@@ -20,7 +20,7 @@
 #include "sorttest.hh"
 #include <click/glue.hh>
 #include <click/error.hh>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #if CLICK_USERLEVEL
 # include <click/fromfile.hh>
 #endif
@@ -639,16 +639,16 @@ SortTest::configure(Vector<String> &conf, ErrorHandler *errh)
 #endif
     bool numeric = false, permute = false;
     _reverse = false;
-    if (cp_va_kparse_remove_keywords(conf, this, errh,
-				     "NUMERIC", 0, cpBool, &numeric,
-				     "REVERSE", 0, cpBool, &_reverse,
-				     "PERMUTE", 0, cpBool, &permute,
+    if (Args(this, errh).bind(conf)
+	.read("NUMERIC", numeric)
+	.read("REVERSE", _reverse)
+	.read("PERMUTE", permute)
 #if CLICK_USERLEVEL
-				     "FILE", 0, cpFilename, &filename,
-				     "OUTPUT", 0, cpBool, &_output,
-				     "STDC", 0, cpBool, &_stdc,
+	.read("FILE", FilenameArg(), filename)
+	.read("OUTPUT", _output)
+	.read("STDC", _stdc)
 #endif
-				     cpEnd) < 0)
+	.consume() < 0)
 	return -1;
 
 #if CLICK_USERLEVEL
@@ -663,7 +663,7 @@ SortTest::configure(Vector<String> &conf, ErrorHandler *errh)
 	while ((r = ff.read_line(s, errh, false)) > 0) {
 	    if (!numeric)
 		_strvec.push_back(s);
-	    else if ((s = cp_uncomment(s)) && cp_integer(s, &sz))
+	    else if ((s = cp_uncomment(s)) && IntArg().parse(s, sz))
 		_sizevec.push_back(sz);
 	    else if (s && s[0] != '#' && !complain)
 		complain = errh->lwarning(ff.landmark(), "not integer");
@@ -674,7 +674,7 @@ SortTest::configure(Vector<String> &conf, ErrorHandler *errh)
 	int complain = 0;
 	size_t sz;
 	for (String *sp = conf.begin(); sp != conf.end(); sp++)
-	    if (*sp && cp_integer(*sp, &sz))
+	    if (*sp && IntArg().parse(*sp, sz))
 		_sizevec.push_back(sz);
 	    else if (*sp && !complain)
 		complain = errh->warning("argument not integer");

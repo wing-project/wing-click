@@ -17,7 +17,7 @@
 
 #include <click/config.h>
 #include <click/error.hh>
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include "incseqno.hh"
 CLICK_DECLS
 
@@ -55,12 +55,11 @@ IncrementSeqNo::configure(Vector<String> &conf, ErrorHandler *errh)
   _seqno = 0;
   _offset = 0;
   _use_net_byteorder = false;
-  int res = cp_va_kparse(conf, this, errh,
-			 "OFFSET", 0, cpUnsigned, &_offset,
-			 "FIRST", 0, cpUnsigned, &_seqno,
-			 "NET_BYTE_ORDER", 0, cpBool, &_use_net_byteorder,
-			 cpEnd);
-  return res;
+  return Args(conf, this, errh)
+      .read("OFFSET", _offset)
+      .read("FIRST", _seqno)
+      .read("NET_BYTE_ORDER", _use_net_byteorder)
+      .complete();
 }
 
 int
@@ -82,7 +81,7 @@ IncrementSeqNo::write_seq(const String &in_s, Element *e, void *,
     IncrementSeqNo *e2 = (IncrementSeqNo *) e;
 
     unsigned i;
-    if (!cp_integer(in_s, &i)) {
+    if (!IntArg().parse(in_s, i)) {
       return errh->error("seq must be unsigned");
     }
     e2->_seqno = i;

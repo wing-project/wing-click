@@ -17,7 +17,7 @@
 #include <click/config.h>
 #include <clicknet/ip.h>
 #include "fastudpsrc.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/glue.hh>
 #include <click/standard/alignmentinfo.hh>
@@ -44,20 +44,20 @@ FastUDPSource::configure(Vector<String> &conf, ErrorHandler *errh)
     _interval = 0;
     unsigned rate;
     int limit;
-    if (cp_va_kparse(conf, this, errh,
-		     "RATE", cpkP+cpkM, cpUnsigned, &rate,
-		     "LIMIT", cpkP+cpkM, cpInteger, &limit,
-		     "LENGTH", cpkP+cpkM, cpUnsigned, &_len,
-		     "SRCETH", cpkP+cpkM, cpEthernetAddress, &_ethh.ether_shost,
-		     "SRCIP", cpkP+cpkM, cpIPAddress, &_sipaddr,
-		     "SPORT", cpkP+cpkM, cpUDPPort, &_sport,
-		     "DSTETH", cpkP+cpkM, cpEthernetAddress, &_ethh.ether_dhost,
-		     "DSTIP", cpkP+cpkM, cpIPAddress, &_dipaddr,
-		     "DPORT", cpkP+cpkM, cpUDPPort, &_dport,
-		     "CHECKSUM", cpkP, cpBool, &_cksum,
-		     "INTERVAL", cpkP, cpUnsigned, &_interval,
-		     "ACTIVE", cpkP, cpBool, &_active,
-		     cpEnd) < 0)
+    if (Args(conf, this, errh)
+	.read_mp("RATE", rate)
+	.read_mp("LIMIT", limit)
+	.read_mp("LENGTH", _len)
+	.read_mp_with("SRCETH", EtherAddressArg(), _ethh.ether_shost)
+	.read_mp("SRCIP", _sipaddr)
+	.read_mp("SPORT", IPPortArg(IP_PROTO_UDP), _sport)
+	.read_mp_with("DSTETH", EtherAddressArg(), _ethh.ether_dhost)
+	.read_mp("DSTIP", _dipaddr)
+	.read_mp("DPORT", IPPortArg(IP_PROTO_UDP), _dport)
+	.read_p("CHECKSUM", _cksum)
+	.read_p("INTERVAL", _interval)
+	.read_p("ACTIVE", _active)
+	.complete() < 0)
 	return -1;
     if (_sport >= 0x10000 || _dport >= 0x10000)
 	return errh->error("source or destination port too large");
@@ -242,7 +242,7 @@ FastUDPSource_limit_write_handler
 {
     FastUDPSource *c = (FastUDPSource *)e;
     unsigned limit;
-    if (!cp_integer(s, &limit))
+    if (!IntArg().parse(s, limit))
 	return errh->error("limit parameter must be integer >= 0");
     c->_limit = (limit >= 0 ? limit : c->NO_LIMIT);
     return 0;
@@ -254,7 +254,7 @@ FastUDPSource_rate_write_handler
 {
     FastUDPSource *c = (FastUDPSource *)e;
     unsigned rate;
-    if (!cp_integer(s, &rate))
+    if (!IntArg().parse(s, rate))
 	return errh->error("rate parameter must be integer >= 0");
     if (rate > GapRate::MAX_RATE) // report error rather than pin to max
 	return errh->error("rate too large; max is %u", GapRate::MAX_RATE);
@@ -268,8 +268,8 @@ FastUDPSource_active_write_handler
 {
     FastUDPSource *c = (FastUDPSource *)e;
     bool active;
-    if (!cp_bool(s, &active))
-	return errh->error("active parameter must be boolean");
+    if (!BoolArg().parse(s, active))
+	return errh->error("type mismatch");
     c->_active = active;
     if (active)
 	c->reset();
