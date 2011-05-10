@@ -31,7 +31,7 @@ querier :: WINGQuerier(IP $ip,
                        DEBUG $debug);
 
 
-lb :: WINGLocalBroadCast(IP $ip,
+lb :: WINGLocalBroadcast(IP $ip,
                          LT lt, 
                          ARP arp,
                          DEBUG $debug);
