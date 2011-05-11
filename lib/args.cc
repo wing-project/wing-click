@@ -21,6 +21,7 @@
 #include <click/args.hh>
 #include <click/error.hh>
 #include <click/router.hh>
+#include <click/bigint.hh>
 #if !CLICK_TOOL
 # include <click/nameinfo.hh>
 # include <click/packet_anno.hh>
@@ -469,18 +470,12 @@ Args::complete()
 
 
 const char *
-IntArg::parse(const char *begin, const char *end, bool is_signed,
-	      value_type &value)
+IntArg::span(const char *begin, const char *end, bool is_signed, int &b)
 {
     const char *s = begin;
-    bool negative = false;
-    if (s < end && is_signed && *s == '-') {
-	negative = true;
-	++s;
-    } else if (s < end && *s == '+')
+    if (s != end && ((is_signed && *s == '-') || *s == '+'))
 	++s;
 
-    int b = base;
     if ((b == 0 || b == 16) && s + 2 < end
 	&& *s == '0' && (s[1] == 'x' || s[1] == 'X')) {
 	s += 2;
@@ -489,102 +484,354 @@ IntArg::parse(const char *begin, const char *end, bool is_signed,
 	       && *s == '0' && (s[1] == 'b' || s[1] == 'B')) {
 	s += 2;
 	b = 2;
-    } else if (b == 0 && s < end && *s == '0')
+    } else if (b == 0 && s != end && *s == '0')
 	b = 8;
     else if (b == 0)
 	b = 10;
-    else if (b < 2 || b > 36) {
-	status = status_notsup;
-	return begin;
-    }
 
-    const char *firstdigit = s, *lastdigit = s;
-    value_type v = 0;
-    status = status_ok;
-    for (; s < end; ++s) {
-	// find digit
-	int digit;
-	if (*s >= '0' && *s <= '9')
-	    digit = *s - '0';
-	else if (b > 10 && *s >= 'A' && *s <= 'Z')
-	    digit = *s - 'A' + 10;
-	else if (b > 10 && *s >= 'a' && *s <= 'z')
-	    digit = *s - 'a' + 10;
-	else if (*s == '_' && lastdigit + 1 == s)
-	    // skip underscores between digits
-	    continue;
+    int ndigits = (b > 10 ? 10 : b), nletters = (b > 10 ? b - 10 : 0);
+    const char *firstdigit = s, *lastdigit = s - 1;
+    for (; s != end; ++s) {
+	if (*s == '_' && lastdigit == s)
+	    /* allow underscores between digits */;
+	else if ((*s >= '0' && *s < '0' + ndigits)
+		 || (*s >= 'A' && *s < 'A' + nletters)
+		 || (*s >= 'a' && *s < 'a' + nletters))
+	    lastdigit = s + 1;
 	else
-	    digit = 36;
-	if (digit >= b)
 	    break;
-	lastdigit = s;
-	// check for overflow without divide
-	if (v <= threshold)
-	    v = v * b + digit;
-	else {
-	    // Let v = (msv * threshold) + lsv, where lsv < threshold.
-	    // Then new_value = (msv * threshold * b)
-	    //   + (lsv * threshold * b) + digit.
-	    value_type msv = (v >> threshold_shift) * b;
-	    value_type lsv = (v & (threshold - 1)) * b + digit;
-	    if (lsv >= threshold) {
-		msv += lsv >> threshold_shift;
-		lsv &= threshold - 1;
-	    }
-	    if (msv >= (1 << threshold_high_bits))
-		status = status_range;
-	    else
-		v = (msv << threshold_shift) + lsv;
-	}
     }
 
-    if (s == firstdigit && firstdigit > begin + 1)
+    if (s != firstdigit)
+	return lastdigit;
+    else if (firstdigit > begin + 1)
 	// Happens in cases like "0x!" or "+0x": parse the initial "0".
-	firstdigit = lastdigit = begin + (*begin == '0' ? 0 : 1);
-    else if (s == firstdigit) {
+	return firstdigit - 1;
+    else
+	return begin;
+}
+
+const char *
+IntArg::parse(const char *begin, const char *end, bool is_signed, int size,
+	      limb_type *value, int nlimb)
+{
+    int b = base;
+    const char *xend = span(begin, end, is_signed, b);
+    if (b < 2 || b > 36 || xend == begin) {
 	status = status_inval;
 	return begin;
     }
 
-    if (is_signed) {
-	value_type boundary =
-	    value_type(integer_traits<signed_value_type>::const_max) + (negative && v);
-	if (v > boundary)
+    constexpr limb_type threshold = integer_traits<limb_type>::const_max / 36;
+    uint32_t v0 = 0;
+    memset(value, 0, sizeof(limb_type) * nlimb);
+    int nletters = (b > 10 ? b - 10 : 0);
+    status = status_ok;
+    for (const char *s = begin; s != xend; ++s) {
+	int digit;
+	if (*s >= '0' && *s <= '9')
+	    digit = *s - '0';
+	else if (*s >= 'A' && *s < 'A' + nletters)
+	    digit = *s - 'A' + 10;
+	else if (*s >= 'a' && *s < 'a' + nletters)
+	    digit = *s - 'a' + 10;
+	else
+	    continue;
+	if (v0 < threshold)
+	    value[0] = v0 = v0 * b + digit;
+	else if (Bigint<limb_type>::multiply_half(value, value, nlimb, b, digit))
 	    status = status_range;
-	if (status == status_range)
-	    v = boundary;
-	if (negative)
-	    v = -v;
-    } else if (status == status_range)
-	v = integer_traits<value_type>::const_max;
-    value = v;
+    }
 
-    return lastdigit + 1;
+    bool negative = is_signed && *begin == '-';
+    int bitsize = size * 8 - is_signed;
+    constexpr int limb_bits = int(sizeof(limb_type)) * 8;
+
+    int bpos = 0;
+    for (limb_type *x = value; x != value + nlimb && status == status_ok;
+	 ++x, bpos += limb_bits)
+	if ((bpos >= bitsize && *x != 0)
+	    || (bpos < bitsize && bitsize < bpos + limb_bits
+		&& *x >= (1U << (bitsize - bpos)) + negative))
+	    status = status_range;
+
+    if (status == status_range) {
+	memset(value, negative ? 0 : 255, size);
+	if (is_signed)
+	    value[bitsize / limb_bits] ^= 1U << (bitsize & (limb_bits - 1));
+    }
+
+    if (negative)
+	for (limb_type *x = value; x != value + nlimb; ++x)
+	    *x = -*x;
+
+    return xend;
 }
 
 void
-IntArg::report_error(bool good_format, int signed_size,
-		     const ArgContext &args, value_type value) const
+IntArg::report_error(const ArgContext &args, bool negative,
+		     click_uint_large_t value) const
 {
-    if (args.errh() && good_format
-	&& (status == status_range || status == status_ok)) {
-	value_type boundary(saturated(signed_size, value));
-	const char *fmt;
-	if (signed_size < 0 && signed_value_type(value) < 0)
-	    fmt = "overflow, min -%s";
-	else
-	    fmt = "overflow, max %s";
-	args.error(fmt, String(boundary).c_str());
+    if (args.errh() && status == status_range) {
+	const char *sgn = "-" + !negative;
+	args.error("out of range, bound %s%s", sgn, String(value).c_str());
     }
 }
 
-IntArg::value_type
-IntArg::saturated(int signed_size, value_type value) const
+
+namespace {
+typedef click_uint_large_t value_type;
+typedef click_int_large_t signed_value_type;
+
+const char *
+preparse_fraction(const char *begin, const char *end, bool is_signed,
+		  int &integer_digits)
 {
-    if (signed_size < 0)
-	return (value_type(1) << (8 * -signed_size - 1)) - (signed_value_type(value) >= 0);
+    const char *s = begin;
+    if (s != end && ((is_signed && *s == '-') || *s == '+'))
+	++s;
+
+    const char *firstdigit = s, *lastdigit = firstdigit - 1;
+    bool decimalpoint = false;
+    for (; s != end; ++s) {
+	if (*s == '_' && lastdigit == s)
+	    /* OK */;
+	else if (*s == '.' && !decimalpoint
+		 && (lastdigit == s || firstdigit == s))
+	    decimalpoint = true;
+	else if (*s >= '0' && *s <= '9') {
+	    if (!decimalpoint)
+		++integer_digits;
+	    lastdigit = s + 1;
+	} else
+	    break;
+    }
+
+    // error if no digits at all
+    if (lastdigit == firstdigit - 1)
+	return begin;
+
+    // optional exponent
+    if (s != end && (*s == 'E' || *s == 'e') && s + 1 != end) {
+	const char *echar = s;
+	s += (s[1] == '-' || s[1] == '+' ? 2 : 1);
+	if (s != end && isdigit((unsigned char) *s)) {
+	    int exponent = *s - '0';
+	    // XXX overflow
+	    for (++s; s != end && isdigit((unsigned char) *s); ++s)
+		exponent = 10 * exponent + *s - '0';
+	    integer_digits += (echar[1] == '-' ? -exponent : exponent);
+	} else
+	    s = echar;
+    }
+
+    return s;
+}
+
+#if 0
+const char *
+parse_decimal_fraction(const char *begin, const char *end, bool is_signed,
+		       value_type &ivalue,
+		       int fraction_digits, value_type &fvalue, int &status)
+{
+    int integer_digits = 0;
+    end = preparse_fraction(begin, end, is_signed, integer_digits);
+    if (end == begin) {
+	status = NumArg::status_inval;
+	return begin;
+    }
+
+    status = NumArg::status_ok;
+    const char *s = begin;
+
+    constexpr value_type thresh = integer_traits<value_type>::const_max / 10;
+    constexpr int thresh_digit = integer_traits<value_type>::const_max - thresh * 10;
+    ivalue = fvalue = 0;
+    while (integer_digits > 0 || fraction_digits > 0) {
+	int digit;
+	if (integer_digits < 0) {
+	    digit = 0;
+	    ++integer_digits;
+	} else if (s == end || *s == 'E' || *s == 'e')
+	    digit = 0;
+	else if (*s >= '0' && *s <= '9') {
+	    digit = *s - '0';
+	    ++s;
+	} else {
+	    ++s;
+	    continue;
+	}
+	if (integer_digits > 0) {
+	    if (ivalue > thresh || (ivalue == thresh && digit > thresh_digit)) {
+		ivalue = integer_traits<value_type>::const_max;
+		status = NumArg::status_range;
+	    } else
+		ivalue = 10 * ivalue + digit;
+	    --integer_digits;
+	} else {
+	    fvalue = 10 * fvalue + digit;
+	    --fraction_digits;
+	}
+    }
+
+    if (status == NumArg::status_range)
+	fvalue = 0;
+
+    return end;
+}
+#endif
+
+const char *
+parse_fraction(const char *begin, const char *end,
+	       bool is_signed, int exponent_delta,
+	       value_type &ivalue, uint32_t &fvalue, int &status)
+{
+    int integer_digits = exponent_delta;
+    end = preparse_fraction(begin, end, is_signed, integer_digits);
+    if (end == begin) {
+	status = NumArg::status_inval;
+	return begin;
+    }
+
+    status = NumArg::status_ok;
+    const char *s = begin;
+
+    constexpr value_type thresh = integer_traits<value_type>::const_max / 10;
+    constexpr int thresh_digit = integer_traits<value_type>::const_max - thresh * 10;
+    ivalue = 0;
+    while (integer_digits > 0) {
+	int digit;
+	if (s == end || *s == 'E' || *s == 'e')
+	    digit = 0;
+	else if (*s >= '0' && *s <= '9') {
+	    digit = *s - '0';
+	    ++s;
+	} else {
+	    ++s;
+	    continue;
+	}
+	if (ivalue > thresh || (ivalue == thresh && digit > thresh_digit)) {
+	    ivalue = integer_traits<value_type>::const_max;
+	    status = NumArg::status_range;
+	} else
+	    ivalue = 10 * ivalue + digit;
+	--integer_digits;
+    }
+
+    const char *x = s;
+    while (x != end && *x != 'E' && *x != 'e')
+	++x;
+    uint64_t fwork = 0;
+    while (x != s) {
+	--x;
+	if (*x == '0') {
+	    fwork = fwork ? int_divide(fwork, 10) : 0;
+	    ++integer_digits;
+	} else if (*x >= '1' && *x <= '9') {
+	    fwork = int_divide(fwork + (uint64_t(*x - '0') << 33), 10);
+	    ++integer_digits;
+	}
+    }
+    while (integer_digits <= 0 && fwork) {
+	fwork = int_divide(fwork, 10);
+	++integer_digits;
+    }
+
+    if (fwork > 0x1FFFFFFFEULL) {
+	if (ivalue == integer_traits<value_type>::const_max)
+	    status = NumArg::status_range;
+	else
+	    ++ivalue;
+	fwork = 0;
+    }
+
+    if (status == NumArg::status_range || fwork < 2)
+	fvalue = 0;
     else
-	return ~value_type(0) >> (8 * (sizeof(value_type) - signed_size));
+	fvalue = (fwork + 1) >> 1;
+
+    return end;
+}
+}
+
+
+bool
+FixedPointArg::preparse(const String &str, bool is_signed, uint32_t &result)
+{
+    value_type ivalue;
+    uint32_t fvalue;
+    const char *end = parse_fraction(str.begin(), str.end(),
+				     is_signed, exponent_delta,
+				     ivalue, fvalue, status);
+    if (end != str.end())
+	status = status_inval;
+    if (status && status != status_range)
+	return false;
+
+    if (fvalue > (0xFFFFFFFFU - (1U << (31 - fraction_bits)))) {
+	if (ivalue < integer_traits<value_type>::const_max)
+	    ++ivalue;
+	else
+	    status = status_range;
+    }
+    if (fraction_bits == 32 ? ivalue : ivalue >= (1U << (32 - fraction_bits)))
+	status = status_range;
+    if (status == status_range)
+	result = 0xFFFFFFFFU;
+    else if (fraction_bits == 32)
+	result = fvalue;
+    else
+	result = (uint32_t(ivalue) << fraction_bits)
+	    | ((fvalue + (1U << (31 - fraction_bits))) >> (32 - fraction_bits));
+    return true;
+}
+
+bool
+FixedPointArg::parse(const String &str, uint32_t &result, const ArgContext &args)
+{
+    uint32_t x;
+    if (!preparse(str, false, x))
+	return false;
+    else if (status == status_range) {
+	if (args.errh())
+	    args.error("out of range, bound %s", cp_unparse_real2(x, fraction_bits).c_str());
+	return false;
+    } else {
+	result = x;
+	return true;
+    }
+}
+
+bool
+FixedPointArg::parse_saturating(const String &str, int32_t &result, const ArgContext &)
+{
+    uint32_t x;
+    if (!preparse(str, true, x))
+	return false;
+    bool negative = str[0] == '-';
+    if (status == status_ok
+	&& x > uint32_t(integer_traits<int32_t>::const_max) + negative) {
+	status = status_range;
+	x = uint32_t(integer_traits<int32_t>::const_max) + negative;
+    }
+    result = negative ? -x : x;
+    return true;
+}
+
+bool
+FixedPointArg::parse(const String &str, int32_t &result, const ArgContext &args)
+{
+    int32_t x;
+    if (!parse_saturating(str, x, args))
+	return false;
+    else if (status == status_range) {
+	if (args.errh())
+	    args.error("out of range, bound %s", cp_unparse_real2(int32_t(x), fraction_bits).c_str());
+	return false;
+    } else {
+	result = x;
+	return true;
+    }
 }
 
 
@@ -611,10 +858,8 @@ DoubleArg::parse(const String &str, double &result, const ArgContext &args)
 	    const char *fmt;
 	    if (value == 0)
 		fmt = "underflow, rounded to %g";
-	    else if (value < 0)
-		fmt = "overflow, min %g";
 	    else
-		fmt = "overflow, max %g";
+		fmt = "out of range, bound %g";
 	    args.error(fmt, value);
 	}
 	return false;
@@ -649,6 +894,132 @@ BoolArg::parse(const String &str, bool &result, const ArgContext &)
 	return false;
 
     return true;
+}
+
+
+void
+UnitArg::check_units()
+{
+    const unsigned char *u = units_;
+    Vector<String> suffixes;
+    while (*u) {
+	assert(*u >= 1 && *u <= 7 && *u != 4);
+	const unsigned char *next = u + 2 + (*u & 3);
+	assert(*next);
+	const unsigned char *post = next + 1;
+	while (*post > 7)
+	    ++post;
+	String suffix(next, post);
+	for (String *it = suffixes.begin(); it != suffixes.end(); ++it)
+	    assert(suffix.length() < it->length()
+		   || it->substring(-suffix.length()) != suffix);
+	suffixes.push_back(suffix);
+	u = post;
+    }
+}
+
+const char *
+UnitArg::parse(const char *begin, const char *end, int &power, int &factor) const
+{
+    const unsigned char *units = units_;
+
+    while (*units) {
+	const unsigned char *ubegin = units + 2 + (*units & 3);
+	const unsigned char *uend = ubegin + 1;
+	while (*uend > 7)
+	    ++uend;
+
+	if (uend - ubegin <= end - begin
+	    && memcmp(ubegin, end - (uend - ubegin), uend - ubegin) == 0) {
+	    factor = units[2];
+	    if ((*units & 3) >= 2)
+		factor = 256 * factor + units[3];
+	    if ((*units & 3) >= 3)
+		factor = 256 * factor + units[4];
+
+	    power = units[1];
+	    if (*units >= 4)
+		power = -power;
+
+	    end = end - (uend - ubegin);
+	    if (prefix_chars_ && end > begin)
+		for (const unsigned char *prefix_chars = prefix_chars_;
+		     *prefix_chars; prefix_chars += 2)
+		    if ((char) *prefix_chars == end[-1]) {
+			power += prefix_chars[1] - 64;
+			--end;
+			break;
+		    }
+
+	    while (end > begin && isspace((unsigned char) end[-1]))
+		--end;
+	    return end;
+	}
+
+	units = uend;
+    }
+
+    power = 0;
+    factor = 1;
+    return end;
+}
+
+
+static const char byte_bandwidth_units[] = "\
+\5\3\175baud\
+\5\3\175bps\
+\5\3\175b/s\
+\1\0\1Bps\
+\1\0\1B/s\
+";
+static const char byte_bandwidth_prefixes[] = "\
+k\103K\103M\106G\111";
+
+extern bool cp_real10(const String &str, int frac_digits, int exponent_delta, uint32_t *result);
+
+bool
+BandwidthArg::parse(const String &str, uint32_t &result, const ArgContext &args)
+{
+    int power, factor;
+    const char *unit_end = UnitArg(byte_bandwidth_units, byte_bandwidth_prefixes).parse(str.begin(), str.end(), power, factor);
+
+    value_type ix;
+    uint32_t fx;
+    const char *xend = parse_fraction(str.begin(), unit_end,
+				      false, power, ix, fx, status);
+    if (status == status_inval || xend != unit_end) {
+	status = status_inval;
+	return false;
+    }
+    if (uint32_t(ix) != ix)
+	status = status_range;
+    if (factor) {
+	uint32_t addend;
+#if HAVE_INT64_TYPES
+	uint64_t fscale = uint64_t(fx) * factor;
+	addend = (fscale + (1ULL << 31)) >> 32;
+#else
+	uint32_t ax[2] = { fx, 0 }, bx[2] = { 0x80000000U, 0 };
+	Bigint<uint32_t>::multiply_add(bx, ax, 2, factor);
+	addend = bx[1];
+#endif
+	const uint32_t threshold = 0xFFFFFFFFU / factor;
+	if (ix > threshold
+	    || (ix == threshold && addend > 0xFFFFFFFFU - threshold * factor))
+	    status = status_range;
+	else
+	    ix = ix * factor + addend;
+    }
+    if (status == status_range) {
+	args.error("out of range");
+	result = 0xFFFFFFFFU;
+	return false;
+    } else {
+	if (unit_end == str.end() && ix)
+	    status = status_unitless;
+	result = ix;
+	return true;
+    }
 }
 
 

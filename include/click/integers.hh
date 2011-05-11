@@ -2,6 +2,7 @@
 #ifndef CLICK_INTEGERS_HH
 #define CLICK_INTEGERS_HH
 #include <click/glue.hh>
+#include <click/type_traits.hh>
 #if !HAVE___BUILTIN_FFS && HAVE_FFS && HAVE_STRINGS_H
 # include <strings.h>
 #endif
@@ -326,6 +327,154 @@ uint32_t int_sqrt(uint32_t x);
 #if HAVE_INT64_TYPES && HAVE_INT64_DIVIDE
 /** @overload */
 uint64_t int_sqrt(uint64_t x);
+#endif
+
+
+/** @brief Return @a a / @a b. */
+inline uint32_t int_divide(uint32_t a, uint32_t b) {
+    return a / b;
+}
+
+/** @overload */
+inline int32_t int_divide(int32_t a, uint32_t b) {
+    return a / b;
+}
+
+#if HAVE_INT64_TYPES
+/** @overload */
+inline uint64_t int_divide(uint64_t a, uint32_t b) {
+# if CLICK_LINUXMODULE && BITS_PER_LONG < 64
+    do_div(a, b);
+    return a;
+# else
+    return a / b;
+# endif
+}
+
+/** @overload */
+inline int64_t int_divide(int64_t a, uint32_t b) {
+# if CLICK_LINUXMODULE && BITS_PER_LONG < 64
+    if (unlikely(a < 0)) {
+	uint64_t a_abs = -a - 1;
+	do_div(a_abs, b);
+	return (int64_t) -a_abs - 1;
+    } else {
+	uint64_t &a_unsigned = reinterpret_cast<uint64_t &>(a);
+	do_div(a_unsigned, b);
+	return a_unsigned;
+    }
+# else
+    return a / b;
+# endif
+}
+
+
+/** @brief Multiply @a a * @a b, placing the low-order bits of the result in @a xlow
+    and the high-order bits in @a xhigh. */
+template<typename T>
+void int_multiply(T a, T b, T &xlow, T &xhigh)
+{
+    typedef fast_half_integer<T> fasthalf;
+    typedef typename fasthalf::half_type half_type;
+
+    half_type al = fasthalf::low(a), ah = fasthalf::high(a),
+	bl = fasthalf::low(b), bh = fasthalf::high(b);
+
+    T r0 = T(al) * bl;
+    T r3 = T(ah) * bh;
+    T r1 = T(ah) * bl;
+    T r2 = T(al) * bh + fasthalf::high(r0) + r1;
+    if (r2 < r1)
+	r3 += fasthalf::half_value;
+
+    xhigh = r3 + fasthalf::high(r2);
+    xlow = (r2 << fasthalf::half_bits) + fasthalf::low(r0);
+}
+
+template<typename T>
+struct has_fast_int_multiply : public false_type {};
+
+#if defined(__i386__) || defined(__x86_64__)
+inline void int_multiply(unsigned a, unsigned b, unsigned &xlow, unsigned &xhigh)
+{
+    __asm__("mul %2" : "=a" (xlow), "=d" (xhigh) : "r" (a), "a" (b) : "cc");
+}
+template<> struct has_fast_int_multiply<unsigned> : public true_type {};
+
+# if SIZEOF_LONG == 4 || (defined(__x86_64__) && SIZEOF_LONG == 8)
+inline void int_multiply(unsigned long a, unsigned long b, unsigned long &xlow, unsigned long &xhigh)
+{
+    __asm__("mul %2" : "=a" (xlow), "=d" (xhigh) : "r" (a), "a" (b) : "cc");
+}
+template<> struct has_fast_int_multiply<unsigned long> : public true_type {};
+# endif
+
+# if defined(__x86_64__) && SIZEOF_LONG_LONG == 8
+inline void int_multiply(unsigned long long a, unsigned long long b, unsigned long long &xlow, unsigned long long &xhigh)
+{
+    __asm__("mul %2" : "=a" (xlow), "=d" (xhigh) : "r" (a), "a" (b) : "cc");
+}
+template<> struct has_fast_int_multiply<unsigned long long> : public true_type {};
+# endif
+#endif
+
+
+/** @brief Divide @a a / @a b, placing quotient in @a quot and returning remainder. */
+inline uint32_t int_divide(uint32_t a, uint32_t b, uint32_t &quot) {
+    quot = a / b;
+    return a - quot * b;
+}
+
+/** @overload */
+inline int32_t int_divide(int32_t a, uint32_t b, int32_t &quot) {
+    if (unlikely(a < 0))
+	quot = -((-a - 1) / b) - 1;
+    else
+	quot = a / b;
+    return a - quot * b;
+}
+
+/** @overload */
+inline uint32_t int_divide(uint64_t a, uint32_t b, uint64_t &quot) {
+# if CLICK_LINUXMODULE && BITS_PER_LONG < 64
+    uint32_t rem = do_div(a, b);
+    quot = a;
+    return rem;
+# else
+    quot = a / b;
+    return a - quot * b;
+# endif
+}
+
+/** @overload */
+inline uint32_t int_divide(int64_t a, uint32_t b, int64_t &quot) {
+# if CLICK_LINUXMODULE && BITS_PER_LONG < 64
+    if (unlikely(a < 0)) {
+	uint64_t a_abs = -a - 1;
+	uint32_t rem = do_div(a_abs, b);
+	quot = (int64_t) -a_abs - 1;
+	return rem ? b - rem : 0;
+    } else {
+	uint64_t &a_unsigned = reinterpret_cast<uint64_t &>(a);
+	uint32_t rem = do_div(a_unsigned, b);
+	quot = a_unsigned;
+	return rem;
+    }
+# else
+    // This arithmetic is about twice as fast on my laptop as the
+    // alternative "div = a / b;
+    //		rem = a - (value_type) div * b;
+    //		if (rem < 0) div--, rem += b;",
+    // and 3-4x faster than "div = a / b;
+    //			 rem = a % b;
+    //			 if (rem < 0) div--, rem += b;".
+    if (unlikely(a < 0))
+	quot = -((-a - 1) / b) - 1;
+    else
+	quot = a / b;
+    return a - quot * b;
+# endif
+}
 #endif
 
 CLICK_ENDDECLS

@@ -6,6 +6,11 @@
 #include <click/string.hh>
 #include <click/confparse.hh>
 #include <click/timestamp.hh>
+#if CLICK_BSDMODULE
+# include <machine/stdarg.h>
+#else
+# include <stdarg.h>
+#endif
 CLICK_DECLS
 class Element;
 class ErrorHandler;
@@ -791,17 +796,17 @@ void args_base_read_with(Args *args, const char *keyword, int flags,
 
 struct NumArg {
     enum {
-	// order matters
 	status_ok = 0,
 	status_inval = EINVAL,
 	status_range = ERANGE,
 #if defined(ENOTSUP)
-	status_notsup = ENOTSUP
+	status_notsup = ENOTSUP,
 #elif defined(ENOTSUPP)
-	status_notsup = ENOTSUPP
+	status_notsup = ENOTSUPP,
 #else
-	status_notsup
+	status_notsup,
 #endif
+	status_unitless
     };
 };
 
@@ -818,60 +823,58 @@ struct NumArg {
   @sa SaturatingIntArg */
 struct IntArg : public NumArg {
 
-    typedef click_uint_large_t value_type;
-    typedef click_int_large_t signed_value_type;
+    typedef uint32_t limb_type;
 
     IntArg(int b = 0)
 	: base(b) {
     }
 
-    const char *parse(const char *begin, const char *end, bool is_signed,
-		      value_type &result);
-
-    template<typename V>
-    bool parse(const String &str, V &result, const ArgContext &args = blank_args) {
-	constexpr bool is_signed = integer_traits<V>::is_signed;
-	typedef typename conditional<is_signed, signed_value_type, value_type>::type this_value_type;
-	value_type value;
-	const char *x = parse(str.begin(), str.end(), is_signed, value);
-	if (x == str.end() && status == status_ok) {
-	    V typed_value(value);
-	    if (typed_value == this_value_type(value)) {
-		result = typed_value;
-		return true;
-	    }
-	}
-	report_error(x == str.end(), is_signed ? -int(sizeof(V)) : int(sizeof(V)), args, value);
-	return false;
-    }
+    const char *parse(const char *begin, const char *end,
+		      bool is_signed, int size,
+		      limb_type *value, int nlimb);
 
     template<typename V>
     bool parse_saturating(const String &str, V &result, const ArgContext &args = blank_args) {
 	(void) args;
 	constexpr bool is_signed = integer_traits<V>::is_signed;
-	typedef typename conditional<is_signed, signed_value_type, value_type>::type this_value_type;
-	value_type value;
-	const char *x = parse(str.begin(), str.end(), is_signed, value);
-	if (x != str.end() || (status && status != status_range))
+	constexpr int nlimb = int((sizeof(V) + sizeof(limb_type) - 1) / sizeof(limb_type));
+	limb_type x[nlimb];
+	if (parse(str.begin(), str.end(), is_signed, int(sizeof(V)), x, nlimb)
+	    != str.end())
+	    status = status_inval;
+	if (status && status != status_range)
 	    return false;
-	result = value;
-	if (result != this_value_type(value))
-	    result = saturated(is_signed ? -int(sizeof(V)) : int(sizeof(V)), value);
+	typedef typename make_unsigned<V>::type unsigned_v_type;
+	extract_integer(x, reinterpret_cast<unsigned_v_type &>(result));
 	return true;
     }
 
-    static constexpr int threshold_high_bits = 6;
-    static constexpr int threshold_shift = 8 * sizeof(value_type) - threshold_high_bits;
-    static constexpr value_type threshold = (value_type) 1 << threshold_shift;
+    template<typename V>
+    bool parse(const String &str, V &result, const ArgContext &args = blank_args) {
+	V x;
+	if (!parse_saturating(str, x, args)
+	    || (status && status != status_range))
+	    return false;
+	else if (status == status_range) {
+	    typedef typename make_unsigned<V>::type unsigned_v_type;
+	    report_error(args, integer_traits<V>::negative(x),
+			 unsigned_v_type(x));
+	    return false;
+	} else {
+	    result = x;
+	    return true;
+	}
+    }
 
     int base;
     int status;
 
   private:
 
-    void report_error(bool good_format, int signed_size, const ArgContext &args,
-		      value_type value) const;
-    value_type saturated(int signed_size, value_type value) const;
+    static const char *span(const char *begin, const char *end,
+			    bool is_signed, int &b);
+    void report_error(const ArgContext &args, bool negative,
+		      click_uint_large_t value) const;
 
 };
 
@@ -908,24 +911,24 @@ template<> struct DefaultArg<long long> : public IntArg {};
 #endif
 
 
-bool cp_real2(const String &str, int frac_bits, uint32_t *result);
-bool cp_real2(const String &str, int frac_bits, int32_t *result);
-
 /** @class FixedPointArg
   @brief Parser class for fixed-point numbers with @a n bits of fraction. */
-struct FixedPointArg {
-    FixedPointArg(int n)
-	: frac_bits(n) {
+struct FixedPointArg : public NumArg {
+    explicit FixedPointArg(int n, int exponent = 0)
+	: fraction_bits(n), exponent_delta(exponent) {
     }
-    bool parse(const String &str, uint32_t &result, const ArgContext & = blank_args) {
-	// XXX cp_errno
-	return cp_real2(str, frac_bits, &result);
+    bool parse_saturating(const String &str, uint32_t &result, const ArgContext &args = blank_args) {
+	(void) args;
+	return preparse(str, false, result);
     }
-    bool parse(const String &str, int32_t &result, const ArgContext & = blank_args) {
-	// XXX cp_errno
-	return cp_real2(str, frac_bits, &result);
-    }
-    int frac_bits;
+    bool parse(const String &str, uint32_t &result, const ArgContext &args = blank_args);
+    bool parse_saturating(const String &str, int32_t &result, const ArgContext &args = blank_args);
+    bool parse(const String &str, int32_t &result, const ArgContext &args = blank_args);
+    int fraction_bits;
+    int exponent_delta;
+    int status;
+  private:
+    bool preparse(const String &str, bool is_signed, uint32_t &result);
 };
 
 bool cp_real10(const String& str, int frac_digits, int32_t* result);
@@ -968,16 +971,35 @@ template<> struct DefaultArg<double> : public DoubleArg {};
 #endif
 
 
-bool cp_bandwidth(const String &str, uint32_t *result);
+/** @class BoolArg
+  @brief Parser class for booleans. */
+struct BoolArg {
+    static bool parse(const String &str, bool &result, const ArgContext &args = blank_args);
+};
+
+template<> struct DefaultArg<bool> : public BoolArg {};
+
+
+struct UnitArg {
+    explicit UnitArg(const char *unit_def, const char *prefix_chars_def)
+	: units_(reinterpret_cast<const unsigned char *>(unit_def)),
+	  prefix_chars_(reinterpret_cast<const unsigned char *>(prefix_chars_def)) {
+    }
+    const char *parse(const char *begin, const char *end, int &power, int &factor) const;
+  private:
+    const unsigned char *units_;
+    const unsigned char *prefix_chars_;
+    void check_units();
+};
+
 
 /** @class BandwidthArg
   @brief Parser class for bandwidth specifications.
 
   Handles suffixes such as "Gbps", "k", etc. */
-struct BandwidthArg {
-    static bool parse(const String &str, uint32_t &result, const ArgContext & = blank_args) {
-	return cp_bandwidth(str, &result);
-    }
+struct BandwidthArg : public NumArg {
+    bool parse(const String &str, uint32_t &result, const ArgContext & = blank_args);
+    int status;
 };
 
 
@@ -1011,15 +1033,6 @@ struct SecondsArg {
     }
     int frac_digits;
 };
-
-
-/** @class BoolArg
-  @brief Parser class for booleans. */
-struct BoolArg {
-    static bool parse(const String &str, bool &result, const ArgContext &args = blank_args);
-};
-
-template<> struct DefaultArg<bool> : public BoolArg {};
 
 
 /** @class AnyArg
