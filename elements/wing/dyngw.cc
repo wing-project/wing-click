@@ -92,7 +92,7 @@ void DynGW::run_timer(Timer *) {
 						mesh_found = true;
 					} else {
 						route_found = true;
-						_sel->hna_add(addr, mask);
+						_sel->hna_add(IPAddress(), IPAddress());
 					}
 				}
 			}
