@@ -16,14 +16,10 @@
  */
 
 #include <click/config.h>
-#include <click/ipaddress.hh>
-#include <click/confparse.hh>
-#include <click/error.hh>
-#include <click/glue.hh>
-#include <click/straccum.hh>
-#include <click/packet_anno.hh>
-#include <clicknet/ether.h>
 #include "wingprint.hh"
+#include <click/args.hh>
+#include <click/etheraddress.hh>
+#include <clicknet/ether.h>
 CLICK_DECLS
 
 WINGPrint::WINGPrint()
@@ -37,81 +33,82 @@ WINGPrint::~WINGPrint()
 int
 WINGPrint::configure(Vector<String> &conf, ErrorHandler* errh)
 {
-	return cp_va_kparse(conf, this, errh,
-				"LABEL", cpkP, cpString, &_label,
-				cpEnd);
+	return Args(conf, this, errh).read_p("LABEL", _label).complete();
 }
 
 String 
-WINGPrint::wing_to_string(struct wing_packet *pk) 
+WINGPrint::wing_to_string(struct wing_header *hdr) 
 {
-
 	StringAccum sa;
-
-	String type;
-	switch (pk->_type) {
-		case WING_PT_QUERY:
-			type = "QUERY";
+	switch (hdr->_type) {
+		case WING_PT_PROBE: {
+			struct wing_probe *pk = (struct wing_probe *) hdr;
+			sa << " rate " << (int) pk->rate();
+			sa << " channel " << (int) pk->channel();
+			sa << " size " << (int) pk->size();
+			sa << " neighbor " << pk->node();
+			sa << " seq " << (int) pk->seq();
+			sa << " period " << (int) pk->period();
+			sa << " tau " << (int) pk->tau();
+			sa << " sent " << (int) pk->sent();
 			break;
+		}
 		case WING_PT_REPLY:
-			type = "REPLY";
+		case WING_PT_QUERY: {
+			struct wing_packet *pk = (struct wing_packet *) hdr;
+			int seq = pk->seq();
+			int num_links = pk->num_links();
+			int next = pk->next();
+			sa << " len " << pk->hlen_wo_data();
+			sa << " dst " << pk->qdst();
+			sa << " src " << pk->qsrc();
+			sa << " seq " << seq;
+			sa << " nlinks " << num_links;
+			sa << " next " << next;
+			sa << " [";
+			for(int i = 0; i< pk->num_links(); i++) {
+				sa << route_to_string(pk->get_path());
+			}
+			sa << "]";
 			break;
-		case WING_PT_PROBE:
-			type = "PROBE";
+		}
+		case WING_PT_DATA: {
+			struct wing_data *pk = (struct wing_data *) hdr;
+			int num_links = pk->num_links();
+			int next = pk->next();
+			sa << " len " << pk->hlen_w_data();
+			sa << " nlinks " << num_links;
+			sa << " next " << next;
+			sa << " [";
+			for(int i = 0; i< pk->num_links(); i++) {
+				sa << route_to_string(pk->get_path());
+			}
+			sa << "]";
 			break;
-		case WING_PT_DATA:
-			type = "DATA";
 			break;
-		case WING_PT_BCAST_DATA:
-			type = "BROADCAST DATA";
+		}
+		case WING_PT_BCAST_DATA: {
+			struct wing_bcast_data *pk = (struct wing_bcast_data *) hdr;
+			sa << " len " << pk->hlen_w_data();
 			break;
-		case WING_PT_GATEWAY:
-			type = "GATEWAY";
+		}
+		case WING_PT_GATEWAY: {
+			struct wing_packet *pk = (struct wing_packet *) hdr;
+			int seq = pk->seq();
+			int num_links = pk->num_links();
+			sa << " len " << pk->hlen_wo_data();
+			sa << " route " << pk->qdst() << "/" << pk->netmask() << " " << pk->qsrc();
+			sa << " seq " << seq;
+			sa << " nlinks " << num_links;
+			sa << " [";
+			for(int i = 0; i< pk->num_links(); i++) {
+				sa << route_to_string(pk->get_path());
+			}
+			sa << "]";
 			break;
-		default:
-			type = "UNKNOWN";
+		}
 	}
-
-	sa << type;
-
-/*
-
-  if (pk->_type == WING_PT_DATA) {
-    sa << " len " << pk->hlen_with_data();
-  } else {
-    sa << " len " << pk->hlen_wo_data();
-  }
-
-  if (pk->_type == WING_PT_DATA) {
-    sa << " dataseq " << pk->data_seq();
-  }
-  IPAddress qdst = pk->get_qdst();
-  if (qdst) {
-    sa << " qdst " << qdst;
-  }
-
-  if (pk->_type == WING_PT_DATA) {
-    sa << " dlen=" << pk->data_len();
-  }
-
-  sa << " seq " << pk->seq();
-  sa << " nhops " << pk->num_links();
-  sa << " next " << pk->next();
-
-  sa << " [";
-  for(int i = 0; i< pk->num_links(); i++) {
-    sa << " "<< pk->get_link_node(i).unparse() << " ";
-    int fwd = pk->get_link_fwd(i);
-    int rev = pk->get_link_rev(i);
-    int seq = pk->get_link_seq(i);
-    int age = pk->get_link_age(i);
-    sa << "<" << fwd << " (" << seq << "," << age << ") " << rev << ">";
-  }
-  sa << " "<< pk->get_link_node(pk->num_links()).unparse() << " ";
-  sa << "]";
-*/
-  return sa.take_string();
-
+	return sa.take_string();
 }
 
 Packet *
@@ -120,11 +117,36 @@ WINGPrint::simple_action(Packet *p)
 	StringAccum sa;
 	if (_label[0] != 0) {
 		sa << _label << ": ";
-	} else {
-		sa << "WINGPrint ";
 	}
 	click_ether *eh = (click_ether *) p->data();
-	struct wing_packet *pk = (struct wing_packet *) (eh+1);
+	int len;
+	len = sprintf(sa.reserve(9), "%4d | ", p->length());
+	sa.adjust_length(len);
+	struct wing_header *pk = (struct wing_header *) (eh+1);
+	switch (pk->_type) {
+		case WING_PT_QUERY:
+			sa << "query";
+			break;
+		case WING_PT_REPLY:
+			sa << "reply";
+			break;
+		case WING_PT_PROBE:
+			sa << "probe";
+			break;
+		case WING_PT_DATA:
+			sa << "data";
+			break;
+		case WING_PT_BCAST_DATA:
+			sa << "broadcast";
+			break;
+		case WING_PT_GATEWAY:
+			sa << "hna";
+			break;
+		default:
+			sa << "unknown";
+	}
+	sa << " " << EtherAddress(eh->ether_dhost);
+	sa << " " << EtherAddress(eh->ether_shost);
 	sa << WINGPrint::wing_to_string(pk);
 	click_chatter("%s", sa.c_str());
 	return p;

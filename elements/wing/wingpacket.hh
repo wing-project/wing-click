@@ -243,7 +243,9 @@ public:
 CLICK_PACKED_STRUCTURE(
 struct wing_bcast_data : public wing_header {,
 	/* packet length functions */
+	size_t hlen_wo_data()   const { return sizeof(struct wing_bcast_data); }
 	size_t hlen_w_data()   const { return ntohl(_data_len) + sizeof(struct wing_bcast_data); }
+
 private:
 	/* these are private and have access functions below so I
 	 * don't have to remember about endianness

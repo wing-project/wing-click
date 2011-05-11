@@ -30,7 +30,7 @@ class WINGPrint : public Element {
 
   private:
 
-	static String wing_to_string(struct wing_packet *);
+	static String wing_to_string(struct wing_header *);
 	String _label;
 
 };
