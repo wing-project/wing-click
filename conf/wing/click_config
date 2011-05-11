@@ -214,7 +214,7 @@ echo "control :: ControlSocket(\"TCP\", 7777);
 // takes and spits out ip packets
 elementclass LinuxIPHost {
     \$dev, \$ip, \$nm|
-  input -> KernelTun(\$ip/\$nm, MTU 1500, DEVNAME \$dev) 
+  input -> KernelTun(\$ip/\$nm, MTU 1500, DEVNAME \$dev, BURST 20) 
   -> CheckIPHeader(CHECKSUM false)
   -> output;
 }
