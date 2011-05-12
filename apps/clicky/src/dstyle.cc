@@ -143,6 +143,9 @@ port.agnostic.error, port.push.agnostic.error, port.pull.agnostic.error {\n\
     min-length: 49.6px;\n\
     style: queue;\n\
 }\n\
+ClickyInfo {\n\
+    display: none;\n\
+}\n\
 fullness {\n\
     style: fullness;\n\
     length: length;\n\
@@ -153,10 +156,11 @@ fullness {\n\
 activity {\n\
     style: activity;\n\
     handler: count;\n\
-    decay: 5s;\n\
-    max-value: 3;\n\
+    decay: 0.2s;\n\
+    max-value: 1000;\n\
     type: rate;\n\
-    autorefresh: 1s;\n\
+    autorefresh: 0.1s;\n\
+    color: none, red;\n\
 }";
 
 
@@ -838,9 +842,9 @@ const char *dcss_selector::parse(const String &str, const char *s)
     return s;
 }
 
-String dcss_selector::unparse() const
+void dcss_selector::unparse(StringAccum &sa) const
 {
-    StringAccum sa;
+    int length = sa.length();
     if (_type)
 	sa << _type;
     if (_name)
@@ -851,8 +855,14 @@ String dcss_selector::unparse() const
 	sa << ":active";
     if (_highlight & (1<<dhlt_hover))
 	sa << ":hover";
-    if (!sa)
+    if (sa.length() == length)
 	sa << '*';
+}
+
+String dcss_selector::unparse() const
+{
+    StringAccum sa;
+    unparse(sa);
     return sa.take_string();
 }
 
@@ -1319,17 +1329,38 @@ void dcss::parse_box(const String &str, const char *s, const char *send, const S
     }
 }
 
-String dcss::unparse_selector() const
+void dcss::unparse_selector(StringAccum &sa) const
 {
-    if (!_context.size())
-	return _selector.unparse();
+    if (_context.empty())
+	sa << _selector.unparse();
     else {
-	StringAccum sa;
 	for (const dcss_selector *sp = _context.end(); sp != _context.begin(); )
 	    sa << (--sp)->unparse() << ' ';
 	sa << _selector.unparse();
-	return sa.take_string();
     }
+}
+
+String dcss::unparse_selector() const
+{
+    StringAccum sa;
+    unparse_selector(sa);
+    return sa.take_string();
+}
+
+void dcss::unparse(StringAccum &sa) const
+{
+    unparse_selector(sa);
+    sa << " {\n";
+    for (dcss_property *it = _de.begin(); it != _de.end(); ++it)
+	sa << '\t' << it->name() << ": " << it->vstring() << ";\n";
+    sa << "}\n";
+}
+
+String dcss::unparse() const
+{
+    StringAccum sa;
+    unparse(sa);
+    return sa.take_string();
 }
 
 static bool dcsspp_compare(dcss *a, dcss *b)
@@ -2060,13 +2091,9 @@ ref_ptr<dactivity_style> dcss_set::activity_style(PermString decor, crouter *cr,
 	String s = activity_pm[2].vstring("autorefresh");
 	sty->autorefresh = parse_autorefresh(s, "", &sty->autorefresh_period);
 	s = activity_pm[4].vstring("type");
-	if (s.starts_with("rate", 4)) {
+	if (s.starts_with("rate", 4))
 	    sty->type = dactivity_rate;
-	    s = s.substring(4);
-	    sty->rate_period = 1;
-	    (void) cp_seconds(cp_shift_spacevec(s), &sty->rate_period);
-	    sty->rate_period = std::max(sty->rate_period, 0.01);
-	} else
+	else
 	    sty->type = dactivity_absolute;
 	sty->max_value = activity_pm[5].vnumeric("max-value");
 	sty->min_value = activity_pm[6].vnumeric("min-value");
