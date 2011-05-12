@@ -64,8 +64,6 @@ void DynGW::run_timer(Timer *) {
 		uint32_t gate_addr, dest_addr, netmask;
 		unsigned int iflags;
 		int num, metric, refcnt, use;
-		bool route_found = false;
-		bool mesh_found = false;
 
 		FILE *fp = fopen(PROCENTRY_ROUTE, "r");
 
@@ -87,37 +85,9 @@ void DynGW::run_timer(Timer *) {
 			if ((iflags & 1) && (metric == 0)) {
 				IPAddress addr = IPAddress(dest_addr);
 				IPAddress mask = IPAddress(netmask);
-				if ((addr == IPAddress()) && (mask == IPAddress())) {
-					if (iface == _dev_name) {
-						mesh_found = true;
-					} else {
-						route_found = true;
-						_sel->hna_add(IPAddress(), IPAddress());
-					}
+				if ((addr == IPAddress()) && (mask == IPAddress()) && (iface != _dev_name)) {
+					_sel->hna_add(IPAddress(), IPAddress());
 				}
-			}
-		}
-
-		if ((mesh_found && route_found) || (!mesh_found && !route_found)) {
-			String cmd;
-			if (mesh_found && route_found) {
-				// del default route
-				cmd = "/sbin/route -n del default dev " + _dev_name;
-			} else {
-				// route add route
-				cmd = "/sbin/route -n add default dev " + _dev_name;
-			}
-			if (system(cmd.c_str()) != 0) {
-				click_chatter("%{element} :: %s :: unable to execute command \"%s\", errno %s", 
-						this, 
-						__func__,
-						cmd.c_str(), 
-						strerror(errno));
-			} else {
-				click_chatter("%{element} :: %s :: %s", 
-						this, 
-						__func__,
-						cmd.c_str());
 			}
 		}
 
@@ -126,7 +96,7 @@ void DynGW::run_timer(Timer *) {
 	}
 
 	// schedule next timer
-	_timer.schedule_at(Timestamp::now() + Timestamp::make_msec(_period));
+	_timer.schedule_after_msec(_period);
 
 }
 
@@ -151,7 +121,7 @@ int DynGW::write_handler(const String &in_s, Element *e, void *vparam, ErrorHand
 		case H_ENABLED: {
 			bool enabled;
 			if (!cp_bool(s, &enabled))
-				return errh->error("debug parameter must be boolean");
+				return errh->error("parameter must be boolean");
 			td->_enabled = enabled;
 			break;
 		}
@@ -160,7 +130,7 @@ int DynGW::write_handler(const String &in_s, Element *e, void *vparam, ErrorHand
 }
 
 void DynGW::add_handlers() {
-	add_read_handler("debug", read_handler, H_ENABLED);
+	add_read_handler("enabled", read_handler, H_ENABLED);
 	add_write_handler("enabled", write_handler, H_ENABLED);
 }
 
