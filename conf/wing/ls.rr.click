@@ -7,9 +7,9 @@ elementclass LinkScheduler {
   sched :: RoundRobinSched()
     -> output;
 
-  classifier[0] -> FullNoteQueue(10) -> [0] sched;
-  classifier[1] -> FullNoteQueue(10) -> [1] sched;
-  classifier[2] -> FullNoteQueue(10) -> [2] sched;
+  classifier[0] -> FullNoteQueue() -> [0] sched;
+  classifier[1] -> FullNoteQueue() -> [1] sched;
+  classifier[2] -> FullNoteQueue() -> [2] sched;
 
 }
 
