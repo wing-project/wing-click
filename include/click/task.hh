@@ -191,13 +191,14 @@ class Task { public:
 
     /** @brief Reschedule a task from the task's callback function.
      *
-     * @warning fast_reschedule() may only be called while that task is being
-     * fired.  That is, Task::fire() calls the task's callback function (often
+     * @warning fast_reschedule() should be called while that task is being
+     * fired: Task::fire() calls the task's callback function (often
      * Element::run_task()), which may call fast_reschedule() to reschedule
-     * the task.  It is a serious error to call @a task.fast_reschedule() at
-     * other times.  For instance, if MyElement::run_task() calls
-     * fast_reschedule(), then it is a serious error to call
-     * MyElement::run_task() from MyElement::run_timer().
+     * the task.  It is an error to call @a task.fast_reschedule() at other
+     * times.  For instance, if MyElement::run_task() calls fast_reschedule(),
+     * then it is an error to call MyElement::run_task() from
+     * MyElement::run_timer() -- the fast_reschedule() might not actually take
+     * effect.
      */
     inline void fast_reschedule();
 
@@ -244,7 +245,7 @@ class Task { public:
     inline void adjust_tickets(int delta);
 #endif
 
-    inline void fire();
+    inline bool fire();
 
 #if HAVE_ADAPTIVE_SCHEDULER
     inline unsigned runs() const;
@@ -323,9 +324,9 @@ class Task { public:
     void remove_pending();
     void process_pending(RouterThread *thread);
 
+    inline void complete_schedule(unsigned new_pass);
     inline void fast_schedule();
     void true_reschedule();
-    inline void fast_remove_from_scheduled_list();
     inline void remove_from_scheduled_list();
 
     static bool error_hook(Task *task, void *user_data);
@@ -440,19 +441,6 @@ Task::thread() const
 }
 
 inline void
-Task::fast_remove_from_scheduled_list()
-{
-#if HAVE_TASK_HEAP
-    _schedpos = -1;
-    _thread->_task_heap_hole = 1;
-#else
-    _next->_prev = _prev;
-    _prev->_next = _next;
-    _next = _prev = 0;
-#endif
-}
-
-inline void
 Task::remove_from_scheduled_list()
 {
     if (on_scheduled_list()) {
@@ -523,7 +511,13 @@ Task::adjust_tickets(int delta)
 inline void
 Task::fast_reschedule()
 {
-    assert(_thread);
+    _status.is_scheduled = true;
+}
+
+inline void
+Task::complete_schedule(unsigned new_pass)
+{
+    assert(_thread && !on_scheduled_list());
 #if CLICK_LINUXMODULE
     // tasks never run at interrupt time in Linux
     assert(!in_interrupt());
@@ -531,52 +525,46 @@ Task::fast_reschedule()
 #if CLICK_BSDMODULE
     GIANT_REQUIRED;
 #endif
-    _status.is_scheduled = true;
 
-    if (!on_scheduled_list()) {
 #if HAVE_STRIDE_SCHED
-	// increase pass
-	_pass += _stride;
+    // update pass
+    _pass = new_pass;
 
 # if HAVE_TASK_HEAP
-	if (_thread->_task_heap_hole) {
-	    _schedpos = 0;
-	    _thread->_task_heap_hole = 0;
-	} else {
-	    _schedpos = _thread->_task_heap.size();
-	    _thread->_task_heap.push_back(RouterThread::task_heap_element());
-	}
-	_thread->task_reheapify_from(_schedpos, this);
+    _schedpos = _thread->_task_heap.size();
+    _thread->_task_heap.push_back(RouterThread::task_heap_element());
+    _thread->task_reheapify_from(_schedpos, this);
 # elif 0
-	// look for 'n' immediately before where we should be scheduled
-	Task* n = _thread->_prev;
-	while (n != _thread && PASS_GT(n->_pass, _pass))
-	    n = n->_prev;
-	// schedule after 'n'
-	_next = n->_next;
-	_prev = n;
-	n->_next = this;
-	_next->_prev = this;
+    // look for 'n' immediately before where we should be scheduled
+    Task* n = _thread->_prev;
+    while (n != _thread && PASS_GT(n->_pass, _pass))
+	n = n->_prev;
+    // schedule after 'n'
+    _next = n->_next;
+    _prev = n;
+    n->_next = this;
+    _next->_prev = this;
 # else
-	// look for 'n' immediately after where we should be scheduled
-	Task* n = _thread->_next;
-	while (n != _thread && !PASS_GT(n->_pass, _pass))
-	    n = n->_next;
-	// schedule before 'n'
-	_prev = n->_prev;
-	_next = n;
-	n->_prev = this;
-	_prev->_next = this;
+    // look for 'n' immediately after where we should be scheduled
+    Task* n = _thread->_next;
+    while (n != _thread && !PASS_GT(n->_pass, _pass))
+	n = n->_next;
+    // schedule before 'n'
+    _prev = n->_prev;
+    _next = n;
+    n->_prev = this;
+    _prev->_next = this;
 # endif
 
 #else /* !HAVE_STRIDE_SCHED */
-	// schedule at the end of the list
-	_prev = _thread->_prev;
-	_next = _thread;
-	_thread->_prev = this;
-	_prev->_next = this;
+    (void) new_pass;
+
+    // schedule at the end of the list
+    _prev = _thread->_prev;
+    _next = _thread;
+    _thread->_prev = this;
+    _prev->_next = this;
 #endif /* HAVE_STRIDE_SCHED */
-    }
 }
 
 inline void
@@ -585,9 +573,10 @@ Task::fast_schedule()
     if (!on_scheduled_list()) {
 #if HAVE_STRIDE_SCHED
 	assert(_tickets >= 1);
-	_pass = _thread->_pass;
+	complete_schedule(_thread->pass() + _stride);
+#else
+	complete_schedule(0);
 #endif
-	fast_reschedule();
     }
 }
 
@@ -597,7 +586,7 @@ Task::fast_schedule()
  * This function is generally called by the RouterThread implementation; there
  * should be no need to call it yourself.
  */
-inline void
+inline bool
 Task::fire()
 {
 #if CLICK_STATS >= 2
@@ -606,22 +595,20 @@ Task::fire()
 #if HAVE_MULTITHREAD
     _cycle_runs++;
 #endif
+    bool work_done;
+    if (!_hook)
+	work_done = ((Element*)_thunk)->run_task(this);
+    else
+	work_done = _hook(this, _thunk);
 #if HAVE_ADAPTIVE_SCHEDULER
-    _runs++;
-    if (!_hook)
-	_work_done += ((Element*)_thunk)->run_task(this);
-    else
-	_work_done += _hook(this, _thunk);
-#else
-    if (!_hook)
-	(void) ((Element*)_thunk)->run_task(this);
-    else
-	(void) _hook(this, _thunk);
+    ++_runs;
+    _work_done += work_done;
 #endif
 #if CLICK_STATS >= 2
     ++_owner->_task_calls;
     _owner->_task_cycles += click_get_cycles() - start_cycles;
 #endif
+    return work_done;
 }
 
 #if HAVE_ADAPTIVE_SCHEDULER
