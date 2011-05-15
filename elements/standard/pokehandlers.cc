@@ -20,7 +20,7 @@
 
 #include <click/config.h>
 #include "pokehandlers.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <click/error.hh>
 #include <click/router.hh>
 CLICK_DECLS
@@ -94,11 +94,11 @@ PokeHandlers::configure(Vector<String> &conf, ErrorHandler *errh)
 		next_timeout = 0;
 	    }
 	} else if (word == "wait") {
-	    if (cp_seconds_as_milli(text, &timeout))
+	    if (SecondsArg(3).parse(text, timeout))
 		next_timeout += timeout;
 	    else
 		errh->error("missing time in %<wait TIME%>");
-	} else if (cp_seconds_as_milli(word, &timeout) && !text)
+	} else if (SecondsArg(3).parse(word, timeout) && !text)
 	    next_timeout += timeout;
 	else
 	    errh->error("unknown directive %<%#s%>", word.c_str());
@@ -138,7 +138,7 @@ String
 PokeHandlers::read_param(Element *e, void *)
 {
     PokeHandlers *p = (PokeHandlers *)e;
-    return cp_unparse_bool(p->_paused);
+    return BoolArg::unparse(p->_paused);
 }
 
 int

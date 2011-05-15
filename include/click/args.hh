@@ -289,6 +289,7 @@ struct Args : public ArgContext {
     static constexpr int mandatory = 1;  ///< read flag for mandatory arguments
     static constexpr int positional = 2; ///< read flag for positional arguments
     static constexpr int deprecated = 4; ///< read flag for deprecated arguments
+    static constexpr int firstmatch = 8; ///< read flag to take first matching argument
 
     /** @brief Read an argument using its type's default parser.
      * @param keyword argument name
@@ -451,7 +452,7 @@ struct Args : public ArgContext {
     }
     template<typename P>
     Args &read_with(const char *keyword, int flags, P parser) {
-	base_read_with(keyword, flags, parser);
+	args_base_read_with(this, keyword, flags, parser);
 	return *this;
     }
 
@@ -480,7 +481,46 @@ struct Args : public ArgContext {
     }
     template<typename P, typename T>
     Args &read_with(const char *keyword, int flags, P parser, T &variable) {
-	base_read_with(keyword, flags, parser, variable);
+	args_base_read_with(this, keyword, flags, parser, variable);
+	return *this;
+    }
+
+    /** @brief Pass all matching arguments to a specified parser.
+     * @param keyword argument name
+     * @param parser parser object
+     * @return *this
+     *
+     * Calls @a parser.parse(string, *this) zero or more times.
+     *
+     * @note The value of read_status() is true iff at least one argument
+     * matched and all matching arguments successfully parsed. */
+    template<typename P>
+    Args &read_all_with(const char *keyword, P parser) {
+	return read_all_with(keyword, 0, parser);
+    }
+    template<typename P>
+    Args &read_all_with(const char *keyword, int flags, P parser) {
+	args_base_read_all_with(this, keyword, flags | firstmatch, parser);
+	return *this;
+    }
+
+    /** @brief Pass all matching arguments to a specified parser.
+     * @param keyword argument name
+     * @param parser parser object
+     * @param variable reference to result variable
+     * @return *this
+     *
+     * Calls @a parser.parse(string, *this, variable) zero or more times.
+     *
+     * @note The value of read_status() is true iff at least one argument
+     * matched and all matching arguments successfully parsed. */
+    template<typename P, typename T>
+    Args &read_all_with(const char *keyword, P parser, T &variable) {
+	return read_all_with(keyword, 0, parser, variable);
+    }
+    template<typename P, typename T>
+    Args &read_all_with(const char *keyword, int flags, P parser, T &variable) {
+	args_base_read_all_with(this, keyword, flags | firstmatch, parser, variable);
 	return *this;
     }
 
@@ -627,6 +667,30 @@ struct Args : public ArgContext {
 	Slot *slot_status;
 	if (String str = find(keyword, flags, slot_status))
 	    postparse(parser.parse(str, *this, variable), slot_status);
+    }
+
+    template<typename P>
+    void base_read_all_with(const char *keyword, int flags, P parser) {
+	Slot *slot_status;
+	int read_status = -1;
+	while (String str = find(keyword, flags, slot_status)) {
+	    postparse(parser.parse(str, *this), slot_status);
+	    read_status = (read_status != 0) && _read_status;
+	    flags &= ~mandatory;
+	}
+	_read_status = (read_status == 1);
+    }
+
+    template<typename P, typename T>
+    void base_read_all_with(const char *keyword, int flags, P parser, T &variable) {
+	Slot *slot_status;
+	int read_status = -1;
+	while (String str = find(keyword, flags, slot_status)) {
+	    postparse(parser.parse(str, *this, variable), slot_status);
+	    read_status = (read_status != 0) && _read_status;
+	    flags &= ~mandatory;
+	}
+	_read_status = (read_status == 1);
     }
     /** @endcond never */
 
@@ -793,6 +857,26 @@ void args_base_read_with(Args *args, const char *keyword, int flags,
     args->base_read_with(keyword, flags, parser, variable);
 }
 
+template<typename P>
+void args_base_read_all_with(Args *args, const char *keyword, int flags, P parser)
+    CLICK_NOINLINE;
+template<typename P>
+void args_base_read_all_with(Args *args, const char *keyword, int flags, P parser)
+{
+    args->base_read_all_with(keyword, flags, parser);
+}
+
+template<typename P, typename T>
+void args_base_read_all_with(Args *args, const char *keyword, int flags,
+			     P parser, T &variable) CLICK_NOINLINE;
+template<typename P, typename T>
+void args_base_read_all_with(Args *args, const char *keyword, int flags,
+			     P parser, T &variable)
+{
+    args->base_read_all_with(keyword, flags, parser, variable);
+}
+/** @endcond never */
+
 
 struct NumArg {
     enum {
@@ -912,15 +996,12 @@ template<> struct DefaultArg<long long> : public IntArg {};
 
 
 /** @class FixedPointArg
-  @brief Parser class for fixed-point numbers with @a n bits of fraction. */
+  @brief Parser class for fixed-point numbers with @a b bits of fraction. */
 struct FixedPointArg : public NumArg {
-    explicit FixedPointArg(int n, int exponent = 0)
-	: fraction_bits(n), exponent_delta(exponent) {
+    explicit FixedPointArg(int b, int exponent = 0)
+	: fraction_bits(b), exponent_delta(exponent) {
     }
-    bool parse_saturating(const String &str, uint32_t &result, const ArgContext &args = blank_args) {
-	(void) args;
-	return preparse(str, false, result);
-    }
+    inline bool parse_saturating(const String &str, uint32_t &result, const ArgContext &args = blank_args);
     bool parse(const String &str, uint32_t &result, const ArgContext &args = blank_args);
     bool parse_saturating(const String &str, int32_t &result, const ArgContext &args = blank_args);
     bool parse(const String &str, int32_t &result, const ArgContext &args = blank_args);
@@ -928,33 +1009,39 @@ struct FixedPointArg : public NumArg {
     int exponent_delta;
     int status;
   private:
-    bool preparse(const String &str, bool is_signed, uint32_t &result);
+    bool underparse(const String &str, bool is_signed, uint32_t &result);
 };
 
-bool cp_real10(const String& str, int frac_digits, int32_t* result);
-bool cp_real10(const String& str, int frac_digits, uint32_t* result);
-bool cp_real10(const String& str, int frac_digits, uint32_t* result_int, uint32_t* result_frac);
+inline bool
+FixedPointArg::parse_saturating(const String &str, uint32_t &result, const ArgContext &)
+{
+    return underparse(str, false, result);
+}
 
 /** @class DecimalFixedPointArg
-  @brief Parser class for fixed-point numbers with @a n decimal digits of fraction. */
-struct DecimalFixedPointArg {
-    DecimalFixedPointArg(int n)
-	: frac_digits(n) {
+  @brief Parser class for fixed-point numbers with @a d decimal digits of fraction. */
+struct DecimalFixedPointArg : public NumArg {
+    DecimalFixedPointArg(int d, int exponent = 0)
+	: fraction_digits(d), exponent_delta(exponent) {
     }
-    bool parse(const String &str, uint32_t &result, const ArgContext & = blank_args) {
-	// XXX cp_errno
-	return cp_real10(str, frac_digits, &result);
-    }
-    bool parse(const String &str, int32_t &result, const ArgContext & = blank_args) {
-	// XXX cp_errno
-	return cp_real10(str, frac_digits, &result);
-    }
-    bool parse(const String &str, uint32_t &result_int, uint32_t &result_frac, const ArgContext & = blank_args) {
-	// XXX cp_errno
-	return cp_real10(str, frac_digits, &result_int, &result_frac);
-    }
-    int frac_digits;
+    inline bool parse_saturating(const String &str, uint32_t &result, const ArgContext &args = blank_args);
+    bool parse(const String &str, uint32_t &result, const ArgContext &args = blank_args);
+    bool parse_saturating(const String &str, int32_t &result, const ArgContext &args = blank_args);
+    bool parse(const String &str, int32_t &result, const ArgContext &args = blank_args);
+    bool parse_saturating(const String &str, uint32_t &iresult, uint32_t &fresult, const ArgContext &args = blank_args);
+    bool parse(const String &str, uint32_t &iresult, uint32_t &fresult, const ArgContext &args = blank_args);
+    int fraction_digits;
+    int exponent_delta;
+    int status;
+  private:
+    bool underparse(const String &str, bool is_signed, uint32_t &result);
 };
+
+inline bool
+DecimalFixedPointArg::parse_saturating(const String &str, uint32_t &result, const ArgContext &)
+{
+    return underparse(str, false, result);
+}
 
 
 #if HAVE_FLOAT_TYPES
@@ -975,6 +1062,9 @@ template<> struct DefaultArg<double> : public DoubleArg {};
   @brief Parser class for booleans. */
 struct BoolArg {
     static bool parse(const String &str, bool &result, const ArgContext &args = blank_args);
+    static String unparse(bool x) {
+	return String(x);
+    }
 };
 
 template<> struct DefaultArg<bool> : public BoolArg {};
@@ -999,6 +1089,7 @@ struct UnitArg {
   Handles suffixes such as "Gbps", "k", etc. */
 struct BandwidthArg : public NumArg {
     bool parse(const String &str, uint32_t &result, const ArgContext & = blank_args);
+    static String unparse(uint32_t x);
     int status;
 };
 
@@ -1017,21 +1108,22 @@ struct AnnoArg {
 #endif
 
 
-bool cp_seconds_as(const String &str, int frac_digits, uint32_t *result);
-
 /** @class SecondsArg
-  @brief Parser class for seconds or powers thereof.
+  @brief Parser class for seconds and powers thereof.
 
-  The @a p argument is the number of digits of fraction to parse.
+  The @a d argument is the number of digits of fraction to parse.
   For example, to parse milliseconds, use SecondsArg(3). */
-struct SecondsArg {
-    SecondsArg(int p = 0)
-	: frac_digits(p) {
+struct SecondsArg : public NumArg {
+    SecondsArg(int d = 0)
+	: fraction_digits(d) {
     }
-    bool parse(const String &str, uint32_t &result, const ArgContext & = blank_args) {
-	return cp_seconds_as(str, frac_digits, &result);
-    }
-    int frac_digits;
+    bool parse_saturating(const String &str, uint32_t &result, const ArgContext &args = blank_args);
+    bool parse(const String &str, uint32_t &result, const ArgContext &args = blank_args);
+#if HAVE_FLOAT_TYPES
+    bool parse(const String &str, double &result, const ArgContext &args = blank_args);
+#endif
+    int fraction_digits;
+    int status;
 };
 
 
@@ -1043,6 +1135,10 @@ struct AnyArg {
     }
     static bool parse(const String &str, String &result, const ArgContext & = blank_args) {
 	result = str;
+	return true;
+    }
+    static bool parse(const String &str, const ArgContext &, Vector<String> &result) {
+	result.push_back(str);
 	return true;
     }
 };
