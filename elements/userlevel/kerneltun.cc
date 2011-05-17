@@ -99,8 +99,8 @@ KernelTun::configure(Vector<String> &conf, ErrorHandler *errh)
 	.read_mp("ADDR", IPPrefixArg(), _near, _mask)
 	.read_p("GATEWAY", _gw)
 	.read("TAP", _tap)
-	.read("BURST", _burst)
 	.read("HEADROOM", _headroom).read_status(_adjust_headroom)
+	.read("BURST", _burst)
 	.read("ETHER", _macaddr)
 	.read("IGNORE_QUEUE_OVERFLOWS", _ignore_q_errs)
 	.read("MTU", _mtu_out)
@@ -123,7 +123,7 @@ KernelTun::configure(Vector<String> &conf, ErrorHandler *errh)
 
 #if KERNELTUN_LINUX
 int
-KernelTun::try_linux_universal(ErrorHandler *errh)
+KernelTun::try_linux_universal()
 {
     int fd = open("/dev/net/tun", O_RDWR | O_NONBLOCK);
     if (fd < 0)
@@ -137,7 +137,6 @@ KernelTun::try_linux_universal(ErrorHandler *errh)
 	strncpy(ifr.ifr_name, _dev_name.c_str(), sizeof(ifr.ifr_name));
     int err = ioctl(fd, TUNSETIFF, (void *)&ifr);
     if (err < 0) {
-	errh->warning("Linux universal tun failed: %s", strerror(errno));
 	close(fd);
 	return -errno;
     }
@@ -179,12 +178,12 @@ KernelTun::alloc_tun(ErrorHandler *errh)
     StringAccum tried;
 
 #if KERNELTUN_LINUX
-    if ((error = try_linux_universal(errh)) >= 0)
+    if ((error = try_linux_universal()) >= 0)
 	return error;
     else if (!saved_error || error != -ENOENT) {
 	saved_error = error, saved_device = "net/tun";
 	if (error == -ENODEV)
-	    saved_message = "\n(Perhaps you need to enable tun in your kernel or load the `tun' module.)";
+	    saved_message = "\n(Perhaps you need to enable tun in your kernel or load the 'tun' module.)";
     }
     tried << "/dev/net/tun, ";
 #endif
@@ -239,7 +238,7 @@ KernelTun::alloc_tun(ErrorHandler *errh)
 	tried.pop_back(2);
 	return errh->error("could not find a tap device\n(checked %s)\nYou may need to load a kernel module to support tap.", tried.c_str());
     } else
-	return errh->error("could not allocate device /dev/%s: %s%s", saved_device.c_str(), strerror(-saved_error), saved_message.c_str());
+	return errh->error("/dev/%s: %s%s", saved_device.c_str(), strerror(-saved_error), saved_message.c_str());
 }
 
 int
@@ -506,75 +505,76 @@ KernelTun::selected(int fd, int)
 {
     if (fd != _fd)
 	return;
+    unsigned n = _burst;
+    while (n > 0 && one_selected())
+	--n;
+}
 
-    for (unsigned i = 0; i < _burst; i++) {
+bool
+KernelTun::one_selected()
+{
+    WritablePacket *p = Packet::make(_headroom, 0, _mtu_in, 0);
+    if (!p) {
+	click_chatter("out of memory!");
+	return false;
+    }
 
-	    WritablePacket *p = Packet::make(_headroom, 0, _mtu_in, 0);
-	    if (!p) {
-		click_chatter("out of memory!");
-		return;
-	    }
+    int cc = read(_fd, p->data(), _mtu_in);
+    if (cc > 0) {
+	p->take(_mtu_in - cc);
+	bool ok = false;
 
-	    int cc = read(_fd, p->data(), _mtu_in);
+	if (_tap) {
+	    if (_type == LINUX_UNIVERSAL)
+		// 2-byte padding, 2-byte Ethernet type, then Ethernet header
+		p->pull(4);
+	    else if (_type == LINUX_ETHERTAP)
+		// 2-byte padding, then Ethernet header
+		p->pull(2);
+	    ok = true;
+	} else if (_type == LINUX_UNIVERSAL) {
+	    // 2-byte padding followed by an Ethernet type
+	    uint16_t etype = *(uint16_t *)(p->data() + 2);
+	    p->pull(4);
+	    if (etype != htons(ETHERTYPE_IP) && etype != htons(ETHERTYPE_IP6))
+		checked_output_push(1, p->clone());
+	    else
+		ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
+	} else if (_type == BSD_TUN) {
+	    // 4-byte address family followed by IP header
+	    int af = ntohl(*(unsigned *)p->data());
+	    p->pull(4);
+	    if (af != AF_INET && af != AF_INET6) {
+		click_chatter("KernelTun(%s): don't know AF %d", _dev_name.c_str(), af);
+		checked_output_push(1, p->clone());
+	    } else
+		ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
+	} else if (_type == OSX_TUN || _type == NETBSD_TUN) {
+	    ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
+	} else { /* _type == LINUX_ETHERTAP */
+	    // 2-byte padding followed by a mostly-useless Ethernet header
+	    uint16_t etype = *(uint16_t *)(p->data() + 14);
+	    p->pull(16);
+	    if (etype != htons(ETHERTYPE_IP) && etype != htons(ETHERTYPE_IP6))
+		checked_output_push(1, p->clone());
+	    else
+		ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
+	}
 
-	    if ((cc == -1) && errno == EAGAIN) {
-		    p->kill();
-		    break;
-	    }
+	if (ok) {
+	    p->timestamp_anno().assign_now();
+	    output(0).push(p);
+	} else
+	    checked_output_push(1, p);
+	return true;
 
-	    if (cc > 0) {
-		p->take(_mtu_in - cc);
-		bool ok = false;
-
-		if (_tap) {
-		    if (_type == LINUX_UNIVERSAL)
-			// 2-byte padding, 2-byte Ethernet type, then Ethernet header
-			p->pull(4);
-		    else if (_type == LINUX_ETHERTAP)
-			// 2-byte padding, then Ethernet header
-			p->pull(2);
-		    ok = true;
-		} else if (_type == LINUX_UNIVERSAL) {
-		    // 2-byte padding followed by an Ethernet type
-		    uint16_t etype = *(uint16_t *)(p->data() + 2);
-		    p->pull(4);
-		    if (etype != htons(ETHERTYPE_IP) && etype != htons(ETHERTYPE_IP6))
-			checked_output_push(1, p->clone());
-		    else
-			ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
-		} else if (_type == BSD_TUN) {
-		    // 4-byte address family followed by IP header
-		    int af = ntohl(*(unsigned *)p->data());
-		    p->pull(4);
-		    if (af != AF_INET && af != AF_INET6) {
-			click_chatter("KernelTun(%s): don't know AF %d", _dev_name.c_str(), af);
-			checked_output_push(1, p->clone());
-		    } else
-			ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
-		} else if (_type == OSX_TUN || _type == NETBSD_TUN) {
-		    ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
-		} else { /* _type == LINUX_ETHERTAP */
-		    // 2-byte padding followed by a mostly-useless Ethernet header
-		    uint16_t etype = *(uint16_t *)(p->data() + 14);
-		    p->pull(16);
-		    if (etype != htons(ETHERTYPE_IP) && etype != htons(ETHERTYPE_IP6))
-			checked_output_push(1, p->clone());
-		    else
-			ok = fake_pcap_force_ip(p, FAKE_DLT_RAW);
-		}
-
-		if (ok) {
-		    p->timestamp_anno().assign_now();
-		    output(0).push(p);
-		} else
-		    checked_output_push(1, p);
-
-	    } else {
-		if (!_ignore_q_errs || !_printed_read_err || (errno != ENOBUFS)) {
-		    _printed_read_err = true;
-		    perror("KernelTun read");
-		}
-	    }
+    } else {
+	if (errno != EAGAIN && errno != EWOULDBLOCK
+	    && (!_ignore_q_errs || !_printed_read_err || errno != ENOBUFS)) {
+	    _printed_read_err = true;
+	    perror("KernelTun read");
+	}
+	return false;
     }
 }
 
