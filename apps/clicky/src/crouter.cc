@@ -40,7 +40,7 @@ String g_click_to_utf8(const String &str)
 crouter::crouter(dcss_set *ccss)
     : _r(0), _emap(0), _selected_driver(-1), _processing(0),
       _hvalues(this), _driver(0), _driver_active(false), _driver_process(0),
-      _ccss(ccss), _router_ccss(false), _throbber_count(0)
+      _ccss(ccss), _router_ccss(false), _gerrh(true), _throbber_count(0)
 {
 }
 
@@ -168,7 +168,7 @@ void crouter::set_config(const String &conf, bool replace)
 	if (ArchiveElement *ae = ArchiveElement::find(archive, "config"))
 	    _conf = ae->data;
 	else {
-	    _gerrh.error("archive has no 'config' section");
+	    _gerrh.error("archive has no %<config%> section");
 	    _conf = String();
 	}
     }
@@ -177,6 +177,7 @@ void crouter::set_config(const String &conf, bool replace)
     if (!_conf.length())
 	_gerrh.warning("empty configuration");
     LexerT lexer(&_gerrh, false);
+    lexer.expand_groups(true);
     lexer.reset(_conf, archive, (_driver ? "config" : _landmark));
     LexerTInfo *lexinfo = on_config_changed_prepare();
     if (lexinfo)
