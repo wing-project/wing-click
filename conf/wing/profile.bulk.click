@@ -1,5 +1,5 @@
 elementclass WingRouter {
-  $ip, $nm, $rate, $debug|
+  $ip, $nm, $bcast, $rate, $debug|
 
 
 outgoing :: SetTXRate($rate)
@@ -65,12 +65,14 @@ query_forwarder [1] -> [0] query_responder;
 
 
 input [1] 
--> host_cl :: IPClassifier(dst net $ip mask $nm, dst host 255.255.255.255, -)
+-> host_cl :: IPClassifier(dst host $bcast or dst host 255.255.255.255, dst net $ip mask $nm, -)
+-> lb 
+-> output;
+
+
+host_cl [1] 
 -> querier
 -> [1] output;
-
-
-host_cl [1] -> lb -> output;
 
 
 host_cl [2] -> [0] set_gateway [0] -> querier;

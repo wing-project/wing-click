@@ -102,6 +102,7 @@ case "$1" in
 
 	XR_IFNAME="wing-mesh"
 	XR_IP="6.$SUFFIX"
+	XR_BCAST="6.255.255.255"
 	XR_NM="255.0.0.0"
 	XR_PERIOD="36000"
 	XR_TAU="360000"
@@ -109,6 +110,7 @@ case "$1" in
 	$HELPER -p $PROFILE -r $RC -s $LS -l $METRIC -m $MODE -c $CHANNEL -n $DEV -a $MAC -d \
 		| sed -e "s/__XR_IFNAME__/$XR_IFNAME/g" \
 		| sed -e "s/__XR_IP__/$XR_IP/g" \
+		| sed -e "s/__XR_BCAST__/$XR_BCAST/g" \
 		| sed -e "s/__XR_NM__/$XR_NM/g" \
 		| sed -e "s/__XR_PERIOD__/$XR_PERIOD/g" \
 		| sed -e "s/__XR_TAU__/$XR_TAU/g" > $CLICK_FILE

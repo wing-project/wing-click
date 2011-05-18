@@ -77,6 +77,7 @@ done
 
 XR_IFNAME="__XR_IFNAME__"
 XR_IP="__XR_IP__"
+XR_BCAST="__XR_BCAST__"
 XR_NM="__XR_NM__"
 XR_PERIOD="__XR_PERIOD__"
 XR_TAU="__XR_TAU__"
@@ -226,7 +227,7 @@ elementclass SniffDevice {
   input -> to_dev :: ToDevice(\$device);
 }
 
-wr :: WingRouter ($XR_IP, $XR_NM, $TX_RATE, $DEBUG);
+wr :: WingRouter ($XR_IP, $XR_NM, $XR_BCAST, $TX_RATE, $DEBUG);
 
 dyn :: DynGW(DEVNAME $XR_IFNAME, SEL wr/gw);
 
