@@ -373,6 +373,19 @@ find_live_elements(/*const*/ RouterT *r, const char *filename,
 
   full_elementmap.set_driver(driver);
 
+  // reset flow codes for all elements with "L2" flag
+  {
+      HashTable<ElementClassT *, int> classmap;
+      for (RouterT::iterator it = r->begin_elements(); it; ++it) {
+	  int &used = classmap[it->type()];
+	  if (!used) {
+	      used = 1;
+	      if (it->type()->traits().flag_value("L") == 2)
+		  it->type()->force_traits().flow_code = "";
+	  }
+      }
+  }
+
   // get processing
   ProcessingT processing(r, &full_elementmap, errh);
   // ... it will report errors as required
@@ -386,7 +399,7 @@ find_live_elements(/*const*/ RouterT *r, const char *filename,
   for (RouterT::iterator x = r->begin_elements(); x; x++) {
     int nin = x->ninputs();
     int nout = x->noutputs();
-    int source_flag = x->type()->traits().flag_value('S');
+    int source_flag = x->type()->traits().flag_value("S");
     const char *assuming = "";
 
     if (source_flag < 0 || source_flag > 3) {
@@ -440,13 +453,13 @@ find_live_elements(/*const*/ RouterT *r, const char *filename,
   for (RouterT::iterator x = r->begin_elements(); x; x++)
     if (!live_elements[x->eindex()]) {
       int ei = x->eindex();
-      int live_flag = x->type()->traits().flag_value('L');
+      int live_flag = x->type()->traits().flag_value("L");
       if (live_flag == 0)	// not live
 	continue;
       else if (live_flag == 1) { // live
 	live_elements[ei] = true;
 	continue;
-      } else if (live_flag > 0)
+      } else if (live_flag > 2)
 	errh->lwarning(x->landmark(), "%<%s%> has strange live flag value %d", x->declaration().c_str(), live_flag);
 
       // if no live flag, make an educated guess
@@ -465,9 +478,11 @@ replace_blank_ports(RouterT *r)
   int idle_next_in = 0, idle_next_out = 0;
   for (RouterT::iterator x = r->begin_elements(); x; x++) {
     Vector<RouterT::conn_iterator> connv;
+    int nin = element_ninputs[x->name()], nout = element_noutputs[x->name()];
 
     r->find_connection_vector_to(x.get(), connv);
-    connv.resize(element_ninputs[x->name()]);
+    if (nin >= 0)
+      connv.resize(nin);
     for (int p = 0; p < connv.size(); p++)
       if (!connv[p]) {	// unconnected port
 	if (!idle)
@@ -476,7 +491,8 @@ replace_blank_ports(RouterT *r)
       }
 
     r->find_connection_vector_from(x.get(), connv);
-    connv.resize(element_noutputs[x->name()]);
+    if (nout >= 0)
+      connv.resize(nout);
     for (int p = 0; p < connv.size(); p++)
       if (!connv[p]) {	// unconnected port
 	if (!idle)
