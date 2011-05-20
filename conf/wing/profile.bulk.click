@@ -108,6 +108,7 @@ input [0]
                        15/03 , // replies
                        15/04 , // es
                        15/05 , // gw
+                       15/06 , // bcast
                       );
  
  
@@ -116,6 +117,7 @@ input [0]
  ncl[2] -> [1] query_responder;
  ncl[3] -> es;
  ncl[4] -> gw;
+ ncl[5] -> Strip(22) -> check_ip;
 
 }
 
