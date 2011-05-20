@@ -93,7 +93,7 @@ RouterAlign::RouterAlign(RouterT *r, ErrorHandler *errh)
   for (RouterT::iterator x = _router->begin_elements(); x; x++) {
     AlignClass *eclass = (AlignClass *)x->type()->cast("AlignClass");
     if (eclass)
-      _aligners[x->eindex()] = eclass->create_aligner(x, _router, errh);
+      _aligners[x->eindex()] = eclass->create_aligner(x.get(), _router, errh);
   }
 }
 
@@ -162,17 +162,14 @@ RouterAlign::have_output()
 bool
 RouterAlign::have_input()
 {
-  const Vector<ConnectionT> &conn = _router->connections();
-  int nh = conn.size();
   int nialign = _ialign.size();
-
   Vector<Alignment> new_ialign(nialign, Alignment());
-  for (int i = 0; i < nh; i++)
-    if (conn[i].live()) {
-      int ioff = _ioffset[conn[i].to_eindex()] + conn[i].to_port();
-      int ooff = _ooffset[conn[i].from_eindex()] + conn[i].from_port();
+  for (RouterT::conn_iterator it = _router->begin_connections();
+       it != _router->end_connections(); ++it) {
+      int ioff = _ioffset[it->to_eindex()] + it->to_port();
+      int ooff = _ooffset[it->from_eindex()] + it->from_port();
       new_ialign[ioff] |= _oalign[ooff];
-    }
+  }
 
   // see if anything happened
   bool changed = false;
@@ -198,17 +195,14 @@ RouterAlign::want_input()
 bool
 RouterAlign::want_output()
 {
-  const Vector<ConnectionT> &conn = _router->connections();
-  int nh = conn.size();
   int noalign = _oalign.size();
-
   Vector<Alignment> new_oalign(noalign, Alignment());
-  for (int i = 0; i < nh; i++)
-    if (conn[i].live()) {
-      int ioff = _ioffset[conn[i].to_eindex()] + conn[i].to_port();
-      int ooff = _ooffset[conn[i].from_eindex()] + conn[i].from_port();
+  for (RouterT::conn_iterator it = _router->begin_connections();
+       it != _router->end_connections(); ++it) {
+      int ioff = _ioffset[it->to_eindex()] + it->to_port();
+      int ooff = _ooffset[it->from_eindex()] + it->from_port();
       new_oalign[ooff] &= _ialign[ioff];
-    }
+  }
   /* for (int i = 0; i < noalign; i++)
     if (new_oalign[i].bad())
       new_oalign[i] = Alignment(); */
@@ -604,27 +598,24 @@ particular purpose.\n");
     /*
      * remove duplicate Aligns (Align_1 -> Align_2)
      */
-    {
-	const Vector<ConnectionT> &conn = router->connections();
-	int nhook = conn.size();
-	for (int i = 0; i < nhook; i++)
-	    if (conn[i].live() && conn[i].to_element()->type() == align_class
-		&& conn[i].from_element()->type() == align_class) {
-		// skip over hf[i]
-		Vector<PortT> above, below;
-		router->find_connections_to(conn[i].from(), above);
-		router->find_connections_from(conn[i].from(), below);
-		if (below.size() == 1) {
-		    for (int j = 0; j < nhook; j++)
-			if (conn[j].to() == conn[i].from())
-			    router->change_connection_to(j, conn[i].to());
-		} else if (above.size() == 1) {
-		    for (int j = 0; j < nhook; j++)
-			if (conn[j].to() == conn[i].to())
-			    router->change_connection_from(j, above[0]);
-		}
+    for (RouterT::conn_iterator it = router->begin_connections();
+	 it != router->end_connections(); ++it)
+	if (it->to_element()->type() == align_class && it->to_port() == 0
+	    && it->from_element()->type() == align_class && it->from_port() == 0) {
+	    RouterT::conn_iterator it0 = router->find_connections_to(it->from()),
+		it1 = router->find_connections_from(it->from()),
+		it2 = router->find_connections_to(it->to());
+	    Alignment afrom(it->from_element()), ato(it->to_element());
+	    if (afrom <= ato)
+		/* The BOTTOM alignment is redundant.  It will be removed later. */;
+	    else if (it2.is_back() && it0.is_back())
+		router->change_connection_from(it2, it0->from());
+	    else if (it1.is_back()) {
+		while (it0)
+		    it0 = router->change_connection_to(it0, it->to());
+		router->erase(it1);
 	    }
-    }
+	}
 
     /*
      * Add Aligns required for adjustment alignments
@@ -675,8 +666,8 @@ particular purpose.\n");
 
 	// skip redundant Aligns
 	for (RouterT::conn_iterator ci = router->begin_connections();
-	     ci != router->end_connections(); ++ci)
-	    if (ci->live() && ci->to_element()->type() == align_class) {
+	     ci != router->end_connections(); ) {
+	    if (ci->to_element()->type() == align_class) {
 		Alignment have = ral._oalign[ ral._ooffset[ci->from_eindex()] + ci->from_port() ];
 		Alignment want = ral._oalign[ ral._ooffset[ci->to_eindex()] ];
 		if (have <= want) {
@@ -685,9 +676,12 @@ particular purpose.\n");
 		    router->find_connections_from(ci->to(), align_dest);
 		    for (int j = 0; j < align_dest.size(); j++)
 			router->add_connection(ci->from(), align_dest[j]);
-		    router->kill_connection(ci);
+		    ci = router->erase(ci);
+		    continue;
 		}
 	    }
+	    ++ci;
+	}
 
 	if (!changed)
 	    break;
