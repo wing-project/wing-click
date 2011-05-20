@@ -67,7 +67,7 @@ query_forwarder [1] -> [0] query_responder;
 input [1] 
 -> host_cl :: IPClassifier(dst host $bcast or dst host 255.255.255.255, dst net $ip mask $nm, -)
 -> lb 
--> output;
+-> [1] output;
 
 
 host_cl [1] 

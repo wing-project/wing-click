@@ -64,7 +64,7 @@ WINGLocalBroadcast::push(int, Packet *p_in)
 	Vector<int> ifs = _link_table->get_local_interfaces();
 
 	NodeAddress src = NodeAddress(_ip, ifs[0]);
-	EtherAddress eth_src = _arp_table->lookup(NodeAddress(_ip, ifs[0]));
+	EtherAddress eth_src = _arp_table->lookup(src);
 
 	if (src && eth_src.is_group()) {
 		click_chatter("%{element} :: %s :: arp lookup failed for src %s (%s)", 
@@ -78,10 +78,10 @@ WINGLocalBroadcast::push(int, Packet *p_in)
 	memcpy(eh->ether_shost, eth_src.data(), 6);
 
 	for (int i = 1; i < ifs.size(); i++) {
-		if (Packet *q = p->clone()) {
+		if (WritablePacket *q = p->clone()->uniqueify()) {
 			eh = (click_ether *) q->data();
-			NodeAddress src = NodeAddress(_ip, ifs[0]);
-			eth_src = _arp_table->lookup(NodeAddress(_ip, ifs[i]));
+			src = NodeAddress(_ip, ifs[i]);
+			eth_src = _arp_table->lookup(src);
 			if (src && eth_src.is_group()) {
 				click_chatter("%{element} :: %s :: arp lookup failed for src %s (%s)", 
 						this,

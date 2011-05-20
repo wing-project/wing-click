@@ -244,16 +244,17 @@ CLICK_PACKED_STRUCTURE(
 struct wing_bcast_data : public wing_header {,
 	/* packet length functions */
 	size_t hlen_wo_data()   const { return sizeof(struct wing_bcast_data); }
-	size_t hlen_w_data()   const { return ntohl(_data_len) + sizeof(struct wing_bcast_data); }
+	size_t hlen_w_data()   const { return ntohs(_data_len) + sizeof(struct wing_bcast_data); }
 
 private:
 	/* these are private and have access functions below so I
 	 * don't have to remember about endianness
 	 */
-	uint32_t _data_len;
+	uint16_t _data_len;
+	uint16_t _pad;
 public:  
-	uint32_t     data_len()                       { return ntohl(_data_len); }
-	void         set_data_len(uint32_t data_len)  { _data_len = htonl(data_len); }
+	uint16_t     data_len()                       { return ntohs(_data_len); }
+	void         set_data_len(uint16_t data_len)  { _data_len = htons(data_len); }
 	u_char *data() { return (((u_char *)this) + sizeof(struct wing_bcast_data)); }
 	void set_checksum() {
 		_cksum = 0;
