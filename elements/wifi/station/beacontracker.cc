@@ -117,8 +117,7 @@ BeaconTracker::simple_action(Packet *p)
 
 
   struct beacon_t b;
-  uint16_t * s16 = (uint16_t *) w->i_seq;
-  uint16_t seq = le16_to_cpu(*s16) >> WIFI_SEQ_SEQ_SHIFT;
+  uint16_t seq = le16_to_cpu(w->i_seq) >> WIFI_SEQ_SEQ_SHIFT;
 
 
   b.rx = p->timestamp_anno();

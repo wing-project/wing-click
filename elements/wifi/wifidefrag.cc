@@ -48,9 +48,8 @@ WifiDefrag::simple_action(Packet *p)
 
   click_wifi *w = (click_wifi *) p->data();
   EtherAddress src = EtherAddress(w->i_addr2);
-  uint16_t * s16 = (uint16_t *) w->i_seq;
-  uint16_t seq = le16_to_cpu(*s16) >> WIFI_SEQ_SEQ_SHIFT;
-  uint8_t frag = le16_to_cpu(*s16) & WIFI_SEQ_FRAG_MASK;
+  uint16_t seq = le16_to_cpu(w->i_seq) >> WIFI_SEQ_SEQ_SHIFT;
+  uint8_t frag = le16_to_cpu(w->i_seq) & WIFI_SEQ_FRAG_MASK;
   u_int8_t more_frag = w->i_fc[1] & WIFI_FC1_MORE_FRAG;
   PacketInfo *nfo = _packets.findp(src);
 
@@ -135,8 +134,7 @@ WifiDefrag::simple_action(Packet *p)
   }
   p = nfo->p;
   w = (click_wifi *) p->data();
-  s16 = (uint16_t *) w->i_seq;
-  *s16 = cpu_to_le16(((u_int16_t) nfo->seq) << WIFI_SEQ_SEQ_SHIFT);
+  w->i_seq = cpu_to_le16(((u_int16_t) nfo->seq) << WIFI_SEQ_SEQ_SHIFT);
   w->i_fc[1] ^= WIFI_FC1_MORE_FRAG;
 
   nfo->p = 0;

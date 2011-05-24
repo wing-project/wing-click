@@ -122,10 +122,8 @@ BeaconSource::send_beacon(EtherAddress dst, bool probe)
   memcpy(w->i_addr2, bssid.data(), 6);
   memcpy(w->i_addr3, bssid.data(), 6);
 
-  uint16_t * d16 = (uint16_t *) w->i_dur;
-  uint16_t * s16 = (uint16_t *) w->i_seq;
-  *d16 = 0;
-  *s16 = 0;
+  w->i_dur = 0;
+  w->i_seq = 0;
 
   uint8_t *ptr;
 
