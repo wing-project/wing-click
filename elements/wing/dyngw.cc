@@ -17,7 +17,7 @@
 
 #include <click/config.h>
 #include "dyngw.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include "winggatewayselector.hh"
 CLICK_DECLS
 
@@ -34,15 +34,12 @@ DynGW::~DynGW()
 
 int DynGW::configure(Vector<String> &conf, ErrorHandler *errh) {
 
-	if (cp_va_kparse(conf, this, errh,
-			"DEVNAME", cpkM, cpString, &_dev_name,
-			"SEL", cpkM, cpElementCast, "WINGGatewaySelector", &_sel,
-			"PERIOD", 0, cpUnsigned, &_period, 
-			"ENABLED", 0, cpBool, &_enabled, 
-			cpEnd) < 0)
-		return -1;
-
-	return 0;
+	return Args(conf, this, errh)
+		.read_m("DEVNAME", _dev_name)
+		.read_m("SEL", ElementCastArg("WINGGatewaySelector"), _sel)
+		.read("PERIOD", _period)
+		.read("ENABLED", _enabled)
+		.complete();
 
 }
 
@@ -78,7 +75,9 @@ void DynGW::run_timer(Timer *) {
 		rewind(fp);
 
 		while (fgets(buff, 1023, fp)) {
-			num = sscanf(buff, "%16s %128X %128X %X %d %d %d %128X \n", iface, &dest_addr, &gate_addr, &iflags, &refcnt, &use, &metric, &netmask);
+			num = sscanf(buff, "%16s %128X %128X %X %d %d %d %128X \n", 
+					iface,	&dest_addr, &gate_addr, &iflags, 
+					&refcnt, &use, &metric, &netmask);
 			if (num < 8) {
 				continue;
 			}
