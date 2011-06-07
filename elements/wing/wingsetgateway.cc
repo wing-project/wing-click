@@ -31,13 +31,20 @@ WINGSetGateway::~WINGSetGateway() {
 
 int WINGSetGateway::configure(Vector<String> &conf, ErrorHandler *errh) {
 
-	return Args(conf, this, errh)
-		.read_m("GW", _gw)
-		.read_m("SEL", ElementCastArg("WINGGatewaySelector"), _gw_sel)
+	int ret;
+
+	ret = Args(conf, this, errh)
+		.read("GW", _gw)
+		.read("SEL", ElementCastArg("WINGGatewaySelector"), _gw_sel)
 		.read("PERIOD", _period)
 		.read("DEBUG", _debug)
 		.complete();
 
+	if (!_gw_sel && !_gw) {
+		return errh->error("Either GW or SEL must be specified!\n");
+	}
+
+	return ret;
 }
 
 int WINGSetGateway::initialize(ErrorHandler *) {
