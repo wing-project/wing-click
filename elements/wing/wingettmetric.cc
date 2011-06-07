@@ -18,7 +18,6 @@
 
 #include <click/config.h>
 #include "wingettmetric.hh"
-#include <click/confparse.hh>
 CLICK_DECLS
 
 WINGETTMetric::WINGETTMetric() :

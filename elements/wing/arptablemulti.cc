@@ -20,7 +20,6 @@
 
 #include <click/config.h>
 #include "arptablemulti.hh"
-#include <click/confparse.hh>
 CLICK_DECLS
 
 ARPTableMulti::ARPTableMulti()

@@ -18,7 +18,6 @@
 
 #include <click/config.h>
 #include "wingsetheader.hh"
-#include <click/confparse.hh>
 CLICK_DECLS
 
 WINGSetHeader::WINGSetHeader() {

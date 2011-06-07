@@ -60,8 +60,8 @@ LinkTableMulti::configure(Vector<String> &conf, ErrorHandler *errh) {
     String ifaces;
 
     if (Args(conf, this, errh)
-          .read("IP", ip)
-          .read("IFACES", ifaces)
+          .read_m("IP", ip)
+          .read_m("IFACES", ifaces)
           .read("BETA", _beta)
           .read("STALE", stale_period)
           .read("DEBUG", _debug)

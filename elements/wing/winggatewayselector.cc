@@ -18,7 +18,7 @@
 
 #include <click/config.h>
 #include "winggatewayselector.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include "dyngw.hh"
 CLICK_DECLS
 
@@ -32,17 +32,14 @@ WINGGatewaySelector::~WINGGatewaySelector() {
 
 int WINGGatewaySelector::configure(Vector<String> &conf, ErrorHandler *errh) {
 
-	if (cp_va_kparse(conf, this, errh, 
-				"IP", cpkM, cpIPAddress, &_ip, 
-				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
-				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
-				"PERIOD", 0, cpUnsigned, &_period, 
-				"EXPIRE", 0, cpUnsigned, &_expire, 
-				"DEBUG", 0, cpBool, &_debug, 
-				cpEnd) < 0)
-		return -1;
-
-	return 0;
+	return Args(conf, this, errh)
+		.read_m("IP", _ip)
+		.read_m("LT", ElementCastArg("LinkTableMulti"), _link_table)
+		.read_m("ARP", ElementCastArg("ARPTableMulti"), _arp_table)
+		.read("PERIOD", _period)
+		.read("EXPIRE", _expire)
+		.read("DEBUG", _debug)
+		.complete();
 
 }
 

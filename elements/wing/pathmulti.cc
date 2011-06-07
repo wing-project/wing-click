@@ -1,5 +1,4 @@
 #include <click/config.h>
-#include <click/confparse.hh>
 #include "pathmulti.hh"
 CLICK_DECLS
 

@@ -18,7 +18,7 @@
 
 #include <click/config.h>
 #include "wingquerier.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 CLICK_DECLS
 
 bool
@@ -48,17 +48,14 @@ int WINGQuerier::configure(Vector<String> &conf, ErrorHandler *errh) {
 	_query_wait = Timestamp(5);
 	_time_before_switch = Timestamp(5);
 
-	if (cp_va_kparse(conf, this, errh, 
-				"IP", cpkM, cpIPAddress, &_ip, 
-				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
-				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
-				"TIME_BEFORE_SWITCH", 0, cpTimestamp, &_time_before_switch,
-				"QUERY_WAIT", 0, cpTimestamp, &_query_wait, 
-				"DEBUG", 0, cpBool, &_debug, 
-				cpEnd) < 0)
-		return -1;
-
-	return 0;
+	return Args(conf, this, errh)
+		.read_m("IP", _ip)
+		.read_m("LT", ElementCastArg("LinkTableMulti"), _link_table)
+		.read_m("ARP", ElementCastArg("ARPTableMulti"), _arp_table)
+		.read("TIME_BEFORE_SWITCH", _time_before_switch)
+		.read("QUERY_WAIT", _query_wait)
+		.read("DEBUG", _debug)
+		.complete();
 
 }
 

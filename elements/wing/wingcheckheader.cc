@@ -18,22 +18,13 @@
 
 #include <click/config.h>
 #include "wingcheckheader.hh"
-#include <click/confparse.hh>
 CLICK_DECLS
 
 WINGCheckHeader::WINGCheckHeader() :
-	_drops(0), _checksum(true) {
+	_drops(0) {
 }
 
 WINGCheckHeader::~WINGCheckHeader() {
-}
-
-int WINGCheckHeader::configure(Vector<String> &conf, ErrorHandler *errh) {
-	if (cp_va_kparse_remove_keywords(conf, this, errh, 
-						"CHECKSUM", 0, cpBool, &_checksum, 
-						cpEnd) < 0)
-		return -1;
-	return 0;
 }
 
 Packet *
@@ -41,6 +32,7 @@ WINGCheckHeader::simple_action(Packet *p) {
 
 	click_ether *eh = (click_ether *) p->data();
 	struct wing_header *pk = (struct wing_header *) (eh + 1);
+	bool cksum = false;
 
 	if (!pk) {
 		goto bad;
@@ -78,32 +70,29 @@ WINGCheckHeader::simple_action(Packet *p) {
 	}
 
 	// check checksum
-	if (_checksum) {
-		bool cksum = false;
-		switch (pk->_type) {
-		case WING_PT_QUERY : 
-		case WING_PT_REPLY : 
-		case WING_PT_GATEWAY : 
-			cksum = ((struct wing_packet *) (eh + 1))->check_checksum();
-			break;
-		case WING_PT_PROBE : 
-			cksum = ((struct wing_probe *) (eh + 1))->check_checksum();
-			break;
-		case WING_PT_DATA : 
-			cksum = ((struct wing_data *) (eh + 1))->check_checksum();
-			break;
-		case WING_PT_BCAST_DATA : 
-			cksum = ((struct wing_bcast_data *) (eh + 1))->check_checksum();
-			break;
-		}
-		if (!cksum) {
-			click_chatter("%{element} :: %s :: failed checksum from %s, packet type %02x", 
-					this, 
-					__func__,
-					EtherAddress(eh->ether_shost).unparse().c_str(),
-					pk->_type);
-			goto bad;
-		}
+	switch (pk->_type) {
+	case WING_PT_QUERY : 
+	case WING_PT_REPLY : 
+	case WING_PT_GATEWAY : 
+		cksum = ((struct wing_packet *) (eh + 1))->check_checksum();
+		break;
+	case WING_PT_PROBE : 
+		cksum = ((struct wing_probe *) (eh + 1))->check_checksum();
+		break;
+	case WING_PT_DATA : 
+		cksum = ((struct wing_data *) (eh + 1))->check_checksum();
+		break;
+	case WING_PT_BCAST_DATA : 
+		cksum = ((struct wing_bcast_data *) (eh + 1))->check_checksum();
+		break;
+	}
+	if (!cksum) {
+		click_chatter("%{element} :: %s :: failed checksum from %s, packet type %02x", 
+				this, 
+				__func__,
+				EtherAddress(eh->ether_shost).unparse().c_str(),
+				pk->_type);
+		goto bad;
 	}
 
 	// check packet version

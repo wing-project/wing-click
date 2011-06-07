@@ -18,7 +18,7 @@
 
 #include <click/config.h>
 #include "winglinkstat.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include <elements/wifi/devinfo.hh>
 #include <elements/wifi/availablerates.hh>
 #include <elements/wifi/availablechannels.hh>
@@ -60,16 +60,16 @@ int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	String probes;
 
-	if (cp_va_kparse(conf, this, errh, 
-			"DEV", cpkM, cpElementCast, "DevInfo", &_dev,
-			"METRIC", cpkM, cpElementCast, "WINGLinkMetric", &_link_metric, 
-			"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
-			"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
-			"PROBES", cpkM, cpString, &probes, 
-			"PERIOD", 0, cpUnsigned, &_period, 
-			"TAU", 0, cpUnsigned, &_tau, 
-			"DEBUG", 0, cpBool, &_debug, 
-			cpEnd) < 0)
+	if (Args(conf, this, errh)
+		  .read_m("DEV", ElementCastArg("DevInfo"), _dev)
+		  .read_m("METRIC", ElementCastArg("WINGLinkMetric"), _link_metric)
+		  .read_m("LT", ElementCastArg("LinkTableMulti"), _link_table)
+		  .read_m("ARP", ElementCastArg("ARPTableMulti"), _arp_table)
+		  .read("PROBES", probes)
+		  .read("PERIOD", _period)
+		  .read("TAU", _tau)
+		  .read("DEBUG", _debug)
+		  .complete())
 		return -1;
 
 	return write_handler(probes, this, (void *) H_PROBES, errh);

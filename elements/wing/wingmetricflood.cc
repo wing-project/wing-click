@@ -18,7 +18,7 @@
 
 #include <click/config.h>
 #include "wingmetricflood.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 CLICK_DECLS
 
 WINGMetricFlood::WINGMetricFlood() :
@@ -31,15 +31,12 @@ WINGMetricFlood::~WINGMetricFlood() {
 
 int WINGMetricFlood::configure(Vector<String> &conf, ErrorHandler *errh) {
 
-	if (cp_va_kparse(conf, this, errh, 
-				"IP", cpkM, cpIPAddress, &_ip, 
-				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
-				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
-				"DEBUG", 0, cpBool, &_debug, 
-				cpEnd) < 0)
-		return -1;
-
-	return 0;
+	return Args(conf, this, errh)
+		.read_m("IP", _ip)
+		.read_m("LT", ElementCastArg("LinkTableMulti"), _link_table)
+		.read_m("ARP", ElementCastArg("ARPTableMulti"), _arp_table)
+		.read("DEBUG", _debug)
+		.complete();
 
 }
 

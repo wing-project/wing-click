@@ -2,6 +2,7 @@
 #define CLICK_PATHMULTI_HH
 #include <click/straccum.hh>
 #include <click/hashcode.hh>
+#include <click/vector.hh>
 #include "nodeairport.hh"
 CLICK_DECLS
 

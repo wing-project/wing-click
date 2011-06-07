@@ -27,7 +27,6 @@ public:
 	const char *port_count() const { return "1/1-2"; }
 	const char *processing() const { return "a/ah"; }
 
-	int configure(Vector<String> &, ErrorHandler *);
 	void add_handlers();
 
 	Packet *simple_action(Packet *);
@@ -45,7 +44,6 @@ private:
 
 	BadTable _bad_table;
 	int _drops;
-	bool _checksum;
 
 	static String read_handler(Element *, void *);
 

@@ -18,7 +18,7 @@
 
 #include <click/config.h>
 #include "winglinkmetric.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 CLICK_DECLS
 
 WINGLinkMetric::WINGLinkMetric() :
@@ -29,16 +29,12 @@ WINGLinkMetric::~WINGLinkMetric() {
 }
 
 int WINGLinkMetric::configure(Vector<String> &conf, ErrorHandler *errh) {
-	if (cp_va_kparse(conf, this, errh, 
-				"LT", cpkM, cpElement, &_link_table,
-				"DEBUG", 0, cpBool, &_debug, 
-			cpEnd) < 0)
-		return -1;
 
-	if (_link_table && _link_table->cast("LinkTableMulti") == 0)
-		return errh->error("LinkTable element is not a LinkTableMulti");
+	return Args(conf, this, errh)
+		.read_m("LT", ElementCastArg("LinkTableMulti"), _link_table)
+		.read("DEBUG", _debug)
+		.complete();
 
-	return 0;
 }
 
 void WINGLinkMetric::update_link_table(NodeAddress from, NodeAddress to, uint32_t seq, uint32_t fwd, uint32_t rev, uint16_t channel) {

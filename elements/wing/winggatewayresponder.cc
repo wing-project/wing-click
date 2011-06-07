@@ -18,7 +18,7 @@
 
 #include <click/config.h>
 #include "winggatewayresponder.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include "winggatewayselector.hh"
 #include "wingmetricflood.hh"
 CLICK_DECLS
@@ -32,15 +32,12 @@ WINGGatewayResponder::~WINGGatewayResponder() {
 
 int WINGGatewayResponder::configure(Vector<String> &conf, ErrorHandler *errh) {
 
-	if (cp_va_kparse(conf, this, errh, 
-				"LT", cpkM, cpElementCast, "LinkTableMulti", &_link_table, 
-				"SEL", cpkM, cpElementCast, "WINGGatewaySelector", &_gw_sel, 
-				"MF", cpkM, cpElementCast, "WINGMetricFlood", &_metric_flood, 
-				"PERIOD", 0, cpUnsigned, &_period, 
-				cpEnd) < 0)
-		return -1;
-
-	return 0;
+	return Args(conf, this, errh)
+		.read_m("LT", ElementCastArg("LinkTableMulti"), _link_table)
+		.read_m("SEL", ElementCastArg("WINGGatewaySelector"), _gw_sel)
+		.read_m("MF", ElementCastArg("WINGMetricFlood"), _metric_flood)
+		.read("PERIOD", _period)
+		.complete();
 
 }
 

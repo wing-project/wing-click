@@ -18,7 +18,7 @@
 
 #include <click/config.h>
 #include "wingsetgateway.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 #include "winggatewayselector.hh"
 CLICK_DECLS
 
@@ -30,14 +30,14 @@ WINGSetGateway::~WINGSetGateway() {
 }
 
 int WINGSetGateway::configure(Vector<String> &conf, ErrorHandler *errh) {
-	if (cp_va_kparse(conf, this, errh, 
-				"GW", 0, cpIPAddress, &_gw, 
-				"SEL", 0, cpElementCast, "WINGGatewaySelector", &_gw_sel, 
-				"PERIOD", 0, cpUnsigned, &_period, 
-				"DEBUG", 0, cpBool, &_debug, 
-				cpEnd) < 0)
-		return -1;
-	return 0;
+
+	return Args(conf, this, errh)
+		.read_m("GW", _gw)
+		.read_m("SEL", ElementCastArg("WINGGatewaySelector"), _gw_sel)
+		.read("PERIOD", _period)
+		.read("DEBUG", _debug)
+		.complete();
+
 }
 
 int WINGSetGateway::initialize(ErrorHandler *) {

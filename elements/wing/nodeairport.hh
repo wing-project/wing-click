@@ -1,7 +1,6 @@
 #ifndef CLICK_NODEAIRPORT_HH
 #define CLICK_NODEAIRPORT_HH
 #include <click/config.h>
-#include <click/confparse.hh>
 #include <click/straccum.hh>
 #include "nodeaddress.hh"
 CLICK_DECLS

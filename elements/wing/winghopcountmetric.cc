@@ -18,7 +18,6 @@
 
 #include <click/config.h>
 #include "winghopcountmetric.hh"
-#include <click/confparse.hh>
 CLICK_DECLS
 
 WINGHopCountMetric::WINGHopCountMetric() :

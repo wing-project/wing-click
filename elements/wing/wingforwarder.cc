@@ -18,7 +18,7 @@
 
 #include <click/config.h>
 #include "wingforwarder.hh"
-#include <click/confparse.hh>
+#include <click/args.hh>
 CLICK_DECLS
 
 WINGForwarder::WINGForwarder() :
@@ -30,13 +30,10 @@ WINGForwarder::~WINGForwarder() {
 
 int WINGForwarder::configure(Vector<String> &conf, ErrorHandler *errh) {
 
-	if (cp_va_kparse(conf, this, errh, 
-				"IP", cpkM, cpIPAddress, &_ip, 
-				"ARP", cpkM, cpElementCast, "ARPTableMulti", &_arp_table, 
-				cpEnd) < 0)
-		return -1;
-
-	return 0;
+	return Args(conf, this, errh)
+		.read_m("IP", _ip)
+		.read_m("ARP", ElementCastArg("ARPTableMulti"), _arp_table)
+		.complete();
 
 }
 
