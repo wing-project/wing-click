@@ -605,7 +605,20 @@ if test "$linux_system_map" = NONE; then
     fi
 fi
 
-if test ! -f "$linux_system_map"; then
+AC_MSG_CHECKING([for Linux System.map])
+if test -r "$linux_system_map"; then
+    AC_MSG_RESULT([$linux_system_map])
+elif test -f "$linux_system_map"; then
+    AC_MSG_RESULT([$linux_system_map (unreadable)])
+    AC_MSG_ERROR([
+=========================================
+
+The Linux System.map file $linux_system_map cannot be read.
+Try running the ./configure script as root (or use the --with-linux=DIR
+and/or --with-linux-map=MAP options).
+
+=========================================])
+else
     if test "x$enable_linuxmodule_default" = xyes; then
 	AC_MSG_WARN([
 =========================================
@@ -637,14 +650,26 @@ dnl Check for Linux 2.6
 
 if test $ac_have_linux_kernel = y; then
 
-AC_CACHE_CHECK([for Linux 2.6], [ac_cv_linux26],
-    [if grep '^PATCHLEVEL[ 	]*=[ 	]*6' `find_linuxpath Makefile` >/dev/null 2>&1; then ac_cv_linux26=yes; else ac_cv_linux26=no; fi])
+AC_MSG_CHECKING([Linux version])
+linuxpath_makefile=`find_linuxpath Makefile`
+linux_version=`grep '^VERSION[[ 	]]*=[[ 	]]*[[0-9]][[0-9]]*[[ 	]]*$' "$linuxpath_makefile" | tr -c -d 0-9`
+linux_patchlevel=`grep '^PATCHLEVEL[[ 	]]*=[[ 	]]*[[0-9]][[0-9]]*[[ 	]]*$' "$linuxpath_makefile" | tr -c -d 0-9`
+linux_sublevel=`grep '^SUBLEVEL[[ 	]]*=[[ 	]]*[[0-9]][[0-9]]*[[ 	]]*$' "$linuxpath_makefile" | tr -c -d 0-9`
+if test -n "$linux_version" -a -n "$linux_patchlevel" -a -z "$linux_sublevel"; then linux_sublevel=0; fi
+if test -n "$linux_version" -a -n "$linux_patchlevel" -a -n "$linux_sublevel"; then
+    AC_MSG_RESULT([$linux_version.$linux_patchlevel.$linux_sublevel])
+    linux_version_code=`expr $linux_version '*' 65536 + $linux_patchlevel '*' 256 + $linux_sublevel`
+else
+    AC_MSG_RESULT([unknown])
+    linux_version_code=0
+fi
+
 LINUXMODULE_2_6=0
-if test "$ac_cv_linux26" = yes; then LINUXMODULE_2_6=1; fi
-AC_SUBST(LINUXMODULE_2_6)
-if test $LINUXMODULE_2_6 = 1; then
+if test "$linux_version.$linux_patchlevel" = 2.6; then
+    LINUXMODULE_2_6=1
     AC_DEFINE([HAVE_LINUXMODULE_2_6], [1], [Define if the Click linuxmodule is compiled for a 2.6 kernel.])
 fi
+AC_SUBST(LINUXMODULE_2_6)
 
 AC_CACHE_CHECK(for Click Linux kernel extensions, ac_cv_click_kernel,
 [if grep "register_net_in" $linux_system_map >/dev/null 2>&1; then
@@ -692,6 +717,14 @@ AC_CACHE_CHECK(for files_lock kernel symbol, ac_cv_linux_files_lock,
 else ac_cv_linux_files_lock=no; fi])
 if test $ac_cv_linux_files_lock = yes; then
     AC_DEFINE(HAVE_LINUX_FILES_LOCK)
+fi
+
+AC_CACHE_CHECK(for files_lglock kernel symbol, ac_cv_linux_files_lglock,
+[if grep "__ksymtab_files_lglock" $linux_system_map >/dev/null 2>&1; then
+    ac_cv_linux_files_lglock=yes
+else ac_cv_linux_files_lglock=no; fi])
+if test $ac_cv_linux_files_lglock = yes; then
+    AC_DEFINE(HAVE_LINUX_FILES_LGLOCK)
 fi
 
 AC_CACHE_CHECK(for sb_lock kernel symbol, ac_cv_linux_sb_lock,
@@ -1213,6 +1246,14 @@ fixincludes.pl execution failed.
 
 
     # CLICK_LINUXMODULE_PROLOGUE()
+    linux_autoconf_include=
+    if test "$linux_version_code" -lt 132638; then
+	AC_DEFINE([HAVE_CHECK_AUTOCONF_INCLUDED], [1], [Define if the AUTOCONF_INCLUDED symbol should be checked.])
+	linux_autoconf_include="#if !defined(AUTOCONF_INCLUDED)
+# include <linux/autoconf.h>
+#endif
+"
+    fi
     AC_DEFUN([CLICK_LINUXMODULE_PROLOGUE], [[#if HAVE_LINUXMODULE_2_6
 # define KBUILD_STR(s)		#s
 # define KBUILD_BASENAME	KBUILD_STR(click)
@@ -1231,9 +1272,7 @@ fixincludes.pl execution failed.
 #define false linux_false
 #define true linux_true
 #define CLICK_CXX_PROTECTED 1
-#ifndef AUTOCONF_INCLUDED
-# include <linux/autoconf.h>
-#endif
+$linux_autoconf_include
 #include <asm/types.h>]])
 
 
@@ -1419,6 +1458,13 @@ void f1(int64_t) { // will fail if long long and int64_t are the same type
 	AC_DEFINE([HAVE_NETDEV_USES_TRAILER_TAGS], [1], [Define if you have the netdev_uses_trailer_tags function.])
     fi
 
+    AC_CACHE_CHECK(for netdev_rx_handler_register kernel symbol, ac_cv_linux_netdev_rx_handler_register,
+    [if grep "__ksymtab_netdev_rx_handler_register" $linux_system_map >/dev/null 2>&1; then
+        ac_cv_linux_netdev_rx_handler_register=yes
+    else ac_cv_linux_netdev_rx_handler_register=no; fi])
+    if test $ac_cv_linux_netdev_rx_handler_register = yes; then
+        AC_DEFINE(HAVE_LINUX_NETDEV_RX_HANDLER_REGISTER)
+    fi
 
     CC="$save_cc"
     CXX="$save_cxx"
