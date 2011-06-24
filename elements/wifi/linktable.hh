@@ -166,8 +166,13 @@ protected:
     bool _marked_from_me;
     bool _marked_to_me;
 
+<<<<<<< HEAD
     HostInfo() {
       _address = T();
+=======
+    HostInfo(IPAddress p = IPAddress()) {
+      _ip = p;
+>>>>>>> be856392ace4bce11ca8611b140cedb8c510952d
       _metric_from_me = 0;
       _metric_to_me = 0;
       _prev_from_me = T();
@@ -175,6 +180,7 @@ protected:
       _marked_from_me = false;
       _marked_to_me = false;
     }
+<<<<<<< HEAD
 
     HostInfo(T address) {
       _address = address;
@@ -185,6 +191,8 @@ protected:
       _marked_from_me = false;
       _marked_to_me = false;
     }
+=======
+>>>>>>> be856392ace4bce11ca8611b140cedb8c510952d
 
     HostInfo(const HostInfo &p) :
       _address(p._address),
