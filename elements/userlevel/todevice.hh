@@ -11,7 +11,7 @@ CLICK_DECLS
 /*
  * =title ToDevice.u
  * =c
- * ToDevice(DEVNAME [, I<KEYWORDS>])
+ * ToDevice(DEVNAME [, I<keywords>])
  * =s netdevices
  * sends packets to network device (user-level)
  * =d
@@ -25,6 +25,12 @@ CLICK_DECLS
  * Keyword arguments are:
  *
  * =over 8
+ *
+ * =item METHOD
+ *
+ * Word. Defines the method ToDevice will use to write packets to the
+ * device. Linux targets generally support PCAP and LINUX; other targets
+ * support PCAP or, occasionally, other methods. Generally defaults to PCAP.
  *
  * =item DEBUG
  *
@@ -54,60 +60,77 @@ CLICK_DECLS
  * FromDevice.u, FromDump, ToDump, KernelTun, ToDevice(n) */
 
 #if defined(__linux__)
-# define TODEVICE_LINUX 1
-# define TODEVICE_SEND 1
-#elif HAVE_PCAP
+# define TODEVICE_ALLOW_LINUX 1
+#endif
+#if HAVE_PCAP && (HAVE_PCAP_INJECT || HAVE_PCAP_SENDPACKET)
 extern "C" {
 # include <pcap.h>
 }
-# if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__APPLE__) || defined(__NetBSD__)
-#  define TODEVICE_BSD_DEV_BPF 1
-#  define TODEVICE_WRITE 1
-# elif defined(__sun)
-#  define TODEVICE_PCAP 1
-#  define TODEVICE_WRITE 1
-# endif
+# define TODEVICE_ALLOW_PCAP 1
 #endif
+#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__APPLE__) || defined(__NetBSD__)
+# define TODEVICE_ALLOW_DEVBPF 1
+#elif defined(__sun)
+# define TODEVICE_ALLOW_PCAPFD 1
+#endif
+class FromDevice;
 
 class ToDevice : public Element { public:
 
-  ToDevice();
-  ~ToDevice();
+    ToDevice();
+    ~ToDevice();
 
-  const char *class_name() const		{ return "ToDevice"; }
-  const char *port_count() const		{ return "1/0-2"; }
-  const char *processing() const		{ return "l/h"; }
-  const char *flags() const			{ return "S2"; }
+    const char *class_name() const		{ return "ToDevice"; }
+    const char *port_count() const		{ return "1/0-2"; }
+    const char *processing() const		{ return "l/h"; }
+    const char *flags() const			{ return "S2"; }
 
-  int configure_phase() const { return KernelFilter::CONFIGURE_PHASE_TODEVICE; }
-  int configure(Vector<String> &, ErrorHandler *);
-  int initialize(ErrorHandler *);
-  void cleanup(CleanupStage);
-  void add_handlers();
+    int configure_phase() const { return KernelFilter::CONFIGURE_PHASE_TODEVICE; }
+    int configure(Vector<String> &, ErrorHandler *);
+    int initialize(ErrorHandler *);
+    void cleanup(CleanupStage);
+    void add_handlers();
 
-  String ifname() const				{ return _ifname; }
-  int fd() const				{ return _fd; }
+    String ifname() const			{ return _ifname; }
+    int fd() const				{ return _fd; }
 
-  bool run_task(Task *);
-  void selected(int fd, int mask);
-  static int write_param(const String &in_s, Element *e, void *vparam, ErrorHandler *errh);
-  static String read_param(Element *e, void *thunk);
-protected:
-  Task _task;
-  Timer _timer;
-private:
+    bool run_task(Task *);
+    void selected(int fd, int mask);
 
-  String _ifname;
-  int _fd;
-  bool _my_fd;
-  NotifierSignal _signal;
+  private:
 
+    Task _task;
+    Timer _timer;
 
-  Packet *_q;
-public:
-  bool _debug;
-  bool _backoff;
-  int _pulls;
+    String _ifname;
+#if TODEVICE_ALLOW_PCAP
+    pcap_t *_pcap;
+#endif
+#if TODEVICE_ALLOW_LINUX || TODEVICE_ALLOW_DEVBPF || TODEVICE_ALLOW_PCAPFD
+    int _fd;
+#endif
+    enum { method_linux, method_pcap, method_devbpf, method_pcapfd };
+    int _method;
+    NotifierSignal _signal;
+
+    Packet *_q;
+
+    bool _debug;
+    bool _backoff;
+#if TODEVICE_ALLOW_PCAP
+    bool _my_pcap;
+#endif
+#if TODEVICE_ALLOW_LINUX || TODEVICE_ALLOW_DEVBPF || TODEVICE_ALLOW_PCAPFD
+    bool _my_fd;
+#endif
+    int _pulls;
+
+    enum { h_debug, h_signal, h_pulls, h_q };
+    FromDevice *find_fromdevice() const;
+    int send_packet(Packet *p);
+    static int write_param(const String &in_s, Element *e, void *vparam, ErrorHandler *errh);
+    static String read_param(Element *e, void *thunk);
+
 };
 
 CLICK_ENDDECLS
