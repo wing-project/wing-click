@@ -440,6 +440,7 @@ perfctr-i586.hh
 router.hh
 routerthread.hh
 routervisitor.hh
+selectset.hh
 simclick.h
 skbmgr.hh
 standard
@@ -448,6 +449,7 @@ string.hh
 sync.hh
 task.hh
 timer.hh
+timerset.hh
 timestamp.hh
 tokenbucket.hh
 type_traits.hh
@@ -519,12 +521,14 @@ packet.cc
 router.cc
 routerthread.cc
 routervisitor.cc
+selectset.cc
 straccum.cc
 strerror.c
 string.cc
 task.cc
 templatei.cc
 timer.cc
+timerset.cc
 timestamp.cc
 userutils.cc
 variableenv.cc

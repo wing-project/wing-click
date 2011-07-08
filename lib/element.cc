@@ -1650,6 +1650,14 @@ Element::configuration() const
 }
 
 
+/** @brief Return the element's home thread. */
+RouterThread *
+Element::home_thread() const
+{
+    return master()->thread(router()->home_thread_id(this));
+}
+
+
 // SELECT
 
 #if CLICK_USERLEVEL
@@ -1723,7 +1731,7 @@ Element::selected(int fd)
 int
 Element::add_select(int fd, int mask)
 {
-    return master()->add_select(fd, this, mask);
+    return home_thread()->select_set().add_select(fd, this, mask);
 }
 
 /** @brief Remove interest in @a mask events on file descriptor @a fd.
@@ -1742,7 +1750,7 @@ Element::add_select(int fd, int mask)
 int
 Element::remove_select(int fd, int mask)
 {
-    return master()->remove_select(fd, this, mask);
+    return home_thread()->select_set().remove_select(fd, this, mask);
 }
 
 #endif

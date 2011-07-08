@@ -87,8 +87,7 @@ class Router { public:
 
     inline ThreadSched* thread_sched() const;
     inline void set_thread_sched(ThreadSched* scheduler);
-    inline int initial_home_thread_id(Element *owner, Task *task,
-				      bool scheduled) const;
+    inline int home_thread_id(const Element *e) const;
 
     /** @cond never */
     // Needs to be public for NameInfo, but not useful outside
@@ -131,6 +130,7 @@ class Router { public:
     int initialize(ErrorHandler* errh);
     void activate(bool foreground, ErrorHandler* errh);
     inline void activate(ErrorHandler* errh);
+    inline void set_foreground(bool foreground);
 
     int new_notifier_signal(const char *name, NotifierSignal &signal);
     String notifier_signal_name(const atomic_uint32_t *signal) const;
@@ -234,10 +234,11 @@ class Router { public:
 
     atomic_uint32_t _refcount;
 
-    Vector<Element*> _elements;
+    Vector<Element *> _elements;
     Vector<String> _element_names;
     Vector<String> _element_configurations;
     Vector<uint32_t> _element_landmarkids;
+    mutable Vector<int> _element_home_thread_ids;
 
     struct element_landmark_t {
 	uint32_t first_landmarkid;
@@ -320,6 +321,8 @@ class Router { public:
 	return _element_gport_offset[isout].back();
     }
     inline int gport(bool isoutput, const Port &port) const;
+
+    int hard_home_thread_id(const Element *e) const;
 
     int element_lerror(ErrorHandler*, Element*, const char*, ...) const;
 
@@ -440,12 +443,12 @@ Router::set_thread_sched(ThreadSched* ts)
 }
 
 inline int
-Router::initial_home_thread_id(Element *owner, Task *t, bool scheduled) const
+Router::home_thread_id(const Element *e) const
 {
-    if (!_thread_sched)
-	return ThreadSched::THREAD_UNKNOWN;
+    if (initialized())
+	return _element_home_thread_ids[e->eindex() + 1];
     else
-	return _thread_sched->initial_home_thread_id(owner, t, scheduled);
+	return hard_home_thread_id(e);
 }
 
 /** @cond never */
@@ -505,6 +508,13 @@ inline void
 Router::activate(ErrorHandler* errh)
 {
     activate(true, errh);
+}
+
+inline void
+Router::set_foreground(bool foreground)
+{
+    assert(_running >= RUNNING_BACKGROUND);
+    _running = foreground ? RUNNING_ACTIVE : RUNNING_BACKGROUND;
 }
 
 /** @brief  Finds an element named @a name.

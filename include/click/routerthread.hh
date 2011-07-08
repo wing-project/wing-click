@@ -3,6 +3,7 @@
 #define CLICK_ROUTERTHREAD_HH
 #include <click/sync.hh>
 #include <click/vector.hh>
+#include <click/timerset.hh>
 #if CLICK_LINUXMODULE
 # include <click/cxxprotect.h>
 CLICK_CXX_PROTECT
@@ -15,8 +16,8 @@ CLICK_CXX_PROTECT
 # include <sys/systm.h>
 CLICK_CXX_UNPROTECT
 # include <click/cxxunprotect.h>
-#elif CLICK_USERLEVEL && HAVE_MULTITHREAD
-# include <unistd.h>
+#elif CLICK_USERLEVEL
+# include <click/selectset.hh>
 #endif
 
 // NB: user must #include <click/task.hh> before <click/routerthread.hh>.
@@ -24,35 +25,40 @@ CLICK_CXX_UNPROTECT
 // dependency.
 CLICK_DECLS
 
-class RouterThread
-#if !HAVE_TASK_HEAP
-    : private Task
-#endif
-{ public:
+class RouterThread : private TaskLink { public:
 
     enum { THREAD_QUIESCENT = -1, THREAD_UNKNOWN = -1000 };
 
     inline int thread_id() const;
+
+    inline Master *master() const;
+    inline TimerSet &timer_set()		{ return _timers; }
+    inline const TimerSet &timer_set() const	{ return _timers; }
+#if CLICK_USERLEVEL
+    inline SelectSet &select_set()		{ return _selects; }
+    inline const SelectSet &select_set() const	{ return _selects; }
+#endif
 
     // Task list functions
     inline bool active() const;
     inline Task *task_begin() const;
     inline Task *task_next(Task *task) const;
     inline Task *task_end() const;
+    void scheduled_tasks(Router *router, Vector<Task *> &x);
 
     inline void lock_tasks();
-    inline bool attempt_lock_tasks();
     inline void unlock_tasks();
 
     inline void schedule_block_tasks();
     inline void block_tasks(bool scheduled);
     inline void unblock_tasks();
 
-    inline Master* master() const;
+    inline bool stop_flag() const;
+
     void driver();
     void driver_once();
 
-    void unschedule_router_tasks(Router*);
+    void kill_router(Router *router);
 
 #if HAVE_ADAPTIVE_SCHEDULER
     // min_cpu_share() and max_cpu_share() are expressed on a scale with
@@ -69,6 +75,10 @@ class RouterThread
 #endif
 
     inline void wake();
+
+#if CLICK_USERLEVEL
+    inline void run_signals();
+#endif
 
     enum { S_PAUSED, S_BLOCKED, S_TIMERWAIT,
 	   S_LOCKSELECT, S_LOCKTASKS,
@@ -96,6 +106,8 @@ class RouterThread
 
   private:
 
+    volatile int _stop_flag;
+
 #if HAVE_TASK_HEAP
     struct task_heap_element {
 	unsigned pass;
@@ -118,14 +130,18 @@ class RouterThread
 
 #if CLICK_LINUXMODULE
     struct task_struct *_linux_task;
-#elif HAVE_MULTITHREAD
+#endif
+#if HAVE_MULTITHREAD && !CLICK_LINUXMODULE
     click_processor_t _running_processor;
-    int _wake_pipe[2];
-    volatile bool _wake_pipe_pending;
 #endif
     Spinlock _task_lock;
     atomic_uint32_t _task_blocker;
     atomic_uint32_t _task_blocker_waiting;
+
+    TimerSet _timers;
+#if CLICK_USERLEVEL
+    SelectSet _selects;
+#endif
 
 #if CLICK_LINUXMODULE
     bool _greedy;
@@ -152,6 +168,8 @@ class RouterThread
     unsigned _max_click_share;		// maximum allowed Click share of CPU
     unsigned _min_click_share;		// minimum allowed Click share of CPU
     unsigned _cur_click_share;		// current Click share
+    Timestamp _adaptive_restride_timestamp;
+    int _adaptive_restride_iter;
 #endif
 
 #if CLICK_DEBUG_SCHEDULING
@@ -192,8 +210,7 @@ class RouterThread
     inline void run_os();
 #if HAVE_ADAPTIVE_SCHEDULER
     void client_set_tickets(int client, int tickets);
-    inline void client_update_pass(int client, const Timestamp &before, const Timestamp &after);
-    inline void check_restride(Timestamp &before, const Timestamp &now, int &restride_iter);
+    inline void client_update_pass(int client, const Timestamp &before);
 #endif
 #if HAVE_TASK_HEAP
     void task_reheapify_from(int pos, Task*);
@@ -202,6 +219,9 @@ class RouterThread
 
     friend class Task;
     friend class Master;
+#if CLICK_USERLEVEL
+    friend class SelectSet;
+#endif
 
 };
 
@@ -237,7 +257,7 @@ RouterThread::active() const
 #if HAVE_TASK_HEAP
     return _task_heap.size() != 0 || _pending_head;
 #else
-    return ((const Task *)_next != this) || _pending_head;
+    return _next != this || _pending_head;
 #endif
 }
 
@@ -270,7 +290,7 @@ RouterThread::task_begin() const
 #if HAVE_TASK_HEAP
     return (_task_heap.size() ? _task_heap.at_u(0).t : 0);
 #else
-    return _next;
+    return static_cast<Task *>(_next);
 #endif
 }
 
@@ -290,13 +310,13 @@ RouterThread::task_next(Task *task) const
     int p = task->_schedpos + 1;
     return (p < _task_heap.size() ? _task_heap.at_u(p).t : 0);
 #else
-    return task->_next;
+    return static_cast<Task *>(task->_next);
 #endif
 }
 
 /** @brief Returns the end of the scheduled task list.
  *
- * The return value is not a real task
+ * The return value is not a real task.
  *
  * @sa task_begin for usage, task_next
  */
@@ -306,7 +326,7 @@ RouterThread::task_end() const
 #if HAVE_TASK_HEAP
     return 0;
 #else
-    return (Task *) this;
+    return static_cast<Task *>(const_cast<TaskLink *>(static_cast<const TaskLink *>(this)));
 #endif
 }
 
@@ -373,21 +393,6 @@ RouterThread::lock_tasks()
     }
 }
 
-inline bool
-RouterThread::attempt_lock_tasks()
-{
-    if (likely(current_thread_is_running()))
-	return true;
-    uint32_t blocker = _task_blocker.value();
-    if ((int32_t) blocker < 0
-	|| _task_blocker.compare_swap(blocker, blocker + 1) != blocker)
-	return false;
-    if (_task_lock.attempt())
-	return true;
-    --_task_blocker;
-    return false;
-}
-
 inline void
 RouterThread::unlock_tasks()
 {
@@ -404,12 +409,10 @@ RouterThread::wake()
     struct task_struct *task = _linux_task;
     if (task)
 	wake_up_process(task);
-#elif CLICK_USERLEVEL && HAVE_MULTITHREAD
+#elif CLICK_USERLEVEL
     // see also Master::add_select()
-    if (!current_thread_is_running()) {
-	_wake_pipe_pending = true;
-	ignore_result(write(_wake_pipe[1], "", 1));
-    }
+    if (!current_thread_is_running())
+	_selects.wake_immediate();
 #elif CLICK_BSDMODULE && !BSD_NETISRSCHED
     if (_sleep_ident)
 	wakeup_one(&_sleep_ident);
@@ -420,6 +423,12 @@ inline void
 RouterThread::add_pending()
 {
     wake();
+}
+
+inline bool
+RouterThread::stop_flag() const
+{
+    return _stop_flag;
 }
 
 inline void
