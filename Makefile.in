@@ -95,13 +95,12 @@ install-local: elementmap.xml click-buildtool click-compile config.mk \
 	$(INSTALL_DATA_IF_CHANGED) $(srcdir)/etc/pkg-userlevel.mk $(DESTDIR)$(clickdatadir)/pkg-userlevel.mk
 	$(INSTALL_DATA_IF_CHANGED) $(srcdir)/etc/pkg-linuxmodule.mk $(DESTDIR)$(clickdatadir)/pkg-linuxmodule.mk
 	$(INSTALL_DATA_IF_CHANGED) $(srcdir)/etc/pkg-linuxmodule-26.mk $(DESTDIR)$(clickdatadir)/pkg-linuxmodule-26.mk
+	$(INSTALL_DATA_IF_CHANGED) $(srcdir)/etc/pkg-bsdmodule.mk $(DESTDIR)$(clickdatadir)/pkg-bsdmodule.mk
 	(cd $(top_srcdir); pwd) > $(DESTDIR)$(clickdatadir)/srcdir
 	/bin/rm -rf $(DESTDIR)$(clickdatadir)/src
 	/bin/ln -s "`cd $(top_srcdir); pwd`" $(DESTDIR)$(clickdatadir)/src
 install-doc: elementmap.xml
 	@cd doc && $(MAKE) install
-install-info:
-	@cd doc && $(MAKE) install-info
 install-man: elementmap.xml
 	@-for d in $(ALL_TARGETS) doc; do (cd $$d && $(MAKE) install-man); done
 install-local-include: stamp-h installch
@@ -125,7 +124,7 @@ uninstall: elementmap.xml
 	@$(MAKE) uninstall-local uninstall-local-include
 uninstall-local:
 	/bin/rm -f $(DESTDIR)$(bindir)/click-buildtool $(DESTDIR)$(bindir)/click-compile $(DESTDIR)$(bindir)/click-mkelemmap $(DESTDIR)$(bindir)/testie $(DESTDIR)$(clickdatadir)/elementmap.xml $(DESTDIR)$(clickdatadir)/srcdir $(DESTDIR)$(clickdatadir)/src $(DESTDIR)$(clickdatadir)/config.mk $(DESTDIR)$(clickdatadir)/mkinstalldirs
-	/bin/rm -f $(DESTDIR)$(clickdatadir)/pkg-config.mk $(DESTDIR)$(clickdatadir)/pkg-userlevel.mk $(DESTDIR)$(clickdatadir)/pkg-linuxmodule.mk $(DESTDIR)$(clickdatadir)/pkg-linuxmodule-26.mk $(DESTDIR)$(clickdatadir)/pkg-Makefile
+	/bin/rm -f $(DESTDIR)$(clickdatadir)/pkg-config.mk $(DESTDIR)$(clickdatadir)/pkg-userlevel.mk $(DESTDIR)$(clickdatadir)/pkg-linuxmodule.mk $(DESTDIR)$(clickdatadir)/pkg-linuxmodule-26.mk $(DESTDIR)$(clickdatadir)/pkg-bsdmodule.mk $(DESTDIR)$(clickdatadir)/pkg-Makefile
 uninstall-local-include:
 	cd $(srcdir)/include/click; for i in *.h *.hh *.cc; do /bin/rm -f $(DESTDIR)$(clickincludedir)/$$i; done
 	cd $(top_builddir)/include/click; for i in *.h; do /bin/rm -f $(DESTDIR)$(clickincludedir)/$$i; done
@@ -203,13 +202,13 @@ dist: distdir
 	-rm -rf $(distdir)
 distdir: $(srcdir)/configure
 	-rm -rf doc/click.info* doc/testie.1 $(srcdir)/doc/click.info* $(srcdir)/doc/testie.1
-	cd doc && $(MAKE) info testie.1
+	cd doc && $(MAKE) testie.1
 	cd $(srcdir)/etc/samplepackage && $(AUTOCONF)
 	-rm -rf $(distdir)
 	mkdir $(distdir)
 	chmod 777 $(distdir)
 	@echo Copying library, documentation, configuration, and driver files...
-	[ "$(srcdir)" = . ] || cp doc/click.info* doc/testie.1 $(srcdir)/doc
+	[ "$(srcdir)" = . ] || cp doc/testie.1 $(srcdir)/doc
 	@for file in `cat $(srcdir)/DISTFILES | grep .`; do \
 	  if expr "$$file" : '.*:$$' >/dev/null 2>&1; then \
 	    d=`echo $$file | sed 's/:$$//;s/^\.\///'`; \
