@@ -576,8 +576,9 @@ struct Args : public ArgContext {
      * @return 0 if the parse succeeded, <0 otherwise
      * @post results_empty()
      *
-     * Results are only assigned if status() is true (the parse is successful
-     * so far).  Clears results as a side effect. */
+     * Matched arguments are always removed.  Results are only assigned if
+     * status() is true (the parse is successful so far).  Clears results as a
+     * side effect. */
     int consume();
 
     /** @brief Assign results if all arguments matched.
@@ -904,7 +905,7 @@ struct NumArg {
 
   Integer overflow is treated as an error.
 
-  @sa SaturatingIntArg */
+  @sa SaturatingIntArg, BoundedIntArg */
 struct IntArg : public NumArg {
 
     typedef uint32_t limb_type;
@@ -953,7 +954,7 @@ struct IntArg : public NumArg {
     int base;
     int status;
 
-  private:
+  protected:
 
     static const char *span(const char *begin, const char *end,
 			    bool is_signed, int &b);
@@ -978,6 +979,38 @@ struct SaturatingIntArg : public IntArg {
     bool parse(const String &str, V &result, const ArgContext &args = blank_args) {
 	return parse_saturating(str, result, args);
     }
+};
+
+/** @class BoundedIntArg
+  @brief Parser class for integers with explicit bounds.
+
+  BoundedIntArg(@a min, @a max, @a base) is like IntArg(@a base), but numbers
+  less than @a min or greater than @a max are treated as errors.
+
+  @sa IntArg */
+struct BoundedIntArg : public IntArg {
+    BoundedIntArg(int min_value, int max_value, int b = 0)
+	: IntArg(b), min_value(min_value), max_value(max_value) {
+    }
+
+    template<typename V>
+    bool parse(const String &str, V &result, const ArgContext &args = blank_args) {
+	V x;
+	if (!IntArg::parse(str, x, args))
+	    return false;
+	else if (x < min_value || x > max_value) {
+	    int bound = x < min_value ? min_value : max_value;
+	    status = status_range;
+	    report_error(args, bound < 0, bound < 0 ? -bound : bound);
+	    return false;
+	} else {
+	    result = x;
+	    return true;
+	}
+    }
+
+    int min_value;
+    int max_value;
 };
 
 template<> struct DefaultArg<unsigned char> : public IntArg {};
