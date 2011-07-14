@@ -120,3 +120,4 @@ RadiotapDecap::simple_action(Packet *p) {
 
 CLICK_ENDDECLS
 EXPORT_ELEMENT(RadiotapDecap)
+ELEMENT_REQUIRES(radiotap)

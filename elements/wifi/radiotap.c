@@ -13,6 +13,7 @@
  *
  * See COPYING for more details.
  */
+#include <click/config.h>
 #include <click/radiotap_iter.h>
 #include <click/platform.h>
 
@@ -381,3 +382,5 @@ int ieee80211_radiotap_iterator_next(
 			return 0;
 	}
 }
+
+ELEMENT_PROVIDES(radiotap)
