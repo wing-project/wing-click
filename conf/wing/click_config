@@ -236,8 +236,8 @@ linux_ip_host :: LinuxIPHost($XR_IFNAME, $XR_IP, $XR_NM) -> [1] wr;
 rc_split :: EtherSplit(); 
 sl_split :: EtherSplit(); 
 
-wr [0] -> WINGSetHeader() -> sl_split; // queries, replies, bcast_stats
-wr [1] -> WINGSetHeader() -> rc_split; 
+wr [0] -> WINGSetHeader() -> AggregateWingPacketType() -> sl_count :: AggregateCounter() -> sl_split; // queries, replies, bcast_stats
+wr [1] -> WINGSetHeader() -> AggregateWingPacketType() -> rc_count :: AggregateCounter() -> rc_split; // data 
 wr [2] -> linux_ip_host;
 "
 
