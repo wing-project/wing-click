@@ -236,8 +236,8 @@ linux_ip_host :: LinuxIPHost($XR_IFNAME, $XR_IP, $XR_NM) -> [1] wr;
 rc_split :: EtherSplit(); 
 sl_split :: EtherSplit(); 
 
-wr [0] -> WINGSetHeader() -> AggregateWingPacketType() -> sl_count :: AggregateCounter() -> sl_split; // queries, replies, bcast_stats
-wr [1] -> WINGSetHeader() -> AggregateWingPacketType() -> rc_count :: AggregateCounter() -> rc_split; // data 
+wr [0] -> WINGSetHeader() -> sl_split; // queries, replies, bcast_stats
+wr [1] -> WINGSetHeader() -> rc_split; // data 
 wr [2] -> linux_ip_host;
 "
 
@@ -252,8 +252,8 @@ for i in $(seq 1 1 $NB_INTERFACES); do
 -> RadiotapEncap() 
 -> sniff_dev_$i;
 "
-	echo "sl_split[$((i-1))] -> FullNoteQueue() -> WifiEncap(0x0, 00:00:00:00:00:00) -> [0] outgoing_$i;"
-	echo "rc_split[$((i-1))] -> ls_$i -> WifiEncap(0x0, 00:00:00:00:00:00) -> rc_$i -> [1] outgoing_$i;
+	echo "sl_split[$((i-1))] -> FullNoteQueue() -> AggregateWingPacketType() -> sl_count_$i :: AggregateCounter() -> WifiEncap(0x0, 00:00:00:00:00:00) -> [0] outgoing_$i;"
+	echo "rc_split[$((i-1))] -> ls_$i -> AggregateWingPacketType() -> rc_count_$i :: AggregateCounter() -> WifiEncap(0x0, 00:00:00:00:00:00) -> rc_$i -> [1] outgoing_$i;
 "
 done
 
