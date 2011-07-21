@@ -164,6 +164,7 @@ for i in $(seq 1 1 $NB_INTERFACES); do
 	get_element "$CHANNELS" $i "channel"
 	get_element "$IFNAMES" $i "ifname"
 	echo "es_$i :: WINGLinkStat(IFNAME $ifname,
+                                  ETH $addr, 
                                   IFID $i, 
                                   CHANNEL $channel, 
                                   CHANNELS channels_$i, 
