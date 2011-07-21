@@ -19,7 +19,6 @@
 #include <click/config.h>
 #include "winglinkstat.hh"
 #include <click/args.hh>
-#include <elements/wifi/devinfo.hh>
 #include <elements/wifi/availablerates.hh>
 #include <elements/wifi/availablechannels.hh>
 #include "winglinkmetric.hh"

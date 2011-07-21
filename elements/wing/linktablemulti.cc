@@ -465,9 +465,8 @@ LinkTableMulti::read_handler(Element *e, void *thunk) {
       Vector<int> ifaces = td->get_local_interfaces();
       StringAccum sa;
       for (int x = 0; x < ifaces.size(); x++) {
-        sa << ifaces[x] << " ";
+        sa << ifaces[x] << "\n";
       }
-      sa << "\n";
       return sa.take_string();
     }
     default:
