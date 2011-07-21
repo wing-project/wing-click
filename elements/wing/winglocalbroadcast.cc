@@ -33,7 +33,6 @@ int WINGLocalBroadcast::configure(Vector<String> &conf, ErrorHandler *errh) {
 		.read_m("IP", _ip)
 		.read_m("LT", ElementCastArg("LinkTableMulti"), _link_table)
 		.read_m("ARP", ElementCastArg("ARPTableMulti"), _arp_table)
-		.read("DEBUG", _debug)
 		.complete();
 
 }

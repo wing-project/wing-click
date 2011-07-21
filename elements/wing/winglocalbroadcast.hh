@@ -6,7 +6,7 @@ CLICK_DECLS
 
 /*
  * =c
- * WINGLocalBroadcast(IP, LT LinkTableMulti element, ARP ARPTableMulti element, [TIME_BEFORE_SWITCH], [QUERY_WAIT], [DEBUG])
+ * WINGLocalBroadcast(IP, LT LinkTableMulti element, ARP ARPTableMulti element)
  * =s Wifi, Wireless Routing
  *
  */
@@ -32,8 +32,6 @@ private:
 
 	class LinkTableMulti *_link_table;
 	class ARPTableMulti *_arp_table;
-
-	bool _debug;
 
 };
 
