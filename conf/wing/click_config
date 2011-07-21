@@ -115,10 +115,8 @@ LTM=""
 for i in $(seq 1 1 $NB_INTERFACES); do
 	set_mode $i
 	get_element "$HWADDRS" $i "addr"
-	get_element "$CHANNELS" $i "channel"
 	echo "rates_$i :: AvailableRates(DEFAULT $AVAILABLE_RATES, $addr $AVAILABLE_RATES);"
 	echo "channels_$i :: AvailableChannels(DEFAULT $AVAILABLE_CHANNELS, $addr $AVAILABLE_CHANNELS);"
-	echo "dev_$i :: DevInfo(ETH $addr, IFID $i, CHANNEL $channel, CHANNELS channels_$i, RATES rates_$i);"
 	LTM="$LTM $i"
 done
 
@@ -163,7 +161,13 @@ echo "input -> ps :: PaintSwitch();"
 for i in $(seq 1 1 $NB_INTERFACES); do
 	set_mode $i
 	get_element "$HWADDRS" $i "addr"
-	echo "es_$i :: WINGLinkStat(DEV dev_$i,
+	get_element "$CHANNELS" $i "channel"
+	get_element "$IFNAMES" $i "ifname"
+	echo "es_$i :: WINGLinkStat(IFNAME $ifname,
+                                  IFID $i, 
+                                  CHANNEL $channel, 
+                                  CHANNELS channels_$i, 
+                                  RATES rates_$i,
                                   PERIOD $XR_PERIOD,
                                   TAU $XR_TAU,
                                   PROBES \"$PROBES\",

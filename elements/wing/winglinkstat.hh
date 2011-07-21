@@ -176,10 +176,16 @@ private:
 	uint32_t _sent;
 	uint32_t _seq;
 
+	String _ifname;
+	EtherAddress _eth;
+	uint32_t _channel;
+	uint32_t _ifid;
+
+	class AvailableChannels *_ctable;
+	class AvailableRates *_rtable;
 	class WINGLinkMetric *_link_metric;
 	class ARPTableMulti *_arp_table;
 	class LinkTableMulti *_link_table;
-	class DevInfo *_dev;
 
 	Timer _timer;
 	bool _debug;

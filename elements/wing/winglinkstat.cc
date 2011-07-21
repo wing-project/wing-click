@@ -26,13 +26,13 @@
 CLICK_DECLS
 
 enum {
-	H_RESET, H_BCAST_STATS, H_NODE, H_TAU, H_PERIOD, H_PROBES
+	H_RESET, H_BCAST_STATS, H_NODE, H_TAU, H_PERIOD, H_PROBES, H_IFNAME
 };
 
 WINGLinkStat::WINGLinkStat() :
 	_ads_rs_index(0), _neighbors_index(0), _tau(100000), _period(10000),
 	_sent(0), _link_metric(0), _arp_table(0), _link_table(0),
-	_dev(0), _timer(this), _debug(false) {
+	_timer(this), _debug(false) {
 }
 
 WINGLinkStat::~WINGLinkStat() {
@@ -51,7 +51,7 @@ void WINGLinkStat::run_timer(Timer *) {
 int WINGLinkStat::initialize(ErrorHandler *) {
 	_timer.initialize(this);
 	_timer.schedule_now();
-	_node = NodeAddress(_link_table->ip(), _dev->ifid());
+	_node = NodeAddress(_link_table->ip(), _ifid);
 	reset();
 	return 0;
 }
@@ -61,7 +61,12 @@ int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
 	String probes;
 
 	if (Args(conf, this, errh)
-		  .read_m("DEV", ElementCastArg("DevInfo"), _dev)
+		  .read_m("IFNAME", _ifname)
+		  .read_m("ETH", _eth)
+		  .read_m("IFID", _ifid)
+		  .read_m("CHANNEL", _channel)
+		  .read_m("CHANNELS", ElementCastArg("AvailableChannels"), _ctable)
+		  .read_m("RATES", ElementCastArg("AvailableRates"), _rtable)
 		  .read_m("METRIC", ElementCastArg("WINGLinkMetric"), _link_metric)
 		  .read_m("LT", ElementCastArg("LinkTableMulti"), _link_table)
 		  .read_m("ARP", ElementCastArg("ARPTableMulti"), _arp_table)
@@ -78,7 +83,7 @@ int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 void WINGLinkStat::send_probe() {
 
-	_arp_table->insert(_node, _dev->eth());
+	_arp_table->insert(_node, _eth);
 
 	if (!_ads_rs.size()) {
 		click_chatter("%{element} :: %s :: no probes to send at", this, __func__);
@@ -110,13 +115,13 @@ void WINGLinkStat::send_probe() {
 	memset(p->data(), 0, p->length());
 	click_ether *eh = (click_ether *) p->data();
 	memset(eh->ether_dhost, 0xff, 6);
-	memcpy(eh->ether_shost, _dev->eth().data(), 6);
+	memcpy(eh->ether_shost, _eth.data(), 6);
 
 	wing_probe *lp = (struct wing_probe *) (p->data() + sizeof(click_ether));
 
 	lp->_type = WING_PT_PROBE;
 	lp->set_node(_node);
-	lp->set_channel(_dev->channel());
+	lp->set_channel(_channel);
 	lp->set_period(_period);
 	lp->set_seq(Timestamp::now().sec());
 	lp->set_tau(_tau);
@@ -130,7 +135,7 @@ void WINGLinkStat::send_probe() {
 	uint8_t *end = (uint8_t *) p->data() + p->length();
 
 	// rates entry
-	Vector<int> rates = ((AvailableRates*)_dev->rtable())->lookup(_dev->eth());
+	Vector<int> rates = _rtable->lookup(_eth);
 	if (rates.size() && ptr + sizeof(rate_entry) * rates.size() < end) {
 		for (int x = 0; x < rates.size(); x++) {
 			rate_entry *r_entry = (struct rate_entry *) (ptr);
@@ -142,7 +147,7 @@ void WINGLinkStat::send_probe() {
 	}
 
 	// channels entry
-	Vector<int> channels = ((AvailableChannels*)_dev->ctable())->lookup(_dev->eth());
+	Vector<int> channels = _ctable->lookup(_eth);
 	if (channels.size() && ptr + sizeof(channel_entry) * channels.size() < end) {
 	  for (int x = 0; x < channels.size(); x++) {
 			channel_entry *c_entry = (struct channel_entry *) (ptr);
@@ -331,7 +336,7 @@ WINGLinkStat::simple_action(Packet *p) {
 			rates.push_back(r_entry->rate());
 			ptr += sizeof(rate_entry);
 		}
-		((AvailableRates *)_dev->rtable())->insert(EtherAddress(eh->ether_shost), rates);
+		_rtable->insert(EtherAddress(eh->ether_shost), rates);
 	}
 	// channels
 	if (lp->flag(PROBE_FLAGS_CHANNELS)) {
@@ -342,7 +347,7 @@ WINGLinkStat::simple_action(Packet *p) {
 			channels.push_back(c_entry->channel());
 			ptr += sizeof(channel_entry);
 		}
-		((AvailableChannels *)_dev->ctable())->insert(EtherAddress(eh->ether_shost), channels);
+		_ctable->insert(EtherAddress(eh->ether_shost), channels);
 	}
 	// links
 	int link_number = 0;
@@ -486,6 +491,8 @@ String WINGLinkStat::read_handler(Element *e, void *thunk) {
 		return td->_node.unparse() + "\n";
 	case H_TAU:
 		return String(td->_tau) + "\n";
+	case H_IFNAME:
+		return td->_ifname + "\n";
 	case H_PERIOD:
 		return String(td->_period) + "\n";
 	case H_PROBES: {
@@ -553,6 +560,7 @@ void WINGLinkStat::add_handlers() {
 	add_read_handler("bcast_stats", read_handler, (void *) H_BCAST_STATS);
 	add_read_handler("node", read_handler, (void *) H_NODE);
 	add_read_handler("tau", read_handler, (void *) H_TAU);
+	add_read_handler("ifname", read_handler, (void *) H_IFNAME);
 	add_read_handler("period", read_handler, (void *) H_PERIOD);
 	add_read_handler("probes", read_handler, (void *) H_PROBES);
 	add_write_handler("reset", write_handler, (void *) H_RESET);
