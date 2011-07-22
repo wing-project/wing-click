@@ -49,8 +49,7 @@ int WINGGatewayResponder::initialize(ErrorHandler *) {
 
 void WINGGatewayResponder::run_timer(Timer *) {
 	if (!_gw_sel->is_gateway()) {
-		IPAddress gateway = _gw_sel->best_gateway();
-		PathMulti best = _link_table->best_route(gateway, false);
+		PathMulti best = _link_table->best_route(_gw_sel->best_gateway(), false);
 		if (_link_table->valid_route(best)) {
 			_metric_flood->start_reply(best, 0);
 		}

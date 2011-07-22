@@ -19,10 +19,9 @@ public:
 	~WINGGatewayResponder();
 
 	const char *class_name() const { return "WINGGatewayResponder"; }
-	const char *port_count() const { return PORTS_0_1; }
-	const char *processing() const { return PUSH; }
-	const char *flow_code() const { return "#/#"; }
-
+	const char *port_count() const { return PORTS_0_0; }
+	const char *processing() const { return AGNOSTIC; }
+	
 	int initialize(ErrorHandler *);
 	int configure(Vector<String> &conf, ErrorHandler *errh);
 	void run_timer(Timer *);

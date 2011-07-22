@@ -33,8 +33,7 @@ querier :: WINGQuerier(IP $ip,
 
 lb :: WINGLocalBroadcast(IP $ip,
                          LT lt, 
-                         ARP arp,
-                         DEBUG $debug);
+                         ARP arp);
 
 
 query_forwarder :: WINGMetricFlood(IP $ip, 
@@ -56,7 +55,6 @@ gw_responder ::  WINGGatewayResponder(PERIOD 15000,
 
 
 gw -> outgoing;
-gw_responder -> outgoing;
 query_responder -> outgoing;
 query_forwarder -> outgoing;
 
