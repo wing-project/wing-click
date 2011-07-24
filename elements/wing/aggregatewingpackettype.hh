@@ -1,28 +1,19 @@
-// -*- mode: c++; c-basic-offset: 4 -*-
 #ifndef CLICK_AGGREGATEWINGPACKETTYPE_HH
 #define CLICK_AGGREGATEWINGPACKETTYPE_HH
 #include <click/element.hh>
 CLICK_DECLS
 
 /*
-=c
-
-AggregateWingPacketType()
-
-=s aggregates
-
-sets aggregate annotation based on packet length
-
-=d
-
-AggregateWingPacketType sets the aggregate annotation on every passing packet to the
-packet's ethernet type.
-
-=a
-
-AggregateIP, AggregateCounter
-
-*/
+ *=c
+ * AggregateWingPacketType()
+ * =s aggregates
+ * sets aggregate annotation based on packet length
+ * =d
+ * AggregateWingPacketType sets the aggregate annotation on every 
+ * passing packet to the packet's ethernet type.
+ * =a
+ * AggregateIP, AggregateCounter
+ */
 
 class AggregateWingPacketType : public Element { public:
 
