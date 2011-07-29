@@ -214,7 +214,7 @@ enum {
 	H_HNAS,
 	H_HNA_ADD,
 	H_HNA_DEL,
-	H_HNA_CLEAR
+	H_HNAS_CLEAR
 };
 
 int WINGGatewaySelector::hna_add(IPAddress addr, IPAddress mask) {
@@ -304,7 +304,7 @@ int WINGGatewaySelector::write_handler(const String &in_s, Element *e, void *vpa
 			f->hna_del(addr, mask);
 			break;
 		}
-		case H_HNA_CLEAR: {
+		case H_HNAS_CLEAR: {
 			if (f->_dyn_gw && f->_dyn_gw->enabled()) {
 				return errh->error("dynamic gateway selection active");
 			}
@@ -322,7 +322,7 @@ void WINGGatewaySelector::add_handlers() {
 	add_read_handler("hnas", read_handler, (void *) H_HNAS);
 	add_write_handler("hna_add", write_handler, (void *) H_HNA_ADD);
 	add_write_handler("hna_del", write_handler, (void *) H_HNA_DEL);
-	add_write_handler("hna_clear", write_handler, (void *) H_HNA_CLEAR);
+	add_write_handler("hnas_clear", write_handler, (void *) H_HNAS_CLEAR);
 }
 
 CLICK_ENDDECLS
