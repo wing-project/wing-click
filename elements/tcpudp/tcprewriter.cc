@@ -174,13 +174,13 @@ TCPRewriter::TCPFlow::apply(WritablePacket *p, bool direction, unsigned annos)
     // track connection state
     bool have_payload = ((iph->ip_hl + tcph->th_off) << 2) < ntohs(iph->ip_len);
     if (tcph->th_flags & TH_RST)
-	_state |= s_both_done;
+	_tflags |= s_both_done;
     else if (tcph->th_flags & TH_FIN)
-	_state |= s_forward_done << direction;
+	_tflags |= s_forward_done << direction;
     else if ((tcph->th_flags & TH_SYN) || have_payload)
-	_state &= ~(s_forward_done << direction);
+	_tflags &= ~(s_forward_done << direction);
     if (have_payload)
-	_state |= s_forward_data << direction;
+	_tflags |= s_forward_data << direction;
 
     // end if weird transport length
     if (p->transport_length() < (tcph->th_off << 2))
@@ -290,10 +290,8 @@ TCPRewriter::add_flow(int /*ip_p*/, const IPFlowID &flowid,
 	return 0;
 
     TCPFlow *flow = new(data) TCPFlow
-	(flowid, _input_specs[input].foutput,
-	 rewritten_flowid, _input_specs[input].routput,
-	 !!_timeouts[1], click_jiffies() + relevant_timeout(_timeouts),
-	 this, input);
+	(&_input_specs[input], flowid, rewritten_flowid,
+	 !!_timeouts[1], click_jiffies() + relevant_timeout(_timeouts));
 
     return store_flow(flow, input, _map);
 }

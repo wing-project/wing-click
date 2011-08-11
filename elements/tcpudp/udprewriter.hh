@@ -122,6 +122,13 @@ Keyword arguments are:
 
 Time out connections every I<time> seconds. Default is 5 minutes.
 
+=item STREAMING_TIMEOUT I<time>
+
+Timeout streaming connections every I<time> seconds. A "streaming"
+connection, in contrast to an "RPC-like" connection, comprises at least 3
+packets and at least one packet in each direction. Default is the TIMEOUT
+setting.
+
 =item GUARANTEE I<time>
 
 Preserve each connection mapping for at least I<time> seconds after each
@@ -155,6 +162,23 @@ RoundRobinIPMapper, FTPPortMapper, ICMPRewriter, ICMPPingRewriter */
 
 class UDPRewriter : public IPRewriterBase { public:
 
+    class UDPFlow : public IPRewriterFlow { public:
+
+	UDPFlow(IPRewriterInput *owner, const IPFlowID &flowid,
+		const IPFlowID &rewritten_flowid, int ip_p,
+		bool guaranteed, click_jiffies_t expiry_j)
+	    : IPRewriterFlow(owner, flowid, rewritten_flowid,
+			     ip_p, guaranteed, expiry_j) {
+	}
+
+	bool streaming() const {
+	    return _tflags > 6;
+	}
+
+	void apply(WritablePacket *p, bool direction, unsigned annos);
+
+    };
+
     UDPRewriter();
     ~UDPRewriter();
 
@@ -166,6 +190,9 @@ class UDPRewriter : public IPRewriterBase { public:
     IPRewriterEntry *add_flow(int ip_p, const IPFlowID &flowid,
 			      const IPFlowID &rewritten_flowid, int input);
     void destroy_flow(IPRewriterFlow *flow);
+    click_jiffies_t best_effort_expiry(const IPRewriterFlow *flow) {
+	return flow->expiry() + udp_flow_timeout(static_cast<const UDPFlow *>(flow)) - _timeouts[1];
+    }
 
     void push(int, Packet *);
 
@@ -173,8 +200,16 @@ class UDPRewriter : public IPRewriterBase { public:
 
   private:
 
-    SizedHashAllocator<sizeof(IPRewriterFlow)> _allocator;
+    SizedHashAllocator<sizeof(UDPFlow)> _allocator;
     unsigned _annos;
+    uint32_t _udp_streaming_timeout;
+
+    int udp_flow_timeout(const UDPFlow *mf) const {
+	if (mf->streaming())
+	    return _udp_streaming_timeout;
+	else
+	    return _timeouts[0];
+    }
 
     static String dump_mappings_handler(Element *, void *);
 
