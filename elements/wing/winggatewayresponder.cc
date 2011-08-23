@@ -56,8 +56,7 @@ void WINGGatewayResponder::run_timer(Timer *) {
 	}
 	unsigned max_jitter = _period / 10;
 	unsigned j = click_random(0, 2 * max_jitter);
-	Timestamp delay = Timestamp::make_msec(_period + j - max_jitter);
-	_timer.schedule_at(Timestamp::now() + delay);
+	_timer.schedule_after_msec(_period + j - max_jitter);
 }
 
 CLICK_ENDDECLS
