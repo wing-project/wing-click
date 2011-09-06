@@ -226,7 +226,7 @@ Packet::~Packet()
 
 # if HAVE_CLICK_PACKET_POOL
 #  define CLICK_PACKET_POOL_BUFSIZ		2048
-#  define CLICK_PACKET_POOL_SIZE		1000
+#  define CLICK_PACKET_POOL_SIZE		1000 // see LIMIT in packetpool-01.testie
 #  define CLICK_GLOBAL_PACKET_POOL_COUNT	16
 namespace {
 struct PacketData {
@@ -406,16 +406,19 @@ WritablePacket::recycle(WritablePacket *p)
 #  endif
 
     if (p) {
+	++packet_pool.pcount;	// increment first, lest nested recycle() call (from
+				// _data_packet->kill()) observe incorrect state
 	p->~WritablePacket();
 	p->set_next(packet_pool.p);
 	packet_pool.p = p;
-	++packet_pool.pcount;
+	assert(packet_pool.pcount <= CLICK_PACKET_POOL_SIZE);
     }
     if (data) {
+	++packet_pool.pdcount;
 	PacketData *pd = reinterpret_cast<PacketData *>(data);
 	pd->next = packet_pool.pd;
 	packet_pool.pd = pd;
-	++packet_pool.pdcount;
+	assert(packet_pool.pdcount <= CLICK_PACKET_POOL_SIZE);
     }
 }
 
@@ -907,14 +910,19 @@ Packet::shift_data(int offset, bool free_on_failure)
 static void
 cleanup_pool(PacketPool *pp)
 {
+    unsigned pcount = 0, pdcount = 0;
     while (WritablePacket *p = pp->p) {
+	++pcount;
 	pp->p = static_cast<WritablePacket *>(p->next());
 	::operator delete((void *) p);
     }
     while (PacketData *pd = pp->pd) {
+	++pdcount;
 	pp->pd = pd->next;
 	delete[] reinterpret_cast<unsigned char *>(pd);
     }
+    assert(pcount == pp->pcount && pdcount == pp->pdcount
+	   && pp->pcount <= CLICK_PACKET_POOL_SIZE && pp->pdcount <= CLICK_PACKET_POOL_SIZE);
 }
 #endif
 
