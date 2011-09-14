@@ -256,9 +256,6 @@ LinkTable::dijkstra(bool from_me)
     }
 
   }
-
-  _dijkstra_time = Timestamp::now() - start;
-
 }
 
 EXPORT_ELEMENT(LinkTable)

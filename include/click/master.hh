@@ -158,12 +158,12 @@ TimerSet::next_timer_delay(bool more_tasks, Timestamp &t) const
     if (more_tasks || Master::signals_pending)
 	return 0;
     t = timer_expiry_steady_adjusted();
-    if (t.sec() == 0)
+    if (!t)
 	return -1;		// block forever
     else if (unlikely(Timestamp::warp_jumping())) {
-	Timestamp::warp_jump(t);
+	Timestamp::warp_jump_steady(t);
 	return 0;
-    } else if ((t -= Timestamp::now_steady(), t.sec() >= 0)) {
+    } else if ((t -= Timestamp::now_steady(), !t.is_negative())) {
 	t = t.warp_real_delay();
 	return 1;
     } else

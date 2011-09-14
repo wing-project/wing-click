@@ -8,6 +8,7 @@
  * Copyright (c) 2001-2003 International Computer Science Institute
  * Copyright (c) 2004-2006 Regents of the University of California
  * Copyright (c) 2008-2009 Meraki, Inc.
+ * Copyright (c) 1999-2011 Eddie Kohler
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -404,8 +405,7 @@ timewarp_write_handler(const String &text, Element *, void *, ErrorHandler *errh
 	    return errh->error("expected double");
 	else if (factor <= 0)
 	    return errh->error("timefactor must be > 0");
-	Timestamp::warp_set_class(Timestamp::warp_linear);
-	Timestamp::warp_set_speed(factor);
+	Timestamp::warp_set_class(Timestamp::warp_linear, factor);
     }
     return 0;
 }
@@ -509,12 +509,12 @@ main(int argc, char **argv)
 
   case PORT_OPT: {
       uint16_t portno;
-      int portno_int;
+      int portno_int = -1;
       String vstr(clp->vstr);
-      if (cp_tcpudp_port(vstr, IP_PROTO_TCP, &portno))
+      if (IPPortArg(IP_PROTO_TCP).parse(vstr, portno))
 	  cs_ports.push_back(String(portno));
       else if (vstr && vstr.back() == '+'
-	       && cp_integer(vstr.substring(0, -1), 0, &portno_int)
+	       && IntArg().parse(vstr.substring(0, -1), portno_int)
 	       && portno_int > 0 && portno_int < 65536)
 	  cs_ports.push_back(String(portno_int) + "+");
       else {
@@ -567,7 +567,7 @@ main(int argc, char **argv)
     case SIMTIME_OPT: {
 	Timestamp::warp_set_class(Timestamp::warp_simulation);
 	Timestamp simbegin(clp->have_val ? clp->val.d : 1000000000);
-	Timestamp::warp_set_now(simbegin);
+	Timestamp::warp_set_now(simbegin, simbegin);
 	break;
     }
 
