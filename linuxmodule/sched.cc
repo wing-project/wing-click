@@ -344,15 +344,18 @@ click_init_sched(ErrorHandler *errh)
     spin_lock_init(&click_thread_lock);
     click_thread_tasks = new Vector<struct task_struct *>;
     bool greedy = click_parm(CLICKPARM_GREEDY);
-
 #if HAVE_MULTITHREAD
-    click_master = new Master(click_parm(CLICKPARM_THREADS));
-    if (num_possible_cpus() != NUM_CLICK_CPUS)
-	click_chatter(KERN_WARNING "warning: click compiled for %d cpus, machine allows %d",
-		      NUM_CLICK_CPUS, num_possible_cpus());
+    int threads = click_parm(CLICKPARM_THREADS);
+    if (num_possible_cpus() < threads) {
+	threads = num_possible_cpus();
+	click_chatter(KERN_WARNING "warning: only %d cpus available, running only %d threads",
+		      threads, threads);
+    }
 #else
-    click_master = new Master(1);
+    int threads = 1;
 #endif
+
+    click_master = new Master(threads);
     click_master->use();
 
     placeholder_router = new Router("", click_master);
@@ -412,7 +415,7 @@ click_cleanup_sched()
 	for (int i = 0; i < click_thread_tasks->size(); i++) {
 	    struct task_struct *ct = (*click_thread_tasks)[i];
 	    printk("<1>click:   router thread pid %d\n", (int) ct->pid);
-	    printk("<1>click:   state %d, EIP %08x\n", (int) ct->state, KSTK_EIP(ct));
+	    printk("<1>click:   state %d, EIP %08lx\n", (int) ct->state, KSTK_EIP(ct));
 	}
 	SPIN_UNLOCK(&click_thread_lock);
 	click_master->unuse();

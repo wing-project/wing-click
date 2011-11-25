@@ -602,6 +602,13 @@ ac_includes_default="\
 ac_header_list=
 ac_subst_vars='LTLIBOBJS
 provisions
+clickbuild_sbindir
+clickbuild_libdir
+clickbuild_includedir
+clickbuild_datadir
+clickbuild_clickdatadir
+clickbuild_bindir
+clickdatadir
 POD2MAN
 TEXI2DVI
 MAKEINFO
@@ -643,7 +650,6 @@ HAVE_LINUXMODULE_DRIVER
 HAVE_USERLEVEL_DRIVER
 DRIVERS
 POSSIBLE_DRIVERS
-clickdatadir
 LINUXMODULE_2_6
 EXTRA_TOOL_OBJS
 EXTRA_DRIVER_OBJS
@@ -675,16 +681,16 @@ OBJCOPY
 NM
 LD
 AR
+KERNEL_CXXFLAGS
 KERNEL_CXX
+KERNEL_CFLAGS
 KERNEL_CC
 CXXCPP
-KERNEL_CXXFLAGS
 ac_ct_CXX
 CXXFLAGS
 EGREP
 GREP
 CPP
-KERNEL_CFLAGS
 DEPCFLAGS
 OBJEXT
 EXEEXT
@@ -1441,7 +1447,7 @@ Optional Features:
     --disable-kqueue          do not use kqueue()
   --disable-linuxmodule   disable Linux kernel driver
     --disable-fixincludes     do not patch Linux kernel headers for C++
-    --enable-multithread[=N]  support kernel multithreading, N threads max
+    --enable-multithread      support kernel multithreading
     --enable-warp9            reduce PollDevice functionality for speed
     --enable-kassert          enable kernel assertions
     --enable-adaptive         use adaptive scheduler to flexibly arbitrate
@@ -3133,10 +3139,12 @@ _ACEOF
     ac_user_cc=${CC+y}
     ac_user_cflags=${CFLAGS+y}
     ac_user_kernel_cc=${KERNEL_CC+y}
+    ac_user_kernel_cflags=${KERNEL_CFLAGS+y}
     ac_user_cxx=${CXX+y}
     ac_user_cxxflags=${CXXFLAGS+y}
+    ac_user_kernel_cxx=${KERNEL_CXX+y}
+    ac_user_kernel_cxxflags=${KERNEL_CXXFLAGS+y}
     ac_user_build_cxx=${BUILD_CXX+y}
-    ac_user_kernel_cxx=${KENREL_CXX+y}
     ac_user_depcflags=${DEPCFLAGS+y}
     ac_compile_with_warnings=y
 
@@ -4664,18 +4672,18 @@ done
 
 
     ac_base_cc="$CC"
+    ac_base_cflags="$CFLAGS"
 
     test -z "$ac_user_cflags" -a -n "$GCC" -a -n "$ac_compile_with_warnings" -a -z "$ac_user_depcflags" && \
 	DEPCFLAGS="-MD -MP"
 
 
-        KERNEL_CFLAGS=`echo "$CFLAGS" | sed 's/-g//'`
-
-
     WARNING_CFLAGS=
-    test -z "$ac_user_cflags" -a -n "$GCC" -a -n "$ac_compile_with_warnings" && \
+    test -n "$GCC" -a -n "$ac_compile_with_warnings" && \
 	WARNING_CFLAGS=" -W -Wall"
-    CFLAGS="$CFLAGS$WARNING_CFLAGS"
+
+    test -z "$ac_user_cflags" && \
+	CFLAGS="$CFLAGS$WARNING_CFLAGS"
 
     for ac_header in sys/types.h unistd.h
 do :
@@ -5345,11 +5353,10 @@ $as_echo "#define HAVE_CXX_PRAGMA_INTERFACE 1" >>confdefs.h
 
 
     ac_base_cxx="$CXX"
-    test -z "$ac_user_cxxflags" -a -n "$GXX" -a -n "$ac_compile_with_warnings" && \
-	CXX="$CXX$CFLAGS_WARNINGS"
+    ac_base_cxxflags="$CXXFLAGS"
 
-    KERNEL_CXXFLAGS=`echo "$CXXFLAGS" | sed 's/-g//'`
-
+    test -z "$ac_user_cxxflags" -a -n "$GXX" && \
+	CXXFLAGS="$CXXFLAGS$WARNING_CFLAGS"
 
 ac_ext=cpp
 ac_cpp='$CXXCPP $CPPFLAGS'
@@ -5489,16 +5496,20 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
 
     test -z "$ac_user_kernel_cc" && \
 	KERNEL_CC="$ac_base_cc"
-    test -z "$ac_user_kernel_cc" -a -n "$GCC" -a -n "$ac_compile_with_warnings" && \
-	KERNEL_CC="$ac_base_cc -w $WARNING_CFLAGS"
+
+
+    test -z "$ac_kernel_cflags" && \
+	KERNEL_CFLAGS=`echo "$ac_base_cflags -Wno-undef" | sed 's/-g//'`
 
 
 
 
     test -z "$ac_user_kernel_cxx" && \
 	KERNEL_CXX="$ac_base_cxx"
-    test -z "$ac_user_kernel_cxx" -a -n "$GXX" -a -n "$ac_compile_with_warnings" && \
-	KERNEL_CXX="$ac_base_cxx -w $WARNING_CFLAGS -fno-exceptions -fno-rtti -fpermissive"
+
+
+    test -z "$ac_user_kernel_cxxflags" && \
+	KERNEL_CXXFLAGS=`echo "$ac_base_cxxflags -fno-exceptions -fno-rtti -fpermissive -Wno-undef -Wno-pointer-arith" | sed 's/-g//'`
 
 
 
@@ -6251,13 +6262,7 @@ else
 fi
 
 
-test "$enable_multithread" = yes && enable_multithread=4
-test "$enable_multithread" = no && enable_multithread=1
-if test "$enable_multithread" -gt 1; then
-    cat >>confdefs.h <<_ACEOF
-#define NUM_CLICK_CPUS $enable_multithread
-_ACEOF
-
+if test "$enable_multithread" != no -a "$enable_multithread" != 1; then
     cat >>confdefs.h <<_ACEOF
 #define __MTCLICK__ 1
 _ACEOF
@@ -6269,10 +6274,7 @@ _ACEOF
     saveflags="$CPPFLAGS"
     CPPFLAGS="$saveflags -D__MTCLICK__"
 else
-    cat >>confdefs.h <<_ACEOF
-#define NUM_CLICK_CPUS 1
-_ACEOF
-
+    enable_multithread=no
 fi
 
 # Check whether --enable-warp9 was given.
@@ -6383,7 +6385,7 @@ fi
 linux_system_map_boot=no
 
 if test "x$linuxpath" = xNONE -o "x$linuxpath" = xyes; then
-    if uname -r 2>/dev/null | grep '^2\.6' >/dev/null 2>&1; then
+    if uname -r 2>/dev/null | grep '^\(2\.6\|3\.\)' >/dev/null 2>&1; then
 	linuxpath=/lib/modules/"`uname -r`"/build
 	linux_system_map_boot="`uname -r`"
     else
@@ -7357,7 +7359,7 @@ else
 
 	    	    ac_cv_endian=0
 	    cat > conftest.$ac_ext <<EOF
-#line 7360 "configure"
+#line 7362 "configure"
 #include "confdefs.h"
 #include <$endian_hdr>
 #ifdef __BYTE_ORDER
@@ -9183,7 +9185,7 @@ $as_echo "unknown" >&6; }
 fi
 
 LINUXMODULE_2_6=0
-if test "$linux_version.$linux_patchlevel" = 2.6; then
+if test "$linux_version.$linux_patchlevel" = 2.6 -o "$linux_version" = 3; then
     LINUXMODULE_2_6=1
 
 $as_echo "#define HAVE_LINUXMODULE_2_6 1" >>confdefs.h
@@ -9764,44 +9766,6 @@ _ACEOF
 fi
 
 done
-
-
-
-
-shell_expand () {
-    val=`eval echo '$'"$1"`
-    while echo "x$val" | grep '\$' >/dev/null 2>&1; do val=`eval echo "$val"`; done
-    eval "$1='$val'"
-}
-
-test "x$prefix" = xNONE && prefix=$ac_default_prefix
-test "x$exec_prefix" = xNONE && exec_prefix='${prefix}'
-
-if test x$infodir = 'x${prefix}/info'; then
-    test ! -d ${prefix}/info && test -d ${prefix}/share/info && infodir='${prefix}/share/info'
-fi
-
-shell_expand bindir
-shell_expand sbindir
-shell_expand libdir
-shell_expand datarootdir
-shell_expand datadir
-shell_expand includedir
-
-clickdatadir="$datadir/click"
-
-
-cat >>confdefs.h <<_ACEOF
-#define CLICK_BINDIR "$bindir"
-_ACEOF
-
-cat >>confdefs.h <<_ACEOF
-#define CLICK_LIBDIR "$libdir"
-_ACEOF
-
-cat >>confdefs.h <<_ACEOF
-#define CLICK_DATADIR "$clickdatadir"
-_ACEOF
 
 
 
@@ -10399,9 +10363,11 @@ if test $ac_have_linux_kernel = y; then
     save_cxx="$CXX"
     save_cppflags="$CPPFLAGS"
     save_cflags="$CFLAGS"
+    save_cxxflags="$CXXFLAGS"
     unset -v CFLAGS CPPFLAGS
     CC="$KERNEL_CC"
     CXX="$KERNEL_CXX"
+    CXXFLAGS="$KERNEL_CXXFLAGS"
 
         linux_makeargs=
     if test -n "$ARCH"; then
@@ -11536,6 +11502,7 @@ $as_echo "$ac_cv_linux_getboottime" >&6; }
     CXX="$save_cxx"
     CPPFLAGS="$save_cppflags"
     CFLAGS="$save_cflags"
+    CXXFLAGS="$save_cxxflags"
     export CFLAGS CPPFLAGS
 
     if test $ac_cv_cxx_aware_system = yes; then
@@ -12248,6 +12215,63 @@ fi
 
 
 
+shell_expand () {
+    val=`eval echo '$'"$1"`
+    while echo "x$val" | grep '\$' >/dev/null 2>&1; do val=`eval echo "$val"`; done
+    val=`echo "$val" | sed 's,//*,/,g'`
+    eval "$1='$val'"
+}
+
+shell_mkbuild () {
+    val=`eval echo '$'"$1"`
+    pval="$prefix"
+    while test -n "$pval" -a -n "$val"; do
+	component=`echo "$val" | sed 's,^\(/[^/]*\).*,\1,'`
+	pcomponent=`echo "$pval" | sed 's,^\(/[^/]*\).*,\1,'`
+	if test "$component" != "$pcomponent"; then break; fi
+	val=`echo "$val" | sed 's,^/[^/]*,,'`
+	pval=`echo "$pval" | sed 's,^/[^/]*,,'`
+    done
+    while test -n "$pval"; do
+	val="/..$val"
+	pval=`echo "$pval" | sed 's,^/[^/]*,,'`
+    done
+    eval "clickbuild_$1='"'$'"{clickbuild_prefix}$val'"
+}
+
+test "x$prefix" = xNONE && prefix=$ac_default_prefix
+test "x$exec_prefix" = xNONE && exec_prefix='${prefix}'
+
+clickdatadir="$datadir/click"
+
+for i in bin clickdata data dataroot include lib sbin; do
+    shell_expand ${i}dir
+    shell_mkbuild ${i}dir
+done
+
+cat >>confdefs.h <<_ACEOF
+#define CLICK_BINDIR "$bindir"
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define CLICK_LIBDIR "$libdir"
+_ACEOF
+
+cat >>confdefs.h <<_ACEOF
+#define CLICK_DATADIR "$clickdatadir"
+_ACEOF
+
+
+
+
+
+
+
+
+
+
+
+
 provisions="$target_cpu"
 case "$target_cpu" in
     i386) :;;
@@ -12291,7 +12315,7 @@ if test "x$HAVE_PCAP" = xyes; then
     provisions="$provisions pcap"
 fi
 
-if test "$enable_multithread" -gt 1; then
+if test "$enable_multithread" != no; then
     provisions="$provisions smpclick"
 fi
 

@@ -380,7 +380,13 @@ click_fill_super(struct super_block *sb, void *data, int flags)
     return click_read_super(sb, data, flags) ? 0 : -ENOMEM;
 }
 
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
+static struct dentry *
+click_get_sb(struct file_system_type *fs_type, int flags, const char *, void *data)
+{
+    return mount_single(fs_type, flags, data, click_fill_super);
+}
+# elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
 static int
 click_get_sb(struct file_system_type *fs_type, int flags, const char *, void *data, struct vfsmount *vfsmount)
 {
@@ -413,11 +419,19 @@ click_reread_super(struct super_block *sb)
     unlock_super(sb);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
+static int
+click_delete_dentry(const struct dentry *)
+{
+    return 1;
+}
+#else
 static int
 click_delete_dentry(struct dentry *)
 {
     return 1;
 }
+#endif
 
 } // extern "C"
 
@@ -886,9 +900,9 @@ do_handler_ioctl(struct inode *inode, struct file *filp,
 }
 
 #if HAVE_UNLOCKED_IOCTL
-static int
+static long
 handler_unlocked_ioctl(struct file *filp,
-		       unsigned command, unsigned address)
+		       unsigned command, unsigned long address)
 {
     return do_handler_ioctl(filp->f_dentry->d_inode, filp, command, address);
 }
