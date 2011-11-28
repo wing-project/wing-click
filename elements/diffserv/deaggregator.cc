@@ -53,8 +53,7 @@ DeAggregator::~DeAggregator()
 int
 DeAggregator::initialize(ErrorHandler*)
 {
-  _p = Packet::make(0);
-  _p = _p->push_mac_header(14);
+  _p = Packet::make(14);
   return 0;
 }
 
@@ -62,12 +61,9 @@ int
 DeAggregator::configure(Vector<String>& conf, ErrorHandler* errh) 
 {
   _et=0x0642;
-  int res = cp_va_kparse(conf, this, errh,
+  return cp_va_kparse(conf, this, errh,
 			"ETHTYPE", 0, cpUnsignedShort, &_et,
 			cpEnd);
-
-  return res;
-
 }
 
 void
