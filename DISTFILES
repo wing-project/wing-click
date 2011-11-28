@@ -392,6 +392,7 @@ clicknet
 algorithm.hh
 archive.hh
 args.hh
+array_memory.hh
 atomic.hh
 bighashmap.cc
 bighashmap.hh
@@ -403,7 +404,8 @@ confparse.hh
 crc32.h
 cxxprotect.h
 cxxunprotect.h
-dequeue.cc
+deque.cc
+deque.hh
 dequeue.hh
 driver.hh
 element.hh
@@ -538,7 +540,6 @@ timerset.cc
 timestamp.cc
 userutils.cc
 variableenv.cc
-vectorv.cc
 
 ./linuxmodule:
 Makefile.in
@@ -699,6 +700,7 @@ StrideSched-01.testie
 Unqueue-01.testie
 bigint-01.testie
 confparse-01.testie
+deque-01.testie
 error-01.testie
 functions-01.testie
 hashtable-01.testie
