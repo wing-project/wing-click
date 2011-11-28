@@ -155,7 +155,6 @@ LinkTable::print_routes(bool from_me, bool pretty)
 void
 LinkTable::dijkstra(bool from_me)
 {
-  Timestamp start = Timestamp::now();
 
   typedef HashMap<IPAddress, bool> AddressMap;
   typedef AddressMap::const_iterator AMIter;

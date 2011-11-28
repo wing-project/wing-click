@@ -1,7 +1,7 @@
 #ifndef CLICK_WINGBASE_HH
 #define CLICK_WINGBASE_HH
 #include <click/element.hh>
-#include <click/dequeue.hh>
+#include <click/deque.hh>
 #include <click/hashmap.hh>
 #include <click/packet_anno.hh>
 #include <clicknet/ether.h>
@@ -49,7 +49,7 @@ protected:
 	class LinkTableMulti *_link_table;
 	class ARPTableMulti *_arp_table;
 
-	DEQueue<Seen> _seen;
+	Deque<Seen> _seen;
 
 	unsigned int _jitter; // msecs
 	int _max_seen_size; 

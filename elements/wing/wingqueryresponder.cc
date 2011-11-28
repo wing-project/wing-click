@@ -89,7 +89,6 @@ void WINGQueryResponder::push(int, Packet *p_in) {
 	}
 	if (pk->next() == 0) {
 		/* I'm the ultimate consumer of this reply. */
-		NodeAddress dst = pk->qdst();
 		if (_debug) {
 			click_chatter("%{element} :: %s :: got reply %s < %s seq %u (%s)", 
 					this,

@@ -65,8 +65,8 @@ AvailableRates::parse_and_insert(String s, ErrorHandler *errh)
       return errh->error("error param %s: must start with ethernet address", s.c_str());
   }
 
-  for (int x = 1; x< args.size(); x++) {
-    int r;
+  for (int x = 1; x < args.size(); x++) {
+    int r = 0;
     IntArg().parse(args[x], r);
     if (default_rates) {
       _default_rates.push_back(r);

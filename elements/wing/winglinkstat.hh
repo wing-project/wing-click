@@ -46,7 +46,7 @@ public:
 	Vector<RateSize> _probe_types;
 	Vector<int> _fwd_rates;
 	Timestamp _last_rx;
-	DEQueue<Probe> _probes; // most recently received probes
+	Deque<Probe> _probes; // most recently received probes
 
 	int fwd_rate(int rate, int size) {
 		if (Timestamp::now() - _last_rx > Timestamp::make_msec(_tau)) {

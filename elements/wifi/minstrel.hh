@@ -1,7 +1,6 @@
 #ifndef CLICK_MINSTREL_HH
 #define CLICK_MINSTREL_HH
 #include <click/element.hh>
-#include <click/dequeue.hh>
 #include <click/etheraddress.hh>
 #include <click/bighashmap.hh>
 #include <click/glue.hh>

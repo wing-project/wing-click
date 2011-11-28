@@ -84,14 +84,10 @@ void WINGETXMetric::update_link(NodeAddress from, NodeAddress to,
 
 	for (int x = 0; x < rs.size(); x++) {
 		if (rs[x]._size >= 100) {
-			int ack_fwd = 0;
 			int ack_rev = 0;
-			if ((rs[x]._rate == 2) || (rs[x]._rate == 4) || (rs[x]._rate == 11)
-					|| (rs[x]._rate == 22)) {
-				ack_fwd = one_ack_fwd;
+			if ((rs[x]._rate == 2) || (rs[x]._rate == 4) || (rs[x]._rate == 11) || (rs[x]._rate == 22)) {
 				ack_rev = one_ack_rev;
 			} else {
-				ack_fwd = six_ack_fwd;
 				ack_rev = six_ack_rev;
 			}
 

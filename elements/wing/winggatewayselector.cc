@@ -197,7 +197,6 @@ void WINGGatewaySelector::push(int, Packet *p_in) {
 
 String WINGGatewaySelector::print_gateway_stats() {
 	StringAccum sa;
-	Timestamp now = Timestamp::now();
 	for (GWIter iter = _gateways.begin(); iter.live(); iter++) {
 		GWInfo nfo = iter.value();
 		PathMulti p = _link_table->best_route(nfo._hna._gw, false);
