@@ -224,8 +224,8 @@ outgoing_1 :: PrioSched()
 -> RadiotapEncap() 
 -> sniff_dev_1;
 
-sl_split[0] -> FullNoteQueue() -> AggregateWingPacketType() -> sl_count_1 :: AggregateCounter() -> WifiEncap(0x0, 00:00:00:00:00:00) -> [0] outgoing_1;
-rc_split[0] -> ls_1 -> AggregateWingPacketType() -> rc_count_1 :: AggregateCounter() -> WifiEncap(0x0, 00:00:00:00:00:00) -> rc_1 -> [1] outgoing_1;
+sl_split[0] -> FullNoteQueue() -> WifiEncap(0x0, 00:00:00:00:00:00) -> [0] outgoing_1;
+rc_split[0] -> ls_1 -> WifiEncap(0x0, 00:00:00:00:00:00) -> rc_1 -> [1] outgoing_1;
 
 sniff_dev_2 :: SniffDevice(ath2);
 rc_2 :: RateControl(12, rates_2);
@@ -235,8 +235,8 @@ outgoing_2 :: PrioSched()
 -> RadiotapEncap() 
 -> sniff_dev_2;
 
-sl_split[1] -> FullNoteQueue() -> AggregateWingPacketType() -> sl_count_2 :: AggregateCounter() -> WifiEncap(0x0, 00:00:00:00:00:00) -> [0] outgoing_2;
-rc_split[1] -> ls_2 -> AggregateWingPacketType() -> rc_count_2 :: AggregateCounter() -> WifiEncap(0x0, 00:00:00:00:00:00) -> rc_2 -> [1] outgoing_2;
+sl_split[1] -> FullNoteQueue() -> WifiEncap(0x0, 00:00:00:00:00:00) -> [0] outgoing_2;
+rc_split[1] -> ls_2 -> WifiEncap(0x0, 00:00:00:00:00:00) -> rc_2 -> [1] outgoing_2;
 
 cl :: Classifier(12/06AA) // this protocol's ethertype
 -> WINGCheckHeader()
