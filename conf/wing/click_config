@@ -257,8 +257,8 @@ for i in $(seq 1 1 $NB_INTERFACES); do
 -> RadiotapEncap() 
 -> sniff_dev_$i;
 "
-	echo "sl_split[$((i-1))] -> FullNoteQueue() -> AggregateWingPacketType() -> sl_count_$i :: AggregateCounter() -> WifiEncap(0x0, 00:00:00:00:00:00) -> [0] outgoing_$i;"
-	echo "rc_split[$((i-1))] -> ls_$i -> AggregateWingPacketType() -> rc_count_$i :: AggregateCounter() -> WifiEncap(0x0, 00:00:00:00:00:00) -> rc_$i -> [1] outgoing_$i;
+	echo "sl_split[$((i-1))] -> FullNoteQueue() -> WifiEncap(0x0, 00:00:00:00:00:00) -> [0] outgoing_$i;"
+	echo "rc_split[$((i-1))] -> ls_$i -> WifiEncap(0x0, 00:00:00:00:00:00) -> rc_$i -> [1] outgoing_$i;
 "
 done
 
