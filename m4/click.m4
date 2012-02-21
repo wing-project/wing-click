@@ -381,6 +381,56 @@ AC_DEFUN([CLICK_CHECK_LIBPCAP], [
 
 
 dnl
+dnl CLICK_CHECK_NETMAP
+dnl Finds header files for netmap.
+dnl
+
+AC_DEFUN([CLICK_CHECK_NETMAP], [
+    AC_ARG_WITH([netmap],
+	[AS_HELP_STRING([--with-netmap], [enable netmap [no]])],
+	[use_netmap=$withval], [use_netmap=no])
+
+    if test "$use_netmap" != "yes" -a "$use_netmap" != "no"; then
+	if test "${NETMAP_INCLUDES-NO}" != NO; then
+	    :
+	elif test -f "$use_netmap/net/netmap.h"; then
+	    NETMAP_INCLUDES="-I$use_netmap"
+	elif test -f "$use_netmap/include/net/netmap.h"; then
+	    NETMAP_INCLUDES="-I$use_netmap/include"
+	fi
+    fi
+    saveflags="$CPPFLAGS"
+    CPPFLAGS="$saveflags $NETMAP_INCLUDES"
+
+    HAVE_NETMAP=no
+    AC_MSG_CHECKING([for net/netmap.h])
+    AC_PREPROC_IFELSE([AC_LANG_SOURCE([[#include <net/netmap.h>]])],
+	[ac_cv_net_netmap_header_path="found"],
+	[ac_cv_net_netmap_header_path="not found"])
+    AC_MSG_RESULT($ac_cv_net_netmap_header_path)
+
+    if test "$ac_cv_net_netmap_header_path" = "found"; then
+	HAVE_NETMAP=yes
+    fi
+
+    if test "$HAVE_NETMAP" = yes; then
+	AC_CACHE_CHECK([whether net/netmap.h works],
+	    [ac_cv_working_net_netmap_h], [
+	    AC_PREPROC_IFELSE([AC_LANG_SOURCE([[#include <net/netmap.h>]])],
+		[ac_cv_working_net_netmap_h=yes],
+		[ac_cv_working_net_netmap_h=no])])
+	test "$ac_cv_working_net_netmap_h" != yes && HAVE_NETMAP=
+    fi
+
+    CPPFLAGS="$saveflags"
+    if test "$HAVE_NETMAP" = yes -a "$use_netmap" != no; then
+	AC_DEFINE([HAVE_NET_NETMAP_H], [1], [Define if you have the <net/netmap.h> header file.])
+    fi
+    AC_SUBST(NETMAP_INCLUDES)
+])
+
+
+dnl
 dnl CLICK_PROG_INSTALL
 dnl Substitute both INSTALL and INSTALL_IF_CHANGED.
 dnl

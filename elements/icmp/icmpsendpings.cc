@@ -54,6 +54,7 @@ ICMPPingSource::configure(Vector<String> &conf, ErrorHandler *errh)
     _data = String();
     _active = true;
     _verbose = true;
+    _stop = false;
     if (Args(conf, this, errh)
 	.read_mp("SRC", _src)
 	.read_mp("DST", _dst)
@@ -63,6 +64,7 @@ ICMPPingSource::configure(Vector<String> &conf, ErrorHandler *errh)
 	.read("LIMIT", _limit)
 	.read("ACTIVE", _active)
 	.read("VERBOSE", _verbose)
+	.read("STOP", _stop)
 	.complete() < 0)
 	return -1;
 #ifndef __linux__
@@ -157,11 +159,13 @@ ICMPPingSource::make_packet()
 void
 ICMPPingSource::run_timer(Timer *)
 {
-    if (Packet *q = make_packet()) {
+    if (_count >= _limit && _limit >= 0) {
+	if (_stop)
+	    router()->please_stop_driver();
+    } else if (Packet *q = make_packet()) {
 	output(0).push(q);
 	_count++;
-	if (_count < _limit || _limit < 0)
-	    _timer.reschedule_after_msec(_interval);
+	_timer.reschedule_after_msec(_interval);
     }
 }
 
@@ -169,8 +173,13 @@ Packet*
 ICMPPingSource::pull(int)
 {
     Packet *p = 0;
-    if ((_count < _limit || _limit < 0) && (p = make_packet()))
-	_count++;
+    if (_count < _limit || _limit < 0) {
+	if ((p = make_packet()))
+	    _count++;
+    } else if (_stop) {
+	router()->please_stop_driver();
+	_stop = false;
+    }
     return p;
 }
 
