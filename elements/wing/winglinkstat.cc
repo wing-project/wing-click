@@ -20,7 +20,6 @@
 #include "winglinkstat.hh"
 #include <click/args.hh>
 #include <elements/wifi/availablerates.hh>
-#include <elements/wifi/availablechannels.hh>
 #include "winglinkmetric.hh"
 CLICK_DECLS
 
@@ -64,7 +63,6 @@ int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
 		  .read_m("ETH", _eth)
 		  .read_m("IFID", _ifid)
 		  .read_m("CHANNEL", _channel)
-		  .read_m("CHANNELS", ElementCastArg("AvailableChannels"), _ctable)
 		  .read_m("RATES", ElementCastArg("AvailableRates"), _rtable)
 		  .read_m("METRIC", ElementCastArg("WINGLinkMetric"), _link_metric)
 		  .read_m("LT", ElementCastArg("LinkTableMulti"), _link_table)
@@ -143,18 +141,6 @@ void WINGLinkStat::send_probe() {
 		}
 		lp->set_flag(PROBE_FLAGS_RATES);
 		lp->set_num_rates(rates.size());
-	}
-
-	// channels entry
-	Vector<int> channels = _ctable->lookup(_eth);
-	if (channels.size() && ptr + sizeof(channel_entry) * channels.size() < end) {
-	  for (int x = 0; x < channels.size(); x++) {
-			channel_entry *c_entry = (struct channel_entry *) (ptr);
-			c_entry->set_channel(channels[x]);
-			ptr += sizeof(channel_entry);
-		}
-		lp->set_flag(PROBE_FLAGS_CHANNELS);
-		lp->set_num_channels(channels.size());
 	}
 
 	// links_entry
@@ -337,17 +323,7 @@ WINGLinkStat::simple_action(Packet *p) {
 		}
 		_rtable->insert(EtherAddress(eh->ether_shost), rates);
 	}
-	// channels
-	if (lp->flag(PROBE_FLAGS_CHANNELS)) {
-		int num_channels = lp->num_channels();
-		Vector<int> channels;
-		for (int x = 0; x < num_channels; x++) {
-			channel_entry *c_entry = (struct channel_entry *) (ptr);
-			channels.push_back(c_entry->channel());
-			ptr += sizeof(channel_entry);
-		}
-		_ctable->insert(EtherAddress(eh->ether_shost), channels);
-	}
+
 	// links
 	int link_number = 0;
 	while (ptr < end && link_number < lp->num_links()) {
@@ -569,6 +545,6 @@ void WINGLinkStat::add_handlers() {
 }
 
 CLICK_ENDDECLS
-ELEMENT_REQUIRES(ARPTableMulti AvailableChannels AvailableRates)
+ELEMENT_REQUIRES(ARPTableMulti AvailableRates)
 EXPORT_ELEMENT(WINGLinkStat)
 

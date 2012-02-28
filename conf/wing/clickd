@@ -83,7 +83,7 @@ case "$1" in
 			exit 1;	
 		}
 	else
-		echo "Couldn't find neither iw or wlanconfig";
+		echo "Couldn't find neither iw nor wlanconfig";
 		exit 1
 	fi
 

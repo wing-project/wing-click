@@ -181,7 +181,6 @@ private:
 	uint32_t _channel;
 	uint32_t _ifid;
 
-	class AvailableChannels *_ctable;
 	class AvailableRates *_rtable;
 	class WINGLinkMetric *_link_metric;
 	class ARPTableMulti *_arp_table;
