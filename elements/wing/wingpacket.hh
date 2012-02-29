@@ -16,10 +16,10 @@ enum wing_packet_types {
 
 enum wing_probe_flags {
 	PROBE_FLAGS_RATES = (1<<0),
-	PROBE_FLAGS_LINKS = (1<<2),
+	PROBE_FLAGS_LINKS = (1<<1),
 };
 
-static const uint8_t _wing_version = 0x19;
+static const uint8_t _wing_version = 0x20;
 static const uint16_t _wing_et = 0x06AA;
 
 /* header format */
@@ -262,17 +262,17 @@ public:
 CLICK_PACKED_STRUCTURE(struct link_info {,
 	uint16_t size() { return ntohs(_size); }
 	uint16_t rate() { return ntohs(_rate); }
-	uint16_t fwd()  { return ntohs(_fwd); }
-	uint16_t rev()  { return ntohs(_rev); }
+	uint32_t fwd()  { return ntohl(_fwd); }
+	uint32_t rev()  { return ntohl(_rev); }
 	void set_size(uint16_t size)  { _size = htons(size); }
 	void set_rate(uint16_t rate)  { _rate = htons(rate); }
-	void set_fwd(uint16_t fwd)    { _fwd = htons(fwd); }
-	void set_rev(uint16_t rev)    { _rev = htons(rev); }
+	void set_fwd(uint32_t fwd)    { _fwd = htonl(fwd); }
+	void set_rev(uint32_t rev)    { _rev = htonl(rev); }
   private:
 	uint16_t _size;
 	uint16_t _rate;
-	uint16_t _fwd;
-	uint16_t _rev;
+	uint32_t _fwd;
+	uint32_t _rev;
 });
 
 CLICK_PACKED_STRUCTURE(struct rate_entry {,
@@ -283,28 +283,28 @@ CLICK_PACKED_STRUCTURE(struct rate_entry {,
 });
 
 CLICK_PACKED_STRUCTURE(struct link_entry {,
-	NodeAddress node()     { return NodeAddress(_ip, ntohl(_iface)); }
-	uint8_t num_rates()    { return ntohl(_num_rates); }
-	uint32_t channel()     { return ntohl(_channel); }
+	NodeAddress node()     { return NodeAddress(_ip, _iface); }
+	uint8_t num_rates()    { return _num_rates; }
+	uint16_t channel()     { return ntohs(_channel); }
 	uint32_t seq()         { return ntohl(_seq); }
-	void set_node(NodeAddress node)         { _ip = node._ip; _iface = htonl(node._iface); }
-	void set_num_rates(uint32_t num_rates)   { _num_rates = htonl(num_rates); }
-	void set_channel(uint32_t channel)      { _channel = htonl(channel); }
+	void set_node(NodeAddress node)         { _ip = node._ip; _iface = node._iface; }
+	void set_num_rates(uint8_t num_rates)   { _num_rates = num_rates; }
+	void set_channel(uint16_t channel)      { _channel = htons(channel); }
 	void set_seq(uint32_t seq)              { _seq = htonl(seq); }
   private:
 	uint32_t _ip;
-	uint32_t _iface;
-	uint32_t _num_rates;
-	uint32_t _channel;
+	uint8_t _iface;
+	uint8_t _num_rates;
+	uint16_t _channel;
 	uint32_t _seq;
 });
 
 CLICK_PACKED_STRUCTURE(
 struct wing_probe : public wing_header {,
-	uint8_t rate()          { return _rate; }
+	uint16_t rate()         { return ntohs(_rate); }
 	uint16_t size()         { return ntohs(_size); }
 	NodeAddress node()      { return NodeAddress(_ip, _iface); }
-	uint32_t channel()      { return ntohl(_channel); }
+	uint16_t channel()      { return ntohs(_channel); }
 	uint32_t seq()          { return ntohl(_seq); }
 	uint32_t period()       { return ntohl(_period); }
 	uint32_t tau()          { return ntohl(_tau); }
@@ -313,20 +313,20 @@ struct wing_probe : public wing_header {,
 	uint8_t num_links()     { return _num_links; }
 	uint8_t num_rates()     { return _num_rates; }
 
-	void set_rate(uint8_t rate)  { _rate = rate; }
+	void set_rate(uint16_t rate) { _rate = htons(rate); }
 	void set_size(uint16_t size) { _size = htons(size); }
 	void set_node(NodeAddress node)              { _ip = node._ip; _iface = node._iface; }
 	void set_period(uint32_t period)             { _period = htonl(period); }
-	void set_channel(uint32_t channel)           { _channel = htonl(channel); }
+	void set_channel(uint16_t channel)           { _channel = htons(channel); }
 	void set_seq(uint32_t seq)                   { _seq = htonl(seq); }
 	void set_tau(uint32_t tau)                   { _tau = htonl(tau); }
 	void set_sent(uint32_t sent)                 { _sent = htonl(sent); }
 	void set_num_probes(uint8_t num_probes)      { _num_probes = num_probes; }
 	void set_num_links(uint8_t num_links)        { _num_links = num_links; }
 	void set_num_rates(uint8_t num_rates)        { _num_rates = num_rates; }
-	bool flag(int f)                { return ntohl(_flags) & f;  }
-	void set_flag(uint32_t f)       { _flags = htonl(ntohl(_flags) | f); }
-	void unset_flag(uint32_t f)     { _flags = htonl(ntohl(_flags) & !f);  }
+	bool flag(int f)                { return _flags & f; }
+	void set_flag(uint8_t f)        { _flags = _flags | f; }
+	void unset_flag(uint8_t f)      { _flags = _flags & !f; }
 	/* remeber to set size before calling this */
 	void set_checksum() {
 		_cksum = 0;
@@ -336,11 +336,11 @@ struct wing_probe : public wing_header {,
 		return click_in_cksum((unsigned char *) this, size()) == 0;
 	}
   private:
-	uint8_t _rate;
-	uint8_t _iface;
+	uint16_t _rate;
 	uint16_t _size;
-	uint32_t _channel;
-	uint32_t _flags;
+	uint8_t _iface;
+	uint8_t _flags;
+	uint16_t _channel;
 	uint32_t _ip;
 	uint32_t _period;      // period of this node's probe broadcasts, in msecs
 	uint32_t _tau;         // this node's loss-rate averaging period, in msecs
