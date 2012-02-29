@@ -16,7 +16,6 @@ enum wing_packet_types {
 
 enum wing_probe_flags {
 	PROBE_FLAGS_RATES = (1<<0),
-	PROBE_FLAGS_CHANNELS = (1<<1),
 	PROBE_FLAGS_LINKS = (1<<2),
 };
 
@@ -125,7 +124,7 @@ public:
 			NodeAddress dep, NodeAddress arr, 
 			uint32_t fwd, uint32_t rev, 
 			uint32_t seq, uint32_t age, 
-			uint32_t channel) {
+			uint16_t channel) {
 		wing_link_ex *lnk = get_link(link);
 		lnk->set_dep(dep);
 		lnk->set_arr(arr);
@@ -135,7 +134,7 @@ public:
 		lnk->set_seq(seq);
 		lnk->set_age(age);
 	}	
-	uint32_t get_link_channel(int link) {
+	uint16_t get_link_channel(int link) {
 		return get_link(link)->channel();
 	}
 	uint32_t get_link_fwd(int link) {
@@ -210,7 +209,7 @@ public:
 		ndx += link * (sizeof(wing_link) - sizeof(uint32_t)) / sizeof(uint32_t);
 		return (wing_link *) ndx;
 	}
-	void set_link(int link, NodeAddress dep, NodeAddress arr, uint32_t channel) {
+	void set_link(int link, NodeAddress dep, NodeAddress arr, uint16_t channel) {
 		wing_link *lnk = get_link(link);
 		lnk->set_dep(dep);
 		lnk->set_arr(arr);
@@ -222,7 +221,7 @@ public:
 	NodeAddress get_link_dep(int link) {
 		return get_link(link)->dep();
 	}
-	uint32_t get_link_channel(int link) {
+	uint16_t get_link_channel(int link) {
 		return get_link(link)->channel();
 	}
 	PathMulti get_path() {
@@ -289,13 +288,6 @@ CLICK_PACKED_STRUCTURE(struct rate_entry {,
 	uint32_t _rate;
 });
 
-CLICK_PACKED_STRUCTURE(struct channel_entry {,
-	uint32_t channel() { return ntohl(_channel); }
-	void set_channel(uint32_t channel)  { _channel = htonl(channel); }
-  private:
-	uint32_t _channel;
-});
-
 CLICK_PACKED_STRUCTURE(struct link_entry {,
 	NodeAddress node()     { return NodeAddress(_ip, ntohl(_iface)); }
 	uint8_t num_rates()    { return ntohl(_num_rates); }
@@ -326,7 +318,6 @@ struct wing_probe : public wing_header {,
 	uint8_t num_probes()    { return _num_probes; }
 	uint8_t num_links()     { return _num_links; }
 	uint8_t num_rates()     { return _num_rates; }
-	uint8_t num_channels()  { return _num_channels; }
 
 	void set_rate(uint8_t rate)  { _rate = rate; }
 	void set_size(uint16_t size) { _size = htons(size); }
@@ -339,7 +330,6 @@ struct wing_probe : public wing_header {,
 	void set_num_probes(uint8_t num_probes)      { _num_probes = num_probes; }
 	void set_num_links(uint8_t num_links)        { _num_links = num_links; }
 	void set_num_rates(uint8_t num_rates)        { _num_rates = num_rates; }
-	void set_num_channels(uint8_t num_channels)  { _num_channels = num_channels; }
 	bool flag(int f)                { return ntohl(_flags) & f;  }
 	void set_flag(uint32_t f)       { _flags = htonl(ntohl(_flags) | f); }
 	void unset_flag(uint32_t f)     { _flags = htonl(ntohl(_flags) & !f);  }
@@ -365,7 +355,7 @@ struct wing_probe : public wing_header {,
 	uint8_t _num_probes;  
 	uint8_t _num_links;    // number of link_entry entries following
 	uint8_t _num_rates;    // number of rate_entry entries following
-	uint8_t _num_channels; // number of channel_entry entries following
+	uint8_t _pad; // number of channel_entry entries following
 });
 
 CLICK_ENDDECLS
