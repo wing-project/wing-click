@@ -35,13 +35,11 @@ CLICK_PACKED_STRUCTURE(struct wing_link {,
 	void set_dep(NodeAddress dep)  { _dep_ip = dep._ip; _dep_iface = dep._iface; }
 	NodeAddress arr() { return NodeAddress(_arr_ip, _arr_iface); }
 	void set_arr(NodeAddress arr)  { _arr_ip = arr._ip; _arr_iface = arr._iface; }
-	uint16_t channel() { return ntohs(_channel); }
-	void set_channel(uint16_t channel)  { _channel = htons(channel); }
   private:
 	uint32_t _dep_ip;
 	uint8_t _dep_iface;
 	uint8_t _arr_iface;
-	uint16_t _channel;
+	uint16_t _pad;
 	uint32_t _arr_ip;
 });
 
@@ -209,20 +207,16 @@ public:
 		ndx += link * (sizeof(wing_link) - sizeof(uint32_t)) / sizeof(uint32_t);
 		return (wing_link *) ndx;
 	}
-	void set_link(int link, NodeAddress dep, NodeAddress arr, uint16_t channel) {
+	void set_link(int link, NodeAddress dep, NodeAddress arr) {
 		wing_link *lnk = get_link(link);
 		lnk->set_dep(dep);
 		lnk->set_arr(arr);
-		lnk->set_channel(channel);
 	}	
 	NodeAddress get_link_arr(int link) {
 		return get_link(link)->arr();
 	}
 	NodeAddress get_link_dep(int link) {
 		return get_link(link)->dep();
-	}
-	uint16_t get_link_channel(int link) {
-		return get_link(link)->channel();
 	}
 	PathMulti get_path() {
 		PathMulti p;
@@ -355,7 +349,7 @@ struct wing_probe : public wing_header {,
 	uint8_t _num_probes;  
 	uint8_t _num_links;    // number of link_entry entries following
 	uint8_t _num_rates;    // number of rate_entry entries following
-	uint8_t _pad; // number of channel_entry entries following
+	uint8_t _pad; // padding
 });
 
 CLICK_ENDDECLS

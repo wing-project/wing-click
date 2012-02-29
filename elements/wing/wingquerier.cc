@@ -91,7 +91,7 @@ WINGQuerier::encap(Packet *p_in, PathMulti best)
 	pk->set_num_links(hops);
 
 	for (int i = 0; i < hops; i++) {
-		pk->set_link(i, best[i].dep(), best[i+1].arr(), _link_table->get_link_channel(best[i].dep(), best[i+1].arr()));
+		pk->set_link(i, best[i].dep(), best[i+1].arr());
 	}
 
 	NodeAddress src = best[0].dep();

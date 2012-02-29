@@ -104,7 +104,7 @@ LinkTableMulti::update_link_table(Packet *p) {
 		uint32_t rev_m = pk->get_link_rev(i);
 		uint32_t seq = pk->get_link_seq(i);
 		uint32_t age = pk->get_link_age(i);
-		uint32_t channel = pk->get_link_channel(i);
+		uint16_t channel = pk->get_link_channel(i);
 		if (!fwd_m || !rev_m || !seq || !channel) {
 			click_chatter("%{element} :: %s :: invalid link %s > (%u, %u, %u, %u) > %s",
 					this, 
