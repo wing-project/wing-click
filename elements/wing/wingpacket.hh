@@ -238,7 +238,6 @@ struct wing_bcast_data : public wing_header {,
 	/* packet length functions */
 	size_t hlen_wo_data()   const { return sizeof(struct wing_bcast_data); }
 	size_t hlen_w_data()   const { return ntohs(_data_len) + sizeof(struct wing_bcast_data); }
-
 private:
 	/* these are private and have access functions below so I
 	 * don't have to remember about endianness
@@ -312,7 +311,6 @@ struct wing_probe : public wing_header {,
 	uint8_t num_probes()    { return _num_probes; }
 	uint8_t num_links()     { return _num_links; }
 	uint8_t num_rates()     { return _num_rates; }
-
 	void set_rate(uint16_t rate) { _rate = htons(rate); }
 	void set_size(uint16_t size) { _size = htons(size); }
 	void set_node(NodeAddress node)              { _ip = node._ip; _iface = node._iface; }
@@ -349,7 +347,7 @@ struct wing_probe : public wing_header {,
 	uint8_t _num_probes;  
 	uint8_t _num_links;    // number of link_entry entries following
 	uint8_t _num_rates;    // number of rate_entry entries following
-	uint8_t _pad; // padding
+	uint8_t _pad;          // padding
 });
 
 CLICK_ENDDECLS

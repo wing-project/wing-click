@@ -16,13 +16,10 @@
  */
 
 #include <click/config.h>
+#include <click/args.hh>
 #include "radiotapencapht.hh"
-#include <click/etheraddress.hh>
-#include <click/error.hh>
-#include <click/glue.hh>
 #include <clicknet/wifi.h>
 #include <click/packet_anno.hh>
-#include <clicknet/llc.h>
 #include <clicknet/radiotap.h>
 CLICK_DECLS
 
@@ -43,6 +40,20 @@ RadiotapEncapHT::RadiotapEncapHT() {
 }
 
 RadiotapEncapHT::~RadiotapEncapHT() {
+}
+
+int
+RadiotapEncapHT::configure(Vector<String> &conf, ErrorHandler *errh)
+{
+	_sgi = true;
+	_ht40 = true;
+	if (Args(conf, this, errh)
+		.read("HT40", _ht40)
+		.read("SGI", _sgi)
+		.complete() < 0) {
+		return -1;
+	}
+	return 0;
 }
 
 Packet *
@@ -76,8 +87,13 @@ RadiotapEncapHT::simple_action(Packet *p) {
 	                 IEEE80211_RADIOTAP_MCS_HAVE_MCS | 
 	                 IEEE80211_RADIOTAP_MCS_HAVE_GI;
 
-	crh->wt_flags |= IEEE80211_RADIOTAP_MCS_BW_40 | 
-	                 IEEE80211_RADIOTAP_MCS_SGI;
+	if (_sgi) {
+		crh->wt_flags |= IEEE80211_RADIOTAP_MCS_SGI;
+	}
+
+	if (_ht40) {
+		crh->wt_flags |= IEEE80211_RADIOTAP_MCS_BW_40;
+	}
 
 	crh->wt_mcs = ceh->mcs;
 

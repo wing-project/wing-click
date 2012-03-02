@@ -1,7 +1,6 @@
 #ifndef CLICK_RADIOTAPENCAPHT_HH
 #define CLICK_RADIOTAPENCAPHT_HH
 #include <click/element.hh>
-#include <clicknet/ether.h>
 CLICK_DECLS
 
 /*
@@ -26,9 +25,16 @@ class RadiotapEncapHT : public Element { public:
   const char *port_count() const	{ return PORTS_1_1; }
   const char *processing() const	{ return AGNOSTIC; }
 
-  bool can_live_reconfigure() const	{ return true; }
+  int configure(Vector<String> &, ErrorHandler *);
+  bool can_live_reconfigure() const		{ return true; }
 
   Packet *simple_action(Packet *);
+
+private:
+
+  bool _sgi;
+  bool _ht40;
+  
 
 };
 
