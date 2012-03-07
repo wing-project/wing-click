@@ -44,53 +44,53 @@ void Minstrel::run_timer(Timer *)
 		uint32_t usecs;
 		int i;
 		uint32_t p;
-		for (i = 0; i < nfo->_rates.size(); i++) {
-			usecs = calc_usecs_wifi_packet(1500, nfo->_rates[i], 0);
+		for (i = 0; i < nfo->rates.size(); i++) {
+			usecs = calc_usecs_wifi_packet(1500, nfo->rates[i], 0);
 			if (!usecs) {
 				usecs = 1000000;
 			}
 			/* To avoid rounding issues, probabilities scale from 0 (0%)
 			 * to 18000 (100%) */
-			if (nfo->_attempts[i]) {
-				p = (nfo->_success[i] * 18000) / nfo->_attempts[i];
-				nfo->_hist_success[i] += nfo->_success[i];
-				nfo->_hist_attempts[i] += nfo->_attempts[i];
-				nfo->_cur_prob[i] = p;
-				p = ((p * (100 - _ewma_level)) + (nfo->_probability[i] * _ewma_level)) / 100;
-				nfo->_probability[i] = p;
-				nfo->_cur_tp[i] = p * (1000000 / usecs);
+			if (nfo->attempts[i]) {
+				p = (nfo->successes[i] * 18000) / nfo->attempts[i];
+				nfo->hist_successes[i] += nfo->successes[i];
+				nfo->hist_attempts[i] += nfo->attempts[i];
+				nfo->cur_prob[i] = p;
+				p = ((p * (100 - _ewma_level)) + (nfo->probability[i] * _ewma_level)) / 100;
+				nfo->probability[i] = p;
+				nfo->cur_tp[i] = p * (1000000 / usecs);
 
 			}
-			nfo->_last_success[i] = nfo->_success[i];
-			nfo->_last_attempts[i] = nfo->_attempts[i];
-			nfo->_success[i] = 0;
-			nfo->_attempts[i] = 0;
+			nfo->last_successes[i] = nfo->successes[i];
+			nfo->last_attempts[i] = nfo->attempts[i];
+			nfo->successes[i] = 0;
+			nfo->attempts[i] = 0;
 			/* Sample less often below the 10% chance of success.
 			 * Sample less often above the 95% chance of success. */
-			if ((nfo->_probability[i] > 17100) || (nfo->_probability[i] < 1800)) {
-				nfo->_sample_limit[i] = 4;
+			if ((nfo->probability[i] > 17100) || (nfo->probability[i] < 1800)) {
+				nfo->sample_limit[i] = 4;
 			} else {
-				nfo->_sample_limit[i] = -1;
+				nfo->sample_limit[i] = -1;
 			}
 		}
-		for (i = 0; i < nfo->_rates.size(); i++) {
-			if (max_tp < nfo->_cur_tp[i]) {
+		for (i = 0; i < nfo->rates.size(); i++) {
+			if (max_tp < nfo->cur_tp[i]) {
 				index_max_tp = i;
-				max_tp = nfo->_cur_tp[i];
+				max_tp = nfo->cur_tp[i];
 			}
-			if (max_prob < nfo->_probability[i]) {
+			if (max_prob < nfo->probability[i]) {
 				index_max_prob = i;
-				max_prob = nfo->_probability[i];
+				max_prob = nfo->probability[i];
 			}
 		}
 		max_tp = 0;
-		for (i = 0; i < nfo->_rates.size(); i++) {
+		for (i = 0; i < nfo->rates.size(); i++) {
 			if (i == index_max_tp) {
 				continue;
 			}
-			if (max_tp < nfo->_cur_tp[i]) {
+			if (max_tp < nfo->cur_tp[i]) {
 				index_max_tp2 = i;
-				max_tp = nfo->_cur_tp[i];
+				max_tp = nfo->cur_tp[i];
 			}
 		}
 		nfo->max_tp_rate = index_max_tp;
@@ -189,7 +189,7 @@ void Minstrel::assign_rate(Packet *p_in)
 	}
 
 	DstInfo *nfo = _neighbors.findp(dst);
-	if (!nfo || !nfo->_rates.size()) {
+	if (!nfo || !nfo->rates.size()) {
 		if (_debug) {
 			click_chatter("%{element} :: %s :: adding %s",
 					this, 
@@ -214,20 +214,20 @@ void Minstrel::assign_rate(Packet *p_in)
 			nfo->sample_count = 0;
 			nfo->packet_count = 0;
 		} 
-		sample_ndx = click_random(1, nfo->_rates.size() - 1);
-		if (nfo->_sample_limit[sample_ndx] != 0) {
+		sample_ndx = nfo->get_next_sample();
+		if (nfo->sample_limit[sample_ndx] != 0) {
 			sample = true;
 			ndx = sample_ndx;
 			nfo->sample_count++;
-			if (nfo->_sample_limit[sample_ndx] > 0) {
-				nfo->_sample_limit[sample_ndx]--;
+			if (nfo->sample_limit[sample_ndx] > 0) {
+				nfo->sample_limit[sample_ndx]--;
 			}
 		} 
 	}
 	/* If the sampling rate already has a probability 
 	 * of >95%, we shouldn't be attempting to use it, 
 	 * as this only wastes precious airtime */
-	if (sample && (nfo->_probability[ndx] > 17100)) {
+	if (sample && (nfo->probability[ndx] > 17100)) {
 		ndx = nfo->max_tp_rate;
 		sample = false;
 	}
@@ -235,25 +235,25 @@ void Minstrel::assign_rate(Packet *p_in)
 	ceh->magic = WIFI_EXTRA_MAGIC;
 
 	if (sample) {
-		if (nfo->_rates[ndx] < nfo->_rates[nfo->max_tp_rate]) {
-			ceh->rate = nfo->_rates[nfo->max_tp_rate];
-			ceh->rate1 = nfo->_rates[ndx];
+		if (nfo->rates[ndx] < nfo->rates[nfo->max_tp_rate]) {
+			ceh->rate = nfo->rates[nfo->max_tp_rate];
+			ceh->rate1 = nfo->rates[ndx];
 		} else {
-			ceh->rate = nfo->_rates[ndx];
-			ceh->rate1 = nfo->_rates[nfo->max_tp_rate];
+			ceh->rate = nfo->rates[ndx];
+			ceh->rate1 = nfo->rates[nfo->max_tp_rate];
 		}
 	} else {
-		ceh->rate = nfo->_rates[nfo->max_tp_rate];
-		ceh->rate1 = nfo->_rates[nfo->max_tp_rate2];
+		ceh->rate = nfo->rates[nfo->max_tp_rate];
+		ceh->rate1 = nfo->rates[nfo->max_tp_rate2];
 	}
 
 	ceh->max_tries = get_retry_count(p_in->length(), ceh->rate);
 	ceh->max_tries1 = get_retry_count(p_in->length(), ceh->rate1);
 
-	ceh->rate2 = nfo->_rates[nfo->max_prob_rate];
+	ceh->rate2 = nfo->rates[nfo->max_prob_rate];
 	ceh->max_tries2 = get_retry_count(p_in->length(), ceh->rate2);
 
-	ceh->rate3 = nfo->_rates[0];
+	ceh->rate3 = nfo->rates[0];
 	ceh->max_tries3 = get_retry_count(p_in->length(), ceh->rate3);
 
 	return;
@@ -287,29 +287,29 @@ String Minstrel::print_rates()
 	int i, tp, prob, eprob;
 	char buffer[4096];
 	for (NeighborIter iter = _neighbors.begin(); iter.live(); iter++) {
-		DstInfo nfo = iter.value();
-		sa << nfo._eth << "\n";
+		DstInfo *nfo = &iter.value();
+		sa << nfo->eth << "\n";
 		sa << "rate     throughput  ewma prob   this prob  this success(attempts)   success    attempts\n";
-		for (i = 0; i < nfo._rates.size(); i++) {
-			tp = nfo._cur_tp[i] / ((18000 << 10) / 96);
-			prob = nfo._cur_prob[i] / 18;
-			eprob = nfo._probability[i] / 18;
+		for (i = 0; i < nfo->rates.size(); i++) {
+			tp = nfo->cur_tp[i] / ((18000 << 10) / 96);
+			prob = nfo->cur_prob[i] / 18;
+			eprob = nfo->probability[i] / 18;
 			sprintf(buffer, "%2d%s    %2u.%1u    %3u.%1u    %3u.%1u    %3u(%3u)    %8llu    %8llu\n",
-					nfo._rates[i] / 2, nfo._rates[i] & 1 ? ".5" : "  ",
+					nfo->rates[i] / 2, nfo->rates[i] & 1 ? ".5" : "  ",
 					tp / 10, tp % 10,
 					eprob / 10, eprob % 10,
 					prob / 10, prob % 10,
-					nfo._last_success[i],
-					nfo._last_attempts[i],
-					(unsigned long long) nfo._hist_success[i],
-					(unsigned long long) nfo._hist_attempts[i]);
-			if (i == nfo.max_tp_rate)
+					nfo->last_successes[i],
+					nfo->last_attempts[i],
+					(unsigned long long) nfo->hist_successes[i],
+					(unsigned long long) nfo->hist_attempts[i]);
+			if (i == nfo->max_tp_rate)
 				sa << 'T';
-			else if (i == nfo.max_tp_rate2)
+			else if (i == nfo->max_tp_rate2)
 				sa << 't';
 			else
 				sa << ' ';
-			if (i == nfo.max_prob_rate)
+			if (i == nfo->max_prob_rate)
 				sa << 'P';
 			else
 				sa << ' ';
@@ -317,11 +317,11 @@ String Minstrel::print_rates()
 		}
 		sa << "\n"
 		   << "Total packet count: ideal " 
-		   << (nfo.packet_count - nfo.sample_count) 
+		   << (nfo->packet_count - nfo->sample_count) 
 		   << " lookaround "
-		   << nfo.sample_count
+		   << nfo->sample_count
 		   << " total "
-		   << nfo.packet_count
+		   << nfo->packet_count
 		   << "\n\n";
 	}
 	return sa.take_string();

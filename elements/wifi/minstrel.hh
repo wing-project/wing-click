@@ -45,19 +45,18 @@ private:
 
 	struct DstInfo {
 	public:
-		EtherAddress _eth;
-		Vector<int> _rates;
-		Vector<int> _success;
-		Vector<int> _attempts;
-		Vector<int> _last_success;
-		Vector<int> _last_attempts;
-		Vector<int> _hist_success;
-		Vector<int> _hist_attempts;
-		Vector<int> _cur_prob;
-		Vector<int> _cur_tp;
-		Vector<int> _probability;
-		Vector<int> _retry_count;
-		Vector<int> _sample_limit;
+		EtherAddress eth;
+		Vector<int> rates;
+		Vector<int> successes;
+		Vector<int> attempts;
+		Vector<int> last_successes;
+		Vector<int> last_attempts;
+		Vector<int> hist_successes;
+		Vector<int> hist_attempts;
+		Vector<int> cur_prob;
+		Vector<int> cur_tp;
+		Vector<int> probability;
+		Vector<int> sample_limit;
 		int packet_count;
 		int sample_count;
 		int max_tp_rate;
@@ -66,45 +65,43 @@ private:
 		DstInfo() {
 		}
 		DstInfo(EtherAddress eth, Vector<int> rates) {
-			_eth = eth;
-			_rates = rates;
-			_success = Vector<int>(_rates.size(), 0);
-			_attempts = Vector<int>(_rates.size(), 0);
-			_last_success = Vector<int>(_rates.size(), 0);
-			_last_attempts = Vector<int>(_rates.size(), 0);
-			_hist_success = Vector<int>(_rates.size(), 0);
-			_hist_attempts = Vector<int>(_rates.size(), 0);
-			_cur_prob = Vector<int>(_rates.size(), 0);
-			_cur_tp = Vector<int>(_rates.size(), 0);
-			_probability = Vector<int>(_rates.size(), 0);
-			_retry_count = Vector<int>(_rates.size(), 1);
-			_sample_limit = Vector<int>(_rates.size(), -1);
+			eth = eth;
+			rates = rates;
+			successes = Vector<int>(rates.size(), 0);
+			attempts = Vector<int>(rates.size(), 0);
+			last_successes = Vector<int>(rates.size(), 0);
+			last_attempts = Vector<int>(rates.size(), 0);
+			hist_successes = Vector<int>(rates.size(), 0);
+			hist_attempts = Vector<int>(rates.size(), 0);
+			cur_prob = Vector<int>(rates.size(), 0);
+			cur_tp = Vector<int>(rates.size(), 0);
+			probability = Vector<int>(rates.size(), 0);
+			sample_limit = Vector<int>(rates.size(), -1);
 			packet_count = 0;
 			sample_count = 0;
 			max_tp_rate = 0;
 			max_tp_rate2 = 0;
 			max_prob_rate = 0;
 		}
-
 		int get_next_sample() {
-			return click_random(1, _rates.size() - 1);
+			return click_random(1, rates.size() - 1);
 		}
 
 		int rate_index(int rate) {
 			int ndx = 0;
-			for (int x = 0; x < _rates.size(); x++) {
-				if (rate == _rates[x]) {
+			for (int x = 0; x < rates.size(); x++) {
+				if (rate == rates[x]) {
 					ndx = x;
 					break;
 				}
 			}
-			return (ndx == _rates.size()) ? -1 : ndx;
+			return (ndx == rates.size()) ? -1 : ndx;
 		}
 		void add_result(int rate, int tries, int success) {
 			int ndx = rate_index(rate);
 			if (ndx >= 0) {
-				_success[ndx] += success;
-				_attempts[ndx] += tries;
+				successes[ndx] += success;
+				attempts[ndx] += tries;
 			}
 		}
 	};
