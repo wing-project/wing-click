@@ -215,7 +215,6 @@ void Minstrel::assign_rate(Packet *p_in)
 			nfo->packet_count = 0;
 		} 
 		sample_ndx = click_random(1, nfo->_rates.size() - 1);
-		sample = false;
 		if (nfo->_sample_limit[sample_ndx] != 0) {
 			sample = true;
 			ndx = sample_ndx;
