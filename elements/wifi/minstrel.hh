@@ -64,9 +64,9 @@ private:
 		int max_prob_rate;
 		DstInfo() {
 		}
-		DstInfo(EtherAddress eth, Vector<int> rates) {
-			eth = eth;
-			rates = rates;
+		DstInfo(EtherAddress neighbor, Vector<int> supported) {
+			eth = neighbor;
+			rates = supported;
 			successes = Vector<int>(rates.size(), 0);
 			attempts = Vector<int>(rates.size(), 0);
 			last_successes = Vector<int>(rates.size(), 0);
