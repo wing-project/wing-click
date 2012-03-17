@@ -54,11 +54,11 @@ WFQSched::~WFQSched()
 int
 WFQSched::initialize(ErrorHandler *errh)
 {
-	_signals = new NotifierSignal[ninputs()];
+	_signals = new NotifierSignal[ninputs()]; 
 	if (!_signals)
 		return errh->error("out of memory!");
 	for (int i = 0; i < ninputs(); i++) 
-		_signals[i] = Notifier::upstream_empty_signal(this, i, 0);
+		_signals[i] = Notifier::upstream_empty_signal(this, i);
 	return 0;
 }
 

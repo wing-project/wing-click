@@ -108,7 +108,7 @@ DWRRSched::initialize(ErrorHandler *errh)
 	_head[i] = 0;
 	_deficit[i] = 0;
 	_quantum[i] = _quantum[i] * mtu;
-	_signals[i] = Notifier::upstream_empty_signal(this, i, 0, &_notifier);
+	_signals[i] = Notifier::upstream_empty_signal(this, i, &_notifier);
     }
 
     _next = 0;
