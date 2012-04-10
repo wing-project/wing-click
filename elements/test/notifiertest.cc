@@ -1,9 +1,8 @@
-// -*- c-basic-offset: 4 -*-
 /*
- * blockthread.{cc,hh} -- test element that blocks execution
+ * notifiertest.{cc,hh} -- test Notifier functionality
  * Eddie Kohler
  *
- * Copyright (c) 2010 Meraki, Inc.
+ * Copyright (c) 2012 Eddie Kohler
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -17,33 +16,30 @@
  */
 
 #include <click/config.h>
-#include "blockthread.hh"
 #include <click/confparse.hh>
 #include <click/error.hh>
-#include <sys/select.h>
+#include <click/error.hh>
+#include <click/glue.hh>
+#include "notifiertest.hh"
 CLICK_DECLS
 
-BlockThread::BlockThread()
+NotifierTest::NotifierTest()
 {
 }
 
+#define CHECK(x) do {							\
+	if (!(x))							\
+	    return errh->error("%s:%d: test %<%s%> failed", __FILE__, __LINE__, #x); \
+    } while (0)
+
 int
-BlockThread::handler(int, String &str, Element *, const Handler *, ErrorHandler *errh)
+NotifierTest::initialize(ErrorHandler *errh)
 {
-    struct timeval tv;
-    if (!cp_time(str, &tv))
-	return errh->error("bad TIME");
-    int r = select(0, 0, 0, 0, &tv);
-    str = String(r);
+    CHECK(NotifierSignal::busy_signal() + NotifierSignal::overderived_signal() == NotifierSignal::busy_signal());
+    CHECK(NotifierSignal::overderived_signal() + NotifierSignal::busy_signal() == NotifierSignal::busy_signal());
+    errh->message("All tests pass!");
     return 0;
 }
 
-void
-BlockThread::add_handlers()
-{
-    set_handler("block", Handler::h_write | Handler::h_write_private, handler, 0, 0);
-}
-
 CLICK_ENDDECLS
-EXPORT_ELEMENT(BlockThread)
-ELEMENT_REQUIRES(userlevel)
+EXPORT_ELEMENT(NotifierTest)

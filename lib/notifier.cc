@@ -120,10 +120,10 @@ NotifierSignal::operator+=(const NotifierSignal &x)
 {
     // preserve busy_signal(); adding other incompatible signals
     // leads to overderived_signal()
-    if (busy() || x.idle())
-	/* do nothing */;
-    else if (idle() || x.busy())
+    if (idle() || (x.busy() && *this != busy_signal()))
 	*this = x;
+    else if (busy() || x.idle())
+	/* do nothing */;
     else if (_mask && x._mask && _v.v1 == x._v.v1)
 	_mask |= x._mask;
     else if (x._mask)
@@ -143,8 +143,11 @@ NotifierSignal::hard_assign_vm(const NotifierSignal &x)
 	++n;
     if (likely((_v.vm = new vmpair[n + 1])))
 	memcpy(_v.vm, x._v.vm, sizeof(vmpair) * (n + 1));
-    else
-	*this = overderived_signal();
+    else {
+	// cannot call "*this = overderived_signal()" b/c _v.vm is invalid
+	_v.v1 = &static_value;
+	_mask = overderived_mask | true_mask;
+    }
 }
 
 void
