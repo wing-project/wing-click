@@ -45,8 +45,8 @@ RadiotapEncapHT::~RadiotapEncapHT() {
 int
 RadiotapEncapHT::configure(Vector<String> &conf, ErrorHandler *errh)
 {
-	_sgi = true;
-	_ht40 = true;
+	_sgi = false;
+	_ht40 = false;
 	if (Args(conf, this, errh)
 		.read("HT40", _ht40)
 		.read("SGI", _sgi)
