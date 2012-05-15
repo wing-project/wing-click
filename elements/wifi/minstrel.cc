@@ -29,7 +29,8 @@
 CLICK_DECLS
 
 Minstrel::Minstrel() 
-  : _timer(this) {
+  : _rtable(0), _timer(this), _lookaround_rate(20), _offset(0), 
+_active(true), _period(500), _ewma_level(75), _debug(false) {
 }
 
 Minstrel::~Minstrel() {
@@ -109,12 +110,6 @@ int Minstrel::initialize(ErrorHandler *)
 
 int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 {
-	_offset = 0;
-	_ewma_level = 75;
-	_lookaround_rate = 20;
-	_period = 500;
-	_active = true;
-	_debug = false;
 
 	int ret = Args(conf, this, errh)
 		      .read("OFFSET", _offset)
@@ -162,7 +157,7 @@ void Minstrel::process_feedback(Packet *p_in) {
 
 uint32_t Minstrel::get_retry_count(uint32_t, uint32_t)
 {
-	return WIFI_MAX_RETRIES + 1;;
+	return WIFI_MAX_RETRIES + 1;
 }
 
 void Minstrel::assign_rate(Packet *p_in)

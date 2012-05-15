@@ -62,8 +62,7 @@ private:
 		int max_tp_rate;
 		int max_tp_rate2;
 		int max_prob_rate;
-		DstInfo() {
-		}
+		DstInfo() {}
 		DstInfo(EtherAddress neighbor, Vector<int> supported) {
 			eth = neighbor;
 			rates = supported;
@@ -86,7 +85,6 @@ private:
 		int get_next_sample() {
 			return click_random(1, rates.size() - 1);
 		}
-
 		int rate_index(int rate) {
 			int ndx = 0;
 			for (int x = 0; x < rates.size(); x++) {
@@ -113,11 +111,11 @@ private:
 	AvailableRates *_rtable;
 	Timer _timer;
 
-	bool _active;
+	unsigned _lookaround_rate;
 	unsigned _offset;
+	bool _active;
 	unsigned _period;
 	unsigned _ewma_level;
-	unsigned _lookaround_rate;
 	bool _debug;
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
