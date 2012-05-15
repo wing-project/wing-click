@@ -120,9 +120,9 @@ NotifierSignal::operator+=(const NotifierSignal &x)
 {
     // preserve busy_signal(); adding other incompatible signals
     // leads to overderived_signal()
-    if (idle() || (x.busy() && *this != busy_signal()))
+    if (idle() || (x.busy() && *this != busy_signal()) || !x.initialized())
 	*this = x;
-    else if (busy() || x.idle())
+    else if (busy() || !initialized() || x.idle())
 	/* do nothing */;
     else if (_mask && x._mask && _v.v1 == x._v.v1)
 	_mask |= x._mask;
@@ -427,9 +427,27 @@ ActiveNotifier::listeners(Vector<Task*>& v) const
     if (_listener1)
 	v.push_back(_listener1);
     else if (_listeners)
-	for (task_or_signal_t* l = _listeners; l->p > 1; l++)
+	for (task_or_signal_t* l = _listeners; l->p > 1; ++l)
 	    v.push_back(l->t);
 }
+
+#if CLICK_DEBUG_SCHEDULING
+String
+ActiveNotifier::unparse(Router *router) const
+{
+    StringAccum sa;
+    sa << signal().unparse(router) << '\n';
+    if (_listener1 || _listeners)
+	for (int i = 0; _listener1 ? i == 0 : _listeners[i].p > 1; ++i) {
+	    Task *t = _listener1 ? _listener1 : _listeners[i].t;
+	    sa << "task " << ((void *) t) << ' ';
+	    if (Element *e = t->element())
+		sa << '[' << e->declaration() << "] ";
+	    sa << (t->scheduled() ? "scheduled\n" : "unscheduled\n");
+	}
+    return sa.take_string();
+}
+#endif
 
 
 namespace {

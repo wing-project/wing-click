@@ -148,10 +148,9 @@ class NotifierSignal { public:
      * Signal derivation is commutative and associative.  The following
      * special combinations are worth remembering:
      *
-     *  - An idle signal plus any other signal @a a equals @a a.  Thus,
-     *    idle_signal() is the identity for signal derivation.
-     *  - A busy signal plus any other signal is busy().  Thus,
-     *    busy_signal() is the "zero element" for signal derivation.
+     *  - An uninitialized signal plus any other signal is uninitialized.
+     *  - An idle signal plus any signal @a a equals @a a.
+     *  - A busy signal plus any other initialized signal is busy.
      *  - overderived_signal() plus busy_signal() equals busy_signal().
      *
      * @sa NotifierSignal::operator+= */
@@ -249,11 +248,15 @@ class ActiveNotifier : public Notifier { public:
 
     int add_activate_callback(callback_type f, void *v);
     void remove_activate_callback(callback_type f, void *v);
-    void listeners(Vector<Task*> &v) const;
+    void listeners(Vector<Task*> &v) const CLICK_DEPRECATED;
 
     inline void set_active(bool active, bool schedule = true);
     inline void wake();
     inline void sleep();
+
+#if CLICK_DEBUG_SCHEDULING
+    String unparse(Router *router) const;
+#endif
 
   private:
 
