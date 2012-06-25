@@ -6,6 +6,7 @@
  * Copyright (c) 1999-2000 Massachusetts Institute of Technology
  * Copyright (c) 2004-2007 Regents of the University of California
  * Copyright (c) 2008-2009 Meraki, Inc.
+ * Copyright (c) 2012 Eddie Kohler
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -120,8 +121,6 @@ void
 String::delete_memo(memo_t *memo)
 {
     assert(memo->capacity > 0);
-    if (memo->capacity < memo->dirty)
-	click_chatter("%.*s %d %d\n", memo->capacity,memo->real_data, memo->dirty, memo->capacity);
     assert(memo->capacity >= memo->dirty);
 #if HAVE_STRING_PROFILING
     int bucket = profile_memo_size_bucket(memo->dirty, memo->capacity);
@@ -308,14 +307,6 @@ String::make_stable(const char *s, int len)
 }
 
 String
-String::make_garbage(int len)
-{
-    String s;
-    s.append_garbage(len);
-    return s;
-}
-
-String
 String::make_numeric(int_large_t num, int base, bool uppercase)
 {
     StringAccum sa;
@@ -383,7 +374,7 @@ String::assign(const char *str, int len, bool need_deref)
 }
 
 char *
-String::append_garbage(int len)
+String::append_uninitialized(int len)
 {
     // Appending anything to "out of memory" leaves it as "out of memory"
     if (len <= 0 || _r.data == &oom_data)
@@ -444,7 +435,7 @@ String::append_garbage(int len)
 }
 
 void
-String::append(const char *s, int len)
+String::append(const char *s, int len, memo_t *memo)
 {
     if (!s) {
 	assert(len <= 0);
@@ -458,14 +449,17 @@ String::append(const char *s, int len)
 	assign_out_of_memory();
     else if (unlikely(len == 0))
 	/* do nothing */;
-    else if (likely(!(_r.memo
+    else if (unlikely(_r.length == 0 && memo && !out_of_memory())) {
+	deref();
+	assign_memo(s, len, memo);
+    } else if (likely(!(_r.memo
 		      && s >= _r.memo->real_data
 		      && s + len <= _r.memo->real_data + _r.memo->capacity))) {
-	if (char *space = append_garbage(len))
+	if (char *space = append_uninitialized(len))
 	    memcpy(space, s, len);
     } else {
 	String preserve_s(*this);
-	if (char *space = append_garbage(len))
+	if (char *space = append_uninitialized(len))
 	    memcpy(space, s, len);
     }
 }
@@ -474,7 +468,7 @@ void
 String::append_fill(int c, int len)
 {
     assert(len >= 0);
-    if (char *space = append_garbage(len))
+    if (char *space = append_uninitialized(len))
 	memset(space, c, len);
 }
 

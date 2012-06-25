@@ -459,6 +459,7 @@ struct Lexer::ParseState {
     ElementState *_tail;
     bool any_implicit;
     bool any_ports;
+    bool last_connection_ends_output;
     Vector<int> elements;
     int cur_epos;
 
@@ -474,8 +475,9 @@ struct Lexer::ParseState {
     int _depth;
 
     ParseState(int type, ParseState *parent)
-	: state(s_statement), _type(type), connector(0), _parent(parent),
-	  _depth(parent ? parent->_depth + 1 : 0) {
+	: state(s_statement), _type(type), connector(0),
+	  last_connection_ends_output(true),
+	  _parent(parent), _depth(parent ? parent->_depth + 1 : 0) {
     }
 
     void enter_element_state() {
@@ -819,6 +821,7 @@ Lexer::FileState::lex_config(Lexer *lexer)
   const char *s = _pos;
   unsigned paren_depth = 1;
 
+  String r;
   for (; s < _end; s++)
     if (*s == '(')
       paren_depth++;
@@ -832,6 +835,10 @@ Lexer::FileState::lex_config(Lexer *lexer)
       if (s + 1 < _end && s[1] == '\n')
 	s++;
       _lineno++;
+    } else if (*s == '#' && (s[-1] == '\n' || s[-1] == '\r')) {
+      r.append(config_pos, s - config_pos);
+      s = process_line_directive(s, lexer) - 1;
+      config_pos = s + 1;
     } else if (*s == '/' && s + 1 < _end) {
       if (s[1] == '/')
 	s = skip_line(s + 2) - 1;
@@ -843,7 +850,7 @@ Lexer::FileState::lex_config(Lexer *lexer)
       s = skip_backslash_angle(s + 2) - 1;
 
   _pos = s;
-  String r = _big_string.substring(config_pos, s);
+  r += _big_string.substring(config_pos, s);
   return lexer->_compact_config ? r.compact() : r;
 }
 
@@ -1306,10 +1313,13 @@ Lexer::yelement_name()
 	    return;
 	} else {
 	    bool nested = _c->depth() || _ps->_parent;
-	    if (nested && (t.is(lexArrow) || t.is(lex2Arrow)))
+	    if (nested && (t.is(lexArrow) || t.is(lex2Arrow))) {
 		this_implicit = _ps->first_element_set()
 		    && (_ps->nports(false) || !_ps->cur_epos);
-	    else if (nested && t.is(','))
+		if (this_implicit && !_ps->nports(false)
+		    && !_ps->last_connection_ends_output)
+		    _errh->lwarning(_file.landmark(), "suggest %<input %s%> or %<[0] %s%> to start connection", t.string().c_str(), t.string().c_str());
+	    } else if (nested && t.is(','))
 		this_implicit = !!_ps->nports(false);
 	    else if (nested && !t.is(lex2Colon))
 		this_implicit = !_ps->first_element_set()
@@ -2055,6 +2065,11 @@ Lexer::ystep()
 
     case ParseState::s_connection_done:
 	yconnection_check_useless(_ps->last_elements, true);
+	// last_... becomes true only if we saw exactly one element at
+	// the end of the chain, and it was "output".
+	_ps->last_connection_ends_output = _ps->last_elements.size() > 0
+	    && _ps->last_elements.size() == 3 + _ps->last_elements[1] + _ps->last_elements[2]
+	    && _ps->last_elements[0] == _c->_element_map["output"];
 	_ps->last_elements.clear();
 	_ps->state = ParseState::s_statement;
 	break;

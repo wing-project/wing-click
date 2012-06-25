@@ -378,6 +378,22 @@ ConfParseTest::initialize(ErrorHandler *errh)
     x += x;
     CHECK(x == "abcdefghijklmnbcdefghijklmabcdefghijklmnbcdefghijklm");
 
+    {
+	String z;
+	z += x;
+	CHECK(z == "abcdefghijklmnbcdefghijklmabcdefghijklmnbcdefghijklm");
+	CHECK(z.data() == x.data());
+	z = String();
+	z += x.substring(0, 5);
+	CHECK(z.data() == x.data());
+	z += x.substring(0, 5);
+	CHECK(z == "abcdeabcde");
+	CHECK(z.data() != x.data());
+	z = String::make_out_of_memory();
+	z += x;
+	CHECK(z.out_of_memory());
+    }
+
     StringAccum xx(24);
     xx << "abcdefghijklmn";
     CHECK(xx.capacity() - xx.length() < 12);

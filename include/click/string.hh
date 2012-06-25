@@ -122,7 +122,17 @@ class String { public:
     }
 
     /** @brief Return a String containing @a len unknown characters. */
-    static String make_garbage(int len);
+    static inline String make_uninitialized(int len) {
+	String s;
+	s.append_uninitialized(len);
+	return s;
+    }
+
+    /** @cond never */
+    static inline String make_garbage(int len) {
+	return make_uninitialized(len);
+    }
+    /** @endcond never */
 
     /** @brief Return a String that directly references the first @a len
      * characters of @a s.
@@ -216,8 +226,13 @@ class String { public:
     }
 
     /** @brief Return true iff the string is empty. */
-    inline bool operator!() const {
+    inline bool empty() const {
 	return _r.length == 0;
+    }
+
+    /** @brief Return true iff the string is empty. */
+    inline bool operator!() const {
+	return empty();
     }
 
 
@@ -266,7 +281,7 @@ class String { public:
 	const char *end_data = _r.data + _r.length;
 	if ((_r.memo && end_data >= _r.memo->real_data + _r.memo->dirty)
 	    || *end_data != '\0') {
-	    if (char *x = const_cast<String *>(this)->append_garbage(1)) {
+	    if (char *x = const_cast<String *>(this)->append_uninitialized(1)) {
 		*x = '\0';
 		--_r.length;
 	    }
@@ -494,17 +509,19 @@ class String { public:
     }
 
 
-    /** @brief Append the null-terminated C string @a s to this string.
+    /** @brief Append the null-terminated C string @a cstr to this string.
      * @param cstr data to append */
-    void append(const char *cstr) {
-	append(cstr, -1);
+    inline void append(const char *cstr) {
+	append(cstr, -1, 0);
     }
 
     /** @brief Append the first @a len characters of @a s to this string.
      * @param s data to append
      * @param len length of data
      * @pre @a len @>= 0 */
-    void append(const char *s, int len);
+    inline void append(const char *s, int len) {
+	append(s, len, 0);
+    }
 
     /** @brief Appends the data from @a begin to @a end to the end of this
      * string.
@@ -523,14 +540,20 @@ class String { public:
      *
      * The caller may safely modify the returned memory.  Null is returned if
      * the string becomes out-of-memory. */
-    char *append_garbage(int len);
+    char *append_uninitialized(int len);
+
+    /** @cond never */
+    inline char *append_garbage(int len) {
+	return append_uninitialized(len);
+    }
+    /** @endcond never */
 
 
     /** @brief Append a copy of @a x to the end of this string.
      *
      * Returns the result. */
     inline String &operator+=(const String &x) {
-	append(x._r.data, x._r.length);
+	append(x._r.data, x._r.length, x._r.memo);
 	return *this;
     }
 
@@ -704,6 +727,7 @@ class String { public:
 
     void assign(const char *cstr, int len, bool need_deref);
     void assign_out_of_memory();
+    void append(const char *s, int len, memo_t *memo);
     static memo_t *create_memo(char *space, int dirty, int capacity);
     static void delete_memo(memo_t *memo);
 
