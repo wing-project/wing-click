@@ -6,6 +6,11 @@
 #if HAVE_STRING_PROFILING
 # include <click/integers.hh>
 #endif
+#if CLICK_LINUXMODULE || CLICK_BSDMODULE
+# include <click/glue.hh>
+#else
+# include <string.h>
+#endif
 CLICK_DECLS
 class StringAccum;
 
@@ -29,6 +34,9 @@ class String { public:
 
     inline String();
     inline String(const String &x);
+#if HAVE_CXX_RVALUE_REFERENCES
+    inline String(String &&x);
+#endif
     inline String(const char *cstr);
     inline String(const char *s, int len);
     inline String(const unsigned char *s, int len);
@@ -116,8 +124,12 @@ class String { public:
     String upper() const;
     String printable() const;
     String quoted_hex() const;
+    String encode_json() const;
 
     inline String &operator=(const String &x);
+#if HAVE_CXX_RVALUE_REFERENCES
+    inline String &operator=(String &&x);
+#endif
     inline String &operator=(const char *cstr);
 
     inline void swap(String &x);
@@ -158,6 +170,10 @@ class String { public:
 #if HAVE_STRING_PROFILING
     static void profile_report(StringAccum &sa, int examples = 0);
 #endif
+
+    static inline const char *skip_utf8_char(const char *first, const char *last);
+    static const unsigned char *skip_utf8_char(const unsigned char *first,
+					       const unsigned char *last);
 
   private:
 
@@ -269,6 +285,24 @@ class String { public:
 
 };
 
+class StringRef {
+  public:
+
+    inline StringRef();
+    inline StringRef(const StringRef &x);
+    inline StringRef(const char *cstr);
+    inline StringRef(const char *s, int len);
+    inline StringRef(const String &x);
+
+    inline const char *data() const;
+    inline int length() const;
+
+    inline uint32_t hashcode() const;
+
+  private:
+    const char *data_;
+    int len_;
+};
 
 /** @brief Construct an empty String (with length 0). */
 inline String::String() {
@@ -279,6 +313,14 @@ inline String::String() {
 inline String::String(const String &x) {
     assign(x);
 }
+
+#if HAVE_CXX_RVALUE_REFERENCES
+/** @overload */
+inline String::String(String &&x)
+    : _r(x._r) {
+    x._r.memo = 0;
+}
+#endif
 
 /** @brief Construct a String containing the C string @a cstr.
     @param cstr a null-terminated C string
@@ -572,6 +614,14 @@ inline String &String::operator=(const String &x) {
     return *this;
 }
 
+#if HAVE_CXX_RVALUE_REFERENCES
+/** @overload */
+inline String &String::operator=(String &&x) {
+    swap(x);
+    return *this;
+}
+#endif
+
 /** @brief Assign this string to the C string @a cstr. */
 inline String &String::operator=(const char *cstr) {
     assign(cstr, -1, true);
@@ -677,6 +727,42 @@ inline const String &String::make_out_of_memory() {
     character. */
 inline const char *String::out_of_memory_data() {
     return &oom_data;
+}
+
+/** @brief Return a pointer to the next character in UTF-8 encoding.
+    @pre @a first @< @a last
+
+    If @a first doesn't point at a valid UTF-8 character, returns @a first. */
+inline const char *String::skip_utf8_char(const char *first, const char *last) {
+    return reinterpret_cast<const char *>(skip_utf8_char(reinterpret_cast<const unsigned char *>(first), reinterpret_cast<const unsigned char *>(last)));
+}
+
+inline StringRef::StringRef()
+    : data_(0), len_(0) {
+}
+
+inline StringRef::StringRef(const StringRef &x)
+    : data_(x.data_), len_(x.len_) {
+}
+
+inline StringRef::StringRef(const char *cstr)
+    : data_(cstr), len_(strlen(cstr)) {
+}
+
+inline StringRef::StringRef(const char *s, int len)
+    : data_(s), len_(len) {
+}
+
+inline StringRef::StringRef(const String &x)
+    : data_(x.data()), len_(x.length()) {
+}
+
+inline const char *StringRef::data() const {
+    return data_;
+}
+
+inline int StringRef::length() const {
+    return len_;
 }
 
 /** @relates String
