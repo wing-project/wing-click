@@ -32,6 +32,8 @@ class RadiotapEncap : public Element { public:
   bool can_live_reconfigure() const	{ return true; }
 
   Packet *simple_action(Packet *);
+  Packet *encap(Packet *);
+  Packet *encap_ht(Packet *);
 
 };
 

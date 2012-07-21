@@ -1,6 +1,6 @@
 /*
  * radiotapencap.{cc,hh} -- encapsultates 802.11 packets
- * John Bicket
+ * John Bicket, Roberto Riggio
  *
  * Copyright (c) 2004 Massachusetts Institute of Technology
  *
@@ -29,8 +29,14 @@ CLICK_DECLS
 #define CLICK_RADIOTAP_PRESENT (			\
 	(1 << IEEE80211_RADIOTAP_RATE)			| \
 	(1 << IEEE80211_RADIOTAP_DBM_TX_POWER)		| \
-	(1 << IEEE80211_RADIOTAP_RTS_RETRIES)		| \
 	(1 << IEEE80211_RADIOTAP_DATA_RETRIES)		| \
+	(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE)	| \
+	(1 << IEEE80211_RADIOTAP_EXT)			| \
+	0)
+
+#define CLICK_RADIOTAP_PRESENT_HT (			\
+	(1 << IEEE80211_RADIOTAP_DATA_RETRIES)		| \
+	(1 << IEEE80211_RADIOTAP_MCS)			| \
 	(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE)	| \
 	(1 << IEEE80211_RADIOTAP_EXT)			| \
 	0)
@@ -52,6 +58,30 @@ struct click_radiotap_header {
 	u_int8_t	wt_data_retries3;
 } __attribute__((__packed__));
 
+struct click_radiotap_header_ht {
+	struct ieee80211_radiotap_header wt_ihdr;
+	u_int32_t	it_present1;
+	u_int32_t	it_present2;
+	u_int32_t	it_present3;
+	u_int8_t	wt_txpower;
+	u_int8_t	wt_data_retries;
+	u_int8_t	wt_known;
+	u_int8_t	wt_flags;
+	u_int8_t	wt_mcs;
+	u_int8_t	wt_data_retries1;
+	u_int8_t	wt_known1;
+	u_int8_t	wt_flags1;
+	u_int8_t	wt_mcs1;
+	u_int8_t	wt_data_retries2;
+	u_int8_t	wt_known2;
+	u_int8_t	wt_flags2;
+	u_int8_t	wt_mcs2;
+	u_int8_t	wt_data_retries3;
+	u_int8_t	wt_known3;
+	u_int8_t	wt_flags3;
+	u_int8_t	wt_mcs3;
+} __attribute__((__packed__));
+
 RadiotapEncap::RadiotapEncap() {
 }
 
@@ -60,9 +90,106 @@ RadiotapEncap::~RadiotapEncap() {
 
 Packet *
 RadiotapEncap::simple_action(Packet *p) {
-
-	WritablePacket *p_out = p->uniqueify();
 	click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p);
+	if (ceh->rate != 0) 
+		return encap(p);
+	else
+		return encap_ht(p);
+}
+
+Packet *
+RadiotapEncap::encap_ht(Packet *p) {
+
+	click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p);
+	WritablePacket *p_out = p->uniqueify();
+
+	if (!p_out) {
+		p->kill();
+		return 0;
+	}
+
+	p_out = p_out->push(sizeof(struct click_radiotap_header_ht));
+
+	if (!p_out) {
+		p->kill();
+		return 0;
+	}
+
+	struct click_radiotap_header_ht *crh  = (struct click_radiotap_header_ht *) p_out->data();
+
+	memset(crh, 0, sizeof(struct click_radiotap_header));
+
+	crh->wt_ihdr.it_version = 0;
+	crh->wt_ihdr.it_len = cpu_to_le16(sizeof(struct click_radiotap_header));
+
+	crh->wt_ihdr.it_present = cpu_to_le32(CLICK_RADIOTAP_PRESENT);
+
+	crh->wt_known |= IEEE80211_RADIOTAP_MCS_HAVE_BW | 
+	                 IEEE80211_RADIOTAP_MCS_HAVE_MCS | 
+	                 IEEE80211_RADIOTAP_MCS_HAVE_GI;
+
+	if (false) {
+		crh->wt_flags |= IEEE80211_RADIOTAP_MCS_SGI;
+	}
+
+	if (false) {
+		crh->wt_flags |= IEEE80211_RADIOTAP_MCS_BW_40;
+	}
+
+	crh->wt_mcs = ceh->mcs;
+	crh->wt_txpower = ceh->power;
+
+	if (ceh->max_tries > 0) {
+		crh->wt_data_retries = ceh->max_tries;
+	} else {
+		crh->wt_data_retries = WIFI_MAX_RETRIES + 1;
+	}
+
+	crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
+	crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_EXT);
+	crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
+	crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_EXT);
+
+	if (ceh->mcs1 != 0) {
+		crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_MCS);
+		crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
+		crh->wt_mcs1 = ceh->mcs1;
+		if (ceh->max_tries1 > 0) {
+			crh->wt_data_retries1 = ceh->max_tries1;
+		} else {
+			crh->wt_data_retries1 = WIFI_MAX_RETRIES + 1;
+		}
+		if (ceh->mcs2 != 0) {
+			crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_MCS);
+			crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
+			crh->wt_mcs2 = ceh->mcs2;
+			if (ceh->max_tries2 > 0) {
+				crh->wt_data_retries2 = ceh->max_tries2;
+			} else {
+				crh->wt_data_retries2 = WIFI_MAX_RETRIES + 1;
+			}
+			if (ceh->mcs3 != 0) {
+				crh->it_present3 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_MCS);
+				crh->it_present3 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
+				crh->wt_mcs3 = ceh->mcs3;
+				if (ceh->max_tries3 > 0) {
+					crh->wt_data_retries3 = ceh->max_tries3;
+				} else {
+					crh->wt_data_retries3 = WIFI_MAX_RETRIES + 1;
+				}
+			}
+		}
+	}
+
+	return p_out;
+
+}
+
+Packet *
+RadiotapEncap::encap(Packet *p) {
+
+	click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p);
+	WritablePacket *p_out = p->uniqueify();
 
 	if (!p_out) {
 		p->kill();
