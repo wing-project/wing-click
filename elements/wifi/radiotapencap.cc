@@ -35,6 +35,7 @@ CLICK_DECLS
 	0)
 
 #define CLICK_RADIOTAP_PRESENT_HT (			\
+	(1 << IEEE80211_RADIOTAP_DBM_TX_POWER)		| \
 	(1 << IEEE80211_RADIOTAP_DATA_RETRIES)		| \
 	(1 << IEEE80211_RADIOTAP_MCS)			| \
 	(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE)	| \
@@ -117,12 +118,12 @@ RadiotapEncap::encap_ht(Packet *p) {
 
 	struct click_radiotap_header_ht *crh  = (struct click_radiotap_header_ht *) p_out->data();
 
-	memset(crh, 0, sizeof(struct click_radiotap_header));
+	memset(crh, 0, sizeof(struct click_radiotap_header_ht));
 
 	crh->wt_ihdr.it_version = 0;
-	crh->wt_ihdr.it_len = cpu_to_le16(sizeof(struct click_radiotap_header));
+	crh->wt_ihdr.it_len = cpu_to_le16(sizeof(struct click_radiotap_header_ht));
 
-	crh->wt_ihdr.it_present = cpu_to_le32(CLICK_RADIOTAP_PRESENT);
+	crh->wt_ihdr.it_present = cpu_to_le32(CLICK_RADIOTAP_PRESENT_HT);
 
 	crh->wt_known |= IEEE80211_RADIOTAP_MCS_HAVE_BW | 
 	                 IEEE80211_RADIOTAP_MCS_HAVE_MCS | 
