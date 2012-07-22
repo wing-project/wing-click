@@ -14,12 +14,12 @@ enum wing_packet_types {
 	WING_PT_BCAST_DATA  = 0x06, // wing_bcast_data
 };
 
-enum wing_probe_flags {
-	PROBE_FLAGS_RATES = (1<<0),
-	PROBE_FLAGS_LINKS = (1<<1),
+enum wing_probe_type {
+	PROBE_TYPE_LEGACY = 0x01,
+	PROBE_TYPE_HT = 0x02,
 };
 
-static const uint8_t _wing_version = 0x20;
+static const uint8_t _wing_version = 0x21;
 static const uint16_t _wing_et = 0x06AA;
 
 /* header format */
@@ -293,7 +293,7 @@ CLICK_PACKED_STRUCTURE(struct link_entry {,
   private:
 	uint32_t _ip;
 	uint8_t _iface;
-	uint8_t _num_rates;
+	uint8_t _num_rates;	// number of link_info entries
 	uint16_t _channel;
 	uint32_t _seq;
 });
@@ -311,6 +311,7 @@ struct wing_probe : public wing_header {,
 	uint8_t num_probes()    { return _num_probes; }
 	uint8_t num_links()     { return _num_links; }
 	uint8_t num_rates()     { return _num_rates; }
+	uint8_t rtype()         { return _rtype; }
 	void set_rate(uint16_t rate) { _rate = htons(rate); }
 	void set_size(uint16_t size) { _size = htons(size); }
 	void set_node(NodeAddress node)              { _ip = node._ip; _iface = node._iface; }
@@ -322,9 +323,7 @@ struct wing_probe : public wing_header {,
 	void set_num_probes(uint8_t num_probes)      { _num_probes = num_probes; }
 	void set_num_links(uint8_t num_links)        { _num_links = num_links; }
 	void set_num_rates(uint8_t num_rates)        { _num_rates = num_rates; }
-	bool flag(int f)                { return _flags & f; }
-	void set_flag(uint8_t f)        { _flags = _flags | f; }
-	void unset_flag(uint8_t f)      { _flags = _flags & !f; }
+	void set_rtype(uint8_t rtype)                { _rtype = rtype; }
 	/* remeber to set size before calling this */
 	void set_checksum() {
 		_cksum = 0;
@@ -337,7 +336,7 @@ struct wing_probe : public wing_header {,
 	uint16_t _rate;
 	uint16_t _size;
 	uint8_t _iface;
-	uint8_t _flags;
+	uint8_t _rtype;
 	uint16_t _channel;
 	uint32_t _ip;
 	uint32_t _period;      // period of this node's probe broadcasts, in msecs
@@ -346,8 +345,8 @@ struct wing_probe : public wing_header {,
 	uint32_t _seq;
 	uint8_t _num_probes;  
 	uint8_t _num_links;    // number of link_entry entries following
-	uint8_t _num_rates;    // number of rate_entry entries following
-	uint8_t _pad;          // padding
+	uint8_t _num_rates;    // number of rate_entry or entries following
+	uint8_t _pad; 
 });
 
 CLICK_ENDDECLS

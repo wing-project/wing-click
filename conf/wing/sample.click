@@ -1,13 +1,11 @@
-rates_1 :: AvailableRates(DEFAULT 12 18 24 36 48 72 96 108, 06:0C:42:23:AA:6F 12 18 24 36 48 72 96 108);
-rates_2 :: AvailableRates(DEFAULT 12 18 24 36 48 72 96 108, 00:0C:42:23:AA:81 12 18 24 36 48 72 96 108);
-
-
-lt :: LinkTableMulti(IP 6.35.170.111, IFACES " 1 2", BETA 80, DEBUG false);
+rates_1 :: AvailableRates(DEFAULT 12 18 24 36 48 72 96 108, 00:15:6D:84:13:5D 12 18 24 36 48 72 96 108);
+rates_2 :: AvailableRates(DEFAULT 12 18 24 36 48 72 96 108, 00:15:6D:84:13:5E 12 18 24 36 48 72 96 108);
+lt :: LinkTableMulti(IP 6.132.19.93, IFACES " 1 2", BETA 80, DEBUG false);
 metric :: WINGETTMetric(LT lt, DEBUG false);
 arp :: ARPTableMulti();
 
 elementclass EtherSplit {
-input -> cl :: Classifier(6/060C4223AA6F, 6/000C4223AA81);
+input -> cl :: Classifier(6/00156D84135D, 6/00156D84135E);
 cl[0] -> [0] output;
 cl[1] -> [1] output;
 }
@@ -15,11 +13,10 @@ cl[1] -> [1] output;
 elementclass LinkStat {
     $debug|
 input -> ps :: PaintSwitch();
-es_1 :: WINGLinkStat(IFNAME ath1,
-				ETH 06:0C:42:23:AA:6F,
+es_1 :: WINGLinkStat(IFNAME wlan0-1,
+                                  ETH 00:15:6D:84:13:5D, 
                                   IFID 1, 
-                                  CHANNEL 2412, 
-                                  CHANNELS channels_1, 
+                                  CHANNEL 2462, 
                                   RATES rates_1,
                                   PERIOD 10000,
                                   TAU 100000,
@@ -29,11 +26,10 @@ es_1 :: WINGLinkStat(IFNAME ath1,
                                   ARP arp,
                                   DEBUG $debug);
 ps[0] -> es_1 -> output;
-es_2 :: WINGLinkStat(IFNAME ath2,
-				ETH 00:0C:42:23:AA:81,
+es_2 :: WINGLinkStat(IFNAME wlan1-1,
+                                  ETH 00:15:6D:84:13:5E, 
                                   IFID 2, 
-                                  CHANNEL 5180, 
-                                  CHANNELS channels_2, 
+                                  CHANNEL 5240, 
                                   RATES rates_2,
                                   PERIOD 10000,
                                   TAU 100000,
@@ -80,8 +76,7 @@ querier :: WINGQuerier(IP $ip,
 
 lb :: WINGLocalBroadcast(IP $ip,
                          LT lt, 
-                         ARP arp,
-                         DEBUG $debug);
+                         ARP arp);
 
 
 query_forwarder :: WINGMetricFlood(IP $ip, 
@@ -103,7 +98,6 @@ gw_responder ::  WINGGatewayResponder(PERIOD 15000,
 
 
 gw -> outgoing;
-gw_responder -> outgoing;
 query_responder -> outgoing;
 query_forwarder -> outgoing;
 
@@ -203,11 +197,11 @@ elementclass SniffDevice {
   input -> to_dev :: ToDevice($device);
 }
 
-wr :: WingRouter (6.35.170.111, 255.0.0.0, 6.255.255.255, 12, false);
+wr :: WingRouter (6.132.19.93, 255.0.0.0, 6.255.255.255, 12, false);
 
 dyn :: DynGW(DEVNAME wing-mesh, SEL wr/gw);
 
-linux_ip_host :: LinuxIPHost(wing-mesh, 6.35.170.111, 255.0.0.0) -> [1] wr;
+linux_ip_host :: LinuxIPHost(wing-mesh, 6.132.19.93, 255.0.0.0) -> [1] wr;
 
 rc_split :: EtherSplit(); 
 sl_split :: EtherSplit(); 
@@ -216,7 +210,7 @@ wr [0] -> WINGSetHeader() -> sl_split; // queries, replies, bcast_stats
 wr [1] -> WINGSetHeader() -> rc_split; // data 
 wr [2] -> linux_ip_host;
 
-sniff_dev_1 :: SniffDevice(ath1);
+sniff_dev_1 :: SniffDevice(wlan0-1);
 rc_1 :: RateControl(12, rates_1);
 ls_1 :: LinkScheduler(lt, arp);
 outgoing_1 :: PrioSched()
@@ -227,7 +221,7 @@ outgoing_1 :: PrioSched()
 sl_split[0] -> FullNoteQueue() -> WifiEncap(0x0, 00:00:00:00:00:00) -> [0] outgoing_1;
 rc_split[0] -> ls_1 -> WifiEncap(0x0, 00:00:00:00:00:00) -> rc_1 -> [1] outgoing_1;
 
-sniff_dev_2 :: SniffDevice(ath2);
+sniff_dev_2 :: SniffDevice(wlan1-1);
 rc_2 :: RateControl(12, rates_2);
 ls_2 :: LinkScheduler(lt, arp);
 outgoing_2 :: PrioSched()
@@ -249,7 +243,7 @@ sniff_dev_1
 -> tx_filter_1 :: FilterTX()
 -> WifiDupeFilter() 
 -> WifiDecap()
--> HostEtherFilter(06:0C:42:23:AA:6F, DROP_OTHER true, DROP_OWN true)
+-> HostEtherFilter(00:15:6D:84:13:5D, DROP_OTHER true, DROP_OWN true)
 -> Paint(0)
 -> cl;
 
@@ -262,7 +256,7 @@ sniff_dev_2
 -> tx_filter_2 :: FilterTX()
 -> WifiDupeFilter() 
 -> WifiDecap()
--> HostEtherFilter(00:0C:42:23:AA:81, DROP_OTHER true, DROP_OWN true)
+-> HostEtherFilter(00:15:6D:84:13:5E, DROP_OTHER true, DROP_OWN true)
 -> Paint(1)
 -> cl;
 

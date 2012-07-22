@@ -6,11 +6,12 @@ CLICK_DECLS
 
 class RateSize {
 public:
-	RateSize(int rate, int size) : _rate(rate), _size(size) {}
+	RateSize(int rate, int size, int rtype) : _rate(rate), _size(size), _rtype(rtype) {}
 	int _rate;
 	int _size;
+	int _rtype;
 	inline bool operator==(RateSize other) {
-		return (other._rate == _rate && other._size == _size);
+		return (other._rate == _rate && other._size == _size && other._rtype == _rtype);
 	}
 };
 
@@ -154,6 +155,7 @@ public:
 	/* handler stuff */
 	void add_handlers();
 	String print_bcast_stats();
+	String print_bcast_stats_ht();
 
 private:
 
@@ -162,11 +164,13 @@ private:
 
 	Vector<NodeAddress> _neighbors;
 	int _neighbors_index;
+	int _neighbors_index_ht;
 
 	typedef HashMap<NodeAddress, ProbeList> ProbeMap;
 	typedef ProbeMap::const_iterator ProbeIter;
 
 	ProbeMap _bcast_stats;
+	ProbeMap _bcast_stats_ht;
 
 	Timestamp _start;
 	NodeAddress _node;
@@ -182,6 +186,7 @@ private:
 	uint32_t _ifid;
 
 	class AvailableRates *_rtable;
+	class AvailableRates *_rtable_ht;
 	class WINGLinkMetric *_link_metric;
 	class ARPTableMulti *_arp_table;
 	class LinkTableMulti *_link_table;
@@ -196,6 +201,7 @@ private:
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);
+	String print_stats(ProbeMap &);
 
 };
 

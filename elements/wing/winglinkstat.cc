@@ -24,11 +24,12 @@
 CLICK_DECLS
 
 enum {
-	H_RESET, H_BCAST_STATS, H_NODE, H_TAU, H_PERIOD, H_PROBES, H_IFNAME
+	H_RESET, H_BCAST_STATS, H_BCAST_STATS_HT, H_NODE, H_TAU, H_PERIOD, H_PROBES, H_IFNAME
 };
 
 WINGLinkStat::WINGLinkStat() :
-	_ads_rs_index(0), _neighbors_index(0), _tau(100000), _period(10000),
+	_ads_rs_index(0), _neighbors_index(0), _neighbors_index_ht(0), 
+	_tau(100000), _period(10000),
 	_sent(0), _link_metric(0), _arp_table(0), _link_table(0),
 	_timer(this), _debug(false) {
 }
@@ -64,6 +65,7 @@ int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
 		  .read_m("IFID", _ifid)
 		  .read_m("CHANNEL", _channel)
 		  .read_m("RATES", ElementCastArg("AvailableRates"), _rtable)
+		  .read_m("HT_RATES", ElementCastArg("AvailableRates"), _rtable_ht)
 		  .read_m("METRIC", ElementCastArg("WINGLinkMetric"), _link_metric)
 		  .read_m("LT", ElementCastArg("LinkTableMulti"), _link_table)
 		  .read_m("ARP", ElementCastArg("ARPTableMulti"), _arp_table)
@@ -89,6 +91,7 @@ void WINGLinkStat::send_probe() {
 
 	int size = _ads_rs[_ads_rs_index]._size;
 	int rate = _ads_rs[_ads_rs_index]._rate;
+	int rtype = _ads_rs[_ads_rs_index]._rtype;
 
 	_ads_rs_index = (_ads_rs_index + 1) % _ads_rs.size();
 	_sent++;
@@ -123,34 +126,47 @@ void WINGLinkStat::send_probe() {
 	lp->set_seq(Timestamp::now().sec());
 	lp->set_tau(_tau);
 	lp->set_sent(_sent);
-	lp->unset_flag(~0);
 	lp->set_rate(rate);
 	lp->set_size(size);
+	lp->set_rtype(rtype);
 	lp->set_num_probes(_ads_rs.size());
 
 	uint8_t *ptr = (uint8_t *) (lp + 1);
 	uint8_t *end = (uint8_t *) p->data() + p->length();
 
 	// rates entry
-	Vector<int> rates = _rtable->lookup(_eth);
+	Vector<int> rates;
+	if (rtype == PROBE_TYPE_HT) {
+		rates = _rtable_ht->lookup(_eth);
+	} else {
+		rates = _rtable->lookup(_eth);
+	}
 	if (rates.size() && ptr + sizeof(rate_entry) * rates.size() < end) {
 		for (int x = 0; x < rates.size(); x++) {
 			rate_entry *r_entry = (struct rate_entry *) (ptr);
 			r_entry->set_rate(rates[x]);
 			ptr += sizeof(rate_entry);
 		}
-		lp->set_flag(PROBE_FLAGS_RATES);
 		lp->set_num_rates(rates.size());
 	}
 
 	// links_entry
 	int num_entries = 0;
 	while (ptr < end && num_entries < _neighbors.size()) {
-		_neighbors_index = (_neighbors_index + 1) % _neighbors.size();
-		if (_neighbors_index >= _neighbors.size()) {
-			break;
+		ProbeList *probe;
+		if (rtype == PROBE_TYPE_HT) {
+			_neighbors_index_ht = (_neighbors_index_ht + 1) % _neighbors.size();
+			if (_neighbors_index_ht >= _neighbors.size()) {
+				break;
+			}
+			probe = _bcast_stats_ht.findp(_neighbors[_neighbors_index_ht]);
+		} else {
+			_neighbors_index = (_neighbors_index + 1) % _neighbors.size();
+			if (_neighbors_index >= _neighbors.size()) {
+				break;
+			}
+			probe = _bcast_stats.findp(_neighbors[_neighbors_index]);
 		}
-		ProbeList *probe = _bcast_stats.findp(_neighbors[_neighbors_index]);
 		if (!probe) {
 			click_chatter("%{element} :: %s :: lookup for %s, %d failed", 
 					this,
@@ -173,7 +189,6 @@ void WINGLinkStat::send_probe() {
 			entry->set_seq(lp->seq());
 		}
 		ptr += sizeof(link_entry);
-		Vector<RateSize> rates;
 		Vector<int> fwd;
 		Vector<int> rev;
 		for (int x = 0; x < probe->_probe_types.size(); x++) {
@@ -183,22 +198,25 @@ void WINGLinkStat::send_probe() {
 			lnfo->set_rate(rs._rate);
 			lnfo->set_fwd(probe->fwd_rate(rs._rate, rs._size));
 			lnfo->set_rev(probe->rev_rate(_start, rs._rate, rs._size));
-			rates.push_back(rs);
 			fwd.push_back(lnfo->fwd());
 			rev.push_back(lnfo->rev());
 		}
 		ptr += probe->_probe_types.size() * sizeof(link_info);
 	}
 
-	lp->set_flag(PROBE_FLAGS_LINKS);
 	lp->set_num_links(num_entries);
 
 	struct click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p);
 	ceh->magic = WIFI_EXTRA_MAGIC;
-	ceh->rate = rate;
-	ceh->max_tries = WIFI_MAX_RETRIES + 1;
+
+	if (rtype == PROBE_TYPE_HT) {
+		ceh->mcs = rate;
+	} else {
+		ceh->rate = rate;
+	}
 
 	checked_output_push(0, p);
+
 }
 
 Packet *
@@ -210,6 +228,13 @@ WINGLinkStat::simple_action(Packet *p) {
 				this,
 				__func__, 
 				lp->_type);
+		p->kill();
+		return 0;
+	}
+	if (lp->rtype() == PROBE_TYPE_HT) {
+		click_chatter("%{element} :: %s :: ht probes packet are not supported", 
+				this,
+				__func__);
 		p->kill();
 		return 0;
 	}
@@ -283,7 +308,7 @@ WINGLinkStat::simple_action(Packet *p) {
 	}
 
 	Timestamp now = Timestamp::now();
-	RateSize rs = RateSize(ceh->rate, lp->size());
+	RateSize rs = RateSize(ceh->rate, lp->size(), lp->rtype());
 	probe_list->_channel= lp->channel();
 	probe_list->_period = lp->period();
 	probe_list->_tau = lp->tau();
@@ -313,17 +338,18 @@ WINGLinkStat::simple_action(Packet *p) {
 	uint8_t *end = (uint8_t *) p->data() + p->length();
 
 	// rates
-	if (lp->flag(PROBE_FLAGS_RATES)) {
-		int num_rates = lp->num_rates();
-		Vector<int> rates;
-		for (int x = 0; x < num_rates; x++) {
-			rate_entry *r_entry = (struct rate_entry *) (ptr);
-			rates.push_back(r_entry->rate());
-			ptr += sizeof(rate_entry);
-		}
-		_rtable->insert(EtherAddress(eh->ether_shost), rates);
+	int num_rates = lp->num_rates();
+	Vector<int> rates;
+	for (int x = 0; x < num_rates; x++) {
+		rate_entry *r_entry = (struct rate_entry *) (ptr);
+		rates.push_back(r_entry->rate());
+		ptr += sizeof(rate_entry);
 	}
-
+	if (lp->rtype() == PROBE_TYPE_LEGACY) {
+		_rtable->insert(EtherAddress(eh->ether_shost), rates);
+	} else {
+		_rtable_ht->insert(EtherAddress(eh->ether_shost), rates);
+	}
 	// links
 	int link_number = 0;
 	while (ptr < end && link_number < lp->num_links()) {
@@ -340,7 +366,7 @@ WINGLinkStat::simple_action(Packet *p) {
 			uint16_t nfo_rate = nfo->rate();
 			uint16_t nfo_fwd = nfo->fwd();
 			uint16_t nfo_rev = nfo->rev();
-			RateSize rs = RateSize(nfo_rate, nfo_size);
+			RateSize rs = RateSize(nfo_rate, nfo_size, lp->rtype());
 			/* update other link stuff */
 			rates.push_back(rs);
 			rev.push_back(nfo_rev);
@@ -363,6 +389,7 @@ WINGLinkStat::simple_action(Packet *p) {
 		_link_metric->update_link(node, neighbor, rates, fwd, rev, entry->seq(), entry->channel());
 		ptr += entry->num_rates() * sizeof(struct link_info);
 	}
+
 	_link_table->dijkstra(true);
 	_link_table->dijkstra(false);
 	p->kill();
@@ -372,9 +399,11 @@ WINGLinkStat::simple_action(Packet *p) {
 void WINGLinkStat::clear_stale()  {
 	Vector<NodeAddress> new_neighbors;
 	Timestamp now = Timestamp::now();
+	ProbeList *list;
 	for (int x = 0; x < _neighbors.size(); x++) {
 		NodeAddress node = _neighbors[x];
-		ProbeList *list = _bcast_stats.findp(node);
+		// clear legacy stats
+		list = _bcast_stats.findp(node);
 		if (!list || (unsigned) now.sec() - list->_last_rx.sec() > 2 * list->_period / 1000) {
 			if (_debug) {
 				click_chatter("%{element} :: %s :: clearing stale neighbor %s age %u", 
@@ -384,6 +413,20 @@ void WINGLinkStat::clear_stale()  {
 						now.sec() - list->_last_rx.sec());
 			}
 			_bcast_stats.remove(node);
+		} else {
+			new_neighbors.push_back(node);
+		}
+		// clear ht stats
+		list = _bcast_stats_ht.findp(node);
+		if (!list || (unsigned) now.sec() - list->_last_rx.sec() > 2 * list->_period / 1000) {
+			if (_debug) {
+				click_chatter("%{element} :: %s :: clearing stale neighbor %s age %u", 
+						this, 
+						__func__, 
+						node.unparse().c_str(),
+						now.sec() - list->_last_rx.sec());
+			}
+			_bcast_stats_ht.remove(node);
 		} else {
 			new_neighbors.push_back(node);
 		}
@@ -397,6 +440,7 @@ void WINGLinkStat::clear_stale()  {
 void WINGLinkStat::reset() {
 	_neighbors.clear();
 	_bcast_stats.clear();
+	_bcast_stats_ht.clear();
 	_sent = 0;
 	_seq = 0;
 	_start = Timestamp::now();
@@ -411,8 +455,16 @@ static int nodeaddress_sorter(const void *va, const void *vb, void *) {
 }
 
 String WINGLinkStat::print_bcast_stats() {
+	return print_stats(_bcast_stats);
+}
+
+String WINGLinkStat::print_bcast_stats_ht() {
+	return print_stats(_bcast_stats_ht);
+}
+
+String WINGLinkStat::print_stats(ProbeMap &stats) {
 	Vector<NodeAddress> addrs;
-	for (ProbeIter iter = _bcast_stats.begin(); iter.live(); iter++) {
+	for (ProbeIter iter = stats.begin(); iter.live(); iter++) {
 		addrs.push_back(iter.key());
 	}
 	Timestamp now = Timestamp::now();
@@ -420,7 +472,7 @@ String WINGLinkStat::print_bcast_stats() {
 	click_qsort(addrs.begin(), addrs.size(), sizeof(NodeAddress), nodeaddress_sorter);
 	for (int i = 0; i < addrs.size(); i++) {
 		NodeAddress node = addrs[i];
-		ProbeList *pl = _bcast_stats.findp(node);
+		ProbeList *pl = stats.findp(node);
 		sa << node.unparse().c_str();
 		EtherAddress eth_dest = _arp_table->lookup(node);
 		if (eth_dest && !eth_dest.is_broadcast()) {
@@ -462,6 +514,8 @@ String WINGLinkStat::read_handler(Element *e, void *thunk) {
 	switch ((uintptr_t) thunk) {
 	case H_BCAST_STATS:
 		return td->print_bcast_stats();
+	case H_BCAST_STATS_HT:
+		return td->print_bcast_stats_ht();
 	case H_NODE:
 		return td->_node.unparse() + "\n";
 	case H_TAU:
@@ -520,7 +574,7 @@ int WINGLinkStat::write_handler(const String &in_s, Element *e, void *vparam, Er
 			if (!cp_integer(a[x + 1], &size)) {
 				return errh->error("invalid PROBES size value\n");
 			}
-			ads_rs.push_back(RateSize(rate, size));
+			ads_rs.push_back(RateSize(rate, size, PROBE_TYPE_LEGACY));
 		}
 		if (!ads_rs.size()) {
 			return errh->error("no PROBES provided\n");
@@ -533,6 +587,7 @@ int WINGLinkStat::write_handler(const String &in_s, Element *e, void *vparam, Er
 
 void WINGLinkStat::add_handlers() {
 	add_read_handler("bcast_stats", read_handler, (void *) H_BCAST_STATS);
+	add_read_handler("bcast_stats_ht", read_handler, (void *) H_BCAST_STATS_HT);
 	add_read_handler("node", read_handler, (void *) H_NODE);
 	add_read_handler("tau", read_handler, (void *) H_TAU);
 	add_read_handler("ifname", read_handler, (void *) H_IFNAME);
