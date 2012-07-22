@@ -85,15 +85,21 @@ NB_INTERFACES=$(echo $IFNAMES | wc -w)
 
 set_mode() {
 	local mode=$(echo "$MODES" | cut -d" " -f$1)
-	if [ $mode = "11a" -o $mode = "11na" ]; then
+	if [ $mode = "11na" -o $mode = "11ng" ]; then
+		PROBES_HT="0 60 1 1500 2 1500 3 1500 4 1500 5 1500 6 1500 7 1500"
+		AVAILABLE_RATES_HT="0 1 2 3 4 5 6 7"
 		PROBES="12 60 12 1500 18 1500 24 1500 36 1500 48 1500 72 1500 96 1500 108 1500"
 		AVAILABLE_RATES="12 18 24 36 48 72 96 108"
 		TX_RATE="12"
-	elif [ $mode = "11g" -o $mode = "11bg" -o $mode = "11ng" ]; then
+	elif [ $mode = "11g" -o $mode = "11bg" -o $mode = "11a" ]; then
+		PROBES_HT=""
+		AVAILABLE_RATES_HT=""
 		PROBES="12 60 12 1500 18 1500 24 1500 36 1500 48 1500 72 1500 96 1500 108 1500"
 		AVAILABLE_RATES="12 18 24 36 48 72 96 108"
 		TX_RATE="12"
 	else
+		PROBES_HT=""
+		AVAILABLE_RATES_HT=""
 		PROBES="2 60 2 1500 4 1500 11 1500 22 1500"
 		AVAILABLE_RATES="2 4 11 22"
 		TX_RATE="2"
@@ -113,6 +119,7 @@ for i in $(seq 1 1 $NB_INTERFACES); do
 	set_mode $i
 	get_element "$HWADDRS" $i "addr"
 	echo "rates_$i :: AvailableRates(DEFAULT $AVAILABLE_RATES, $addr $AVAILABLE_RATES);"
+	echo "rates_ht_$i :: AvailableRates(DEFAULT $AVAILABLE_RATES_HT, $addr $AVAILABLE_RATES_HT);"
 	LTM="$LTM $i"
 done
 
@@ -164,9 +171,11 @@ for i in $(seq 1 1 $NB_INTERFACES); do
                                   IFID $i, 
                                   CHANNEL $channel, 
                                   RATES rates_$i,
+                                  HT_RATES rates_ht_$i,
                                   PERIOD $XR_PERIOD,
                                   TAU $XR_TAU,
                                   PROBES \"$PROBES\",
+                                  HT_PROBES \"$PROBES_HT\",
                                   METRIC metric,
                                   LT lt,
                                   ARP arp,
