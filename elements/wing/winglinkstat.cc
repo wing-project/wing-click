@@ -24,7 +24,7 @@
 CLICK_DECLS
 
 enum {
-	H_RESET, H_BCAST_STATS, H_BCAST_STATS_HT, H_NODE, H_TAU, H_PERIOD, H_PROBES, H_IFNAME
+	H_RESET, H_BCAST_STATS, H_BCAST_STATS_HT, H_NODE, H_TAU, H_PERIOD, H_PROBES, H_HT_PROBES, H_IFNAME
 };
 
 WINGLinkStat::WINGLinkStat() :
@@ -58,6 +58,7 @@ int WINGLinkStat::initialize(ErrorHandler *) {
 int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
 
 	String probes;
+	String ht_probes;
 
 	if (Args(conf, this, errh)
 		  .read_m("IFNAME", _ifname)
@@ -70,13 +71,15 @@ int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
 		  .read_m("LT", ElementCastArg("LinkTableMulti"), _link_table)
 		  .read_m("ARP", ElementCastArg("ARPTableMulti"), _arp_table)
 		  .read("PROBES", probes)
+		  .read("HT_PROBES", probes)
 		  .read("PERIOD", _period)
 		  .read("TAU", _tau)
 		  .read("DEBUG", _debug)
 		  .complete())
 		return -1;
 
-	return write_handler(probes, this, (void *) H_PROBES, errh);
+	return write_handler(probes, this, (void *) H_PROBES, errh) && 
+		write_handler(ht_probes, this, (void *) H_HT_PROBES, errh);
 
 }
 
@@ -581,6 +584,29 @@ int WINGLinkStat::write_handler(const String &in_s, Element *e, void *vparam, Er
 		}
 		f->_ads_rs = ads_rs;
 	}
+	case H_HT_PROBES: {
+		Vector<RateSize> ads_rs;
+		Vector<String> a;
+		cp_spacevec(s, a);
+		if (a.size() % 2 != 0) {
+			return errh->error("must provide even number of numbers\n");
+		}
+		for (int x = 0; x < a.size() - 1; x += 2) {
+			int rate;
+			int size;
+			if (!cp_integer(a[x], &rate)) {
+				return errh->error("invalid PROBES rate value\n");
+			}
+			if (!cp_integer(a[x + 1], &size)) {
+				return errh->error("invalid PROBES size value\n");
+			}
+			ads_rs.push_back(RateSize(rate, size, PROBE_TYPE_HT));
+		}
+		if (!ads_rs.size()) {
+			return errh->error("no PROBES provided\n");
+		}
+		f->_ads_rs = ads_rs;
+	}
 	}
 	return 0;
 }
@@ -597,6 +623,7 @@ void WINGLinkStat::add_handlers() {
 	add_write_handler("tau", write_handler, (void *) H_TAU);
 	add_write_handler("period", write_handler, (void *) H_PERIOD);
 	add_write_handler("probes", write_handler, (void *) H_PROBES);
+	add_write_handler("ht_probes", write_handler, (void *) H_HT_PROBES);
 }
 
 CLICK_ENDDECLS
