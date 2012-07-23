@@ -154,6 +154,7 @@ class ARPTableBase : public Element { public:
 	ARPEntry *_hashnext;
 	EtherAddress _eth;
 	bool _known;
+	uint8_t _num_polls_since_reply;
 	click_jiffies_t _live_at_j;
 	click_jiffies_t _polled_at_j;
 	Packet *_head;
@@ -161,6 +162,10 @@ class ARPTableBase : public Element { public:
 	List_member<ARPEntry> _age_link;
 	typedef T key_type;
 	typedef T key_const_reference;
+	ARPEntry(T ip)
+	    : _ip(ip), _hashnext(), _eth(EtherAddress::make_broadcast()),
+	      _known(false), _num_polls_since_reply(0), _head(), _tail() {
+	}
 	key_const_reference hashkey() const {
 	    return _ip;
 	}
@@ -171,9 +176,15 @@ class ARPTableBase : public Element { public:
 	bool known(click_jiffies_t now, uint32_t timeout_j) const {
 	    return _known && !expired(now, timeout_j);
 	}
-	ARPEntry(T ip)
-	    : _ip(ip), _hashnext(), _eth(EtherAddress::make_broadcast()),
-	      _known(false), _head(), _tail() {
+	bool allow_poll(click_jiffies_t now) const {
+	    click_jiffies_t thresh_j = _polled_at_j
+		+ (_num_polls_since_reply >= 10 ? CLICK_HZ * 2 : CLICK_HZ / 10);
+	    return !click_jiffies_less(now, thresh_j);
+	}
+	void mark_poll(click_jiffies_t now) {
+	    _polled_at_j = now;
+	    if (_num_polls_since_reply < 255)
+		++_num_polls_since_reply;
 	}
     };
 
@@ -213,8 +224,8 @@ ARPTableBase<T>::lookup(T ip, EtherAddress *eth, uint32_t poll_timeout_j)
 	    *eth = it->_eth;
 	    if (poll_timeout_j
 		&& !click_jiffies_less(now, it->_live_at_j + poll_timeout_j)
-		&& !click_jiffies_less(now, it->_polled_at_j + (CLICK_HZ / 10))) {
-		it->_polled_at_j = now;
+		&& it->allow_poll(now)) {
+		it->mark_poll(now);
 		r = 1;
 	    } else
 		r = 0;
@@ -470,11 +481,11 @@ ARPTableBase<T>::append_query(T ip, Packet *p)
     p->set_next(0);
 
     int r;
-    if (!click_jiffies_less(now, ae->_polled_at_j + CLICK_HZ / 10)) {
-	ae->_polled_at_j = now;
-	r = 1;
+    if (ae->allow_poll(now)) {
+        ae->mark_poll(now);
+        r = 1;
     } else
-	r = 0;
+        r = 0;
 
     _table.balance();
     _lock.release_write();
