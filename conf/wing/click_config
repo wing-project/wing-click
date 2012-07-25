@@ -119,7 +119,9 @@ for i in $(seq 1 1 $NB_INTERFACES); do
 	set_mode $i
 	get_element "$HWADDRS" $i "addr"
 	echo "rates_$i :: AvailableRates(DEFAULT $AVAILABLE_RATES, $addr $AVAILABLE_RATES);"
-	echo "rates_ht_$i :: AvailableRates(DEFAULT $AVAILABLE_RATES_HT, $addr $AVAILABLE_RATES_HT);"
+	if [ "x$AVAILABLE_RATES_HT" != "x" ]; then
+		echo "rates_ht_$i :: AvailableRates(DEFAULT $AVAILABLE_RATES_HT, $addr $AVAILABLE_RATES_HT);"
+	fi
 	LTM="$LTM $i"
 done
 
@@ -166,20 +168,35 @@ for i in $(seq 1 1 $NB_INTERFACES); do
 	get_element "$HWADDRS" $i "addr"
 	get_element "$CHANNELS" $i "channel"
 	get_element "$IFNAMES" $i "ifname"
-	echo "es_$i :: WINGLinkStat(IFNAME $ifname,
-                                  ETH $addr, 
-                                  IFID $i, 
-                                  CHANNEL $channel, 
-                                  RATES rates_$i,
-                                  HT_RATES rates_ht_$i,
-                                  PERIOD $XR_PERIOD,
-                                  TAU $XR_TAU,
-                                  PROBES \"$PROBES\",
-                                  HT_PROBES \"$PROBES_HT\",
-                                  METRIC metric,
-                                  LT lt,
-                                  ARP arp,
-                                  DEBUG \$debug);"
+	if [ "x$PROBES_HT" != "x" ]; then
+		echo "es_$i :: WINGLinkStat(IFNAME $ifname,
+		                          ETH $addr, 
+		                          IFID $i, 
+		                          CHANNEL $channel, 
+		                          RATES rates_$i,
+		                          PROBES \"$PROBES\",
+		                          PERIOD $XR_PERIOD,
+		                          TAU $XR_TAU,
+		                          HT_RATES rates_ht_$i,
+		                          HT_PROBES \"$PROBES_HT\",
+		                          METRIC metric,
+		                          LT lt,
+		                          ARP arp,
+		                          DEBUG \$debug);"
+	else
+		echo "es_$i :: WINGLinkStat(IFNAME $ifname,
+		                          ETH $addr, 
+		                          IFID $i, 
+		                          CHANNEL $channel, 
+		                          RATES rates_$i,
+		                          PROBES \"$PROBES\",
+		                          PERIOD $XR_PERIOD,
+		                          TAU $XR_TAU,
+		                          METRIC metric,
+		                          LT lt,
+		                          ARP arp,
+		                          DEBUG \$debug);"
+	fi
 	echo "ps[$((i-1))] -> es_$i -> output;"
 done
 echo "}

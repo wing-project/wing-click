@@ -66,11 +66,11 @@ int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
 		  .read_m("IFID", _ifid)
 		  .read_m("CHANNEL", _channel)
 		  .read_m("RATES", ElementCastArg("AvailableRates"), _rtable)
-		  .read_m("HT_RATES", ElementCastArg("AvailableRates"), _rtable_ht)
+		  .read_m("PROBES", probes)
 		  .read_m("METRIC", ElementCastArg("WINGLinkMetric"), _link_metric)
 		  .read_m("LT", ElementCastArg("LinkTableMulti"), _link_table)
 		  .read_m("ARP", ElementCastArg("ARPTableMulti"), _arp_table)
-		  .read("PROBES", probes)
+		  .read("HT_RATES", ElementCastArg("AvailableRates"), _rtable_ht)
 		  .read("HT_PROBES", ht_probes)
 		  .read("PERIOD", _period)
 		  .read("TAU", _tau)
@@ -81,10 +81,6 @@ int WINGLinkStat::configure(Vector<String> &conf, ErrorHandler *errh) {
 	write_handler(probes, this, (void *) H_PROBES, errh);
 	write_handler(ht_probes, this, (void *) H_HT_PROBES, errh);
 
-	if (!_ads_rs.size()) {
-		return errh->error("probes array is empty\n");
-	}
-	
 	return 0;
 
 }
