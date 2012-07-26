@@ -56,21 +56,7 @@ case "$1" in
 
 	echo "Starting $NAME"
 
-	if which wlanconfig > /dev/null 2>&1; then
-		PHY="wifi0"
-		WLANCONFIG=$(which wlanconfig)
-		[ ! -f "$WLANCONFIG" ] && {
-			echo "Couldn't find wlanconfig";
-			exit 1;	
-		}
-		$WLANCONFIG $DEV destroy 2> /dev/null
-		$WLANCONFIG $DEV create wlandev $PHY wlanmode monitor > /dev/null 2>&1 || {
-			echo "Couldn't create monitor device on $PHY";
-			exit 1;	
-		}
-		echo '803' >  /proc/sys/net/$DEV/dev_type
-		/sbin/iwpriv $DEV mode $MODE
-	elif which iw > /dev/null 2>&1; then
+	if which iw > /dev/null 2>&1; then
 		PHY="phy0"
 		IW=$(which iw)
 		[ ! -f "$IW" ] && {
@@ -94,7 +80,7 @@ case "$1" in
 	/sbin/modprobe tun > /dev/null 2>&1
 
 	# extract the bottom three octects to use as IP
-	MAC=$(/sbin/ifconfig $DEV 2>&1 | sed -n 's/^.*HWaddr \([0-9A-Za-z\-]*\).*/\1/p' | sed -e 's/\-/:/g' | cut -c1-17)
+	MAC=$(/sbin/ifconfig $DEV 2>&1 | sed -n 's/^.*unspec \([0-9A-Za-z\-]*\).*/\1/p' | sed -e 's/\-/:/g' | cut -c1-17)
 	HI=$(echo $MAC | sed -n 's/.*:.*:.*:\([0-9A-Za-z:]*\):.*:.*.*/\1/p')
 	MID=$(echo $MAC | sed -n 's/.*:.*:.*:.*:\([0-9A-Za-z:]*\):.*.*/\1/p')
 	LOW=$(echo $MAC | sed -n 's/.*:.*:.*:.*:.*:\([0-9A-Za-z:]*\).*/\1/p')
@@ -126,17 +112,11 @@ case "$1" in
 	pidof $DAEMON > $PID_FILE
 
 	;;
+
   stop)
 	echo "Stopping $NAME"
 
-	if which wlanconfig > /dev/null 2>&1; then
-		WLANCONFIG=$(which wlanconfig)
-		[ ! -f "$WLANCONFIG" ] && {
-			echo "Couldn't find wlanconfig";
-			exit 1;	
-		}
-		$WLANCONFIG $DEV destroy > /dev/null 2>&1
-	elif which iw > /dev/null 2>&1; then
+	if which iw > /dev/null 2>&1; then
 		IW=$(which iw)
 		[ ! -f "$IW" ] && {
 			echo "Couldn't find iw";
@@ -153,15 +133,18 @@ case "$1" in
 	[ -f $CLICK_FILE ] && rm $CLICK_FILE
 	[ -f $LOG_FILE ] && rm $LOG_FILE
 	;;
+
   restart|force-reload)
 	$0 stop
 	sleep 1
 	$0 start
 	;;
+
   *)
 	echo "Usage: $NAME {start|stop|restart}" >&2
 	exit 1
 	;;
+
 esac
 
 exit 0
