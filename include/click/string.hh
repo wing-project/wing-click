@@ -99,7 +99,7 @@ class String { public:
     String trim_space() const;
 
     inline bool equals(const String &x) const;
-    bool equals(const char *s, int len) const;
+    inline bool equals(const char *s, int len) const;
     static inline int compare(const String &a, const String &b);
     inline int compare(const String &x) const;
     int compare(const char *s, int len) const;
@@ -151,12 +151,6 @@ class String { public:
     // String operator+(String, const String &);
     // String operator+(String, const char *);
     // String operator+(const char *, const String &);
-    // String operator+(String, PermString);
-    // String operator+(PermString, const String &);
-    // String operator+(PermString, const char *);
-    // String operator+(const char *, PermString);
-    // String operator+(PermString, PermString);
-    // String operator+(String, char);
 
     inline String compact() const;
 
@@ -273,11 +267,14 @@ class String { public:
     void assign(const char *s, int len, bool need_deref);
     void assign_out_of_memory();
     void append(const char *s, int len, memo_t *memo);
+    static String hard_make_stable(const char *s, int len);
     static inline memo_t *absent_memo() {
 	return reinterpret_cast<memo_t *>(uintptr_t(1));
     }
     static memo_t *create_memo(char *space, int dirty, int capacity);
     static void delete_memo(memo_t *memo);
+    const char *hard_c_str() const;
+    bool hard_equals(const char *s, int len) const;
 
     static const char null_data;
     static const char oom_data[15];
@@ -326,7 +323,7 @@ inline String::String(const String &x) {
 }
 
 #if HAVE_CXX_RVALUE_REFERENCES
-/** @overload */
+/** @brief Move-construct a String from @a x. */
 inline String::String(String &&x)
     : _r(x._r) {
     x._r.memo = 0;
@@ -338,7 +335,10 @@ inline String::String(String &&x)
     @return A String containing the characters of @a cstr, up to but not
     including the terminating null character. */
 inline String::String(const char *cstr) {
-    assign(cstr, -1, false);
+    if (__builtin_constant_p(strlen(cstr)))
+	assign(cstr, strlen(cstr), false);
+    else
+	assign(cstr, -1, false);
 }
 
 /** @brief Construct a String containing the first @a len characters of
@@ -423,7 +423,10 @@ inline String String::make_garbage(int len) {
     @warning The String implementation may access @a cstr's terminating null
     character. */
 inline String String::make_stable(const char *cstr) {
-    return String(cstr, (cstr ? strlen(cstr) : 0), 0);
+    if (__builtin_constant_p(strlen(cstr)))
+	return String(cstr, strlen(cstr), 0);
+    else
+	return hard_make_stable(cstr, -1);
 }
 
 /** @brief Return a String that directly references the first @a len
@@ -434,9 +437,10 @@ inline String String::make_stable(const char *cstr) {
     @warning The String implementation may access @a s[@a len], which
     should remain constant even though it's not part of the String. */
 inline String String::make_stable(const char *s, int len) {
-    if (len < 0)
-	len = (s ? strlen(s) : 0);
-    return String(s, len, 0);
+    if (__builtin_constant_p(len) && len >= 0)
+	return String(s, len, 0);
+    else
+	return hard_make_stable(s, len);
 }
 
 /** @brief Return a String that directly references the character data in
@@ -475,6 +479,10 @@ inline int String::length() const {
     pointer.  The returned pointer is semi-temporary; it will persist until
     the string is destroyed or appended to. */
 inline const char *String::c_str() const {
+    // See also hard_c_str().
+#if CLICK_OPTIMIZE_SIZE || __OPTIMIZE_SIZE__
+    return hard_c_str();
+#else
     // We may already have a '\0' in the right place.  If _memo has no
     // capacity, then this is one of the special strings (null or
     // stable). We are guaranteed, in these strings, that _data[_length]
@@ -488,6 +496,7 @@ inline const char *String::c_str() const {
 	}
     }
     return _r.data;
+#endif
 }
 
 /** @brief Return a substring of the current string starting at @a first
@@ -605,6 +614,25 @@ inline bool String::equals(const String &x) const {
     return equals(x.data(), x.length());
 }
 
+/** @brief Test if this string is equal to the data in @a s.
+    @param s string data to compare to
+    @param len length of @a s
+
+    Same as String::compare(*this, String(s, len)) == 0. If @a len @< 0,
+    then treats @a s as a null-terminated C string.
+
+    @sa String::compare(const String &a, const String &b) */
+inline bool String::equals(const char *s, int len) const {
+#if CLICK_OPTIMIZE_SIZE || __OPTIMIZE_SIZE__
+    return hard_equals(s, len);
+#else
+    if (__builtin_constant_p(len) && len >= 0)
+	return length() == len && memcmp(data(), s, len) == 0;
+    else
+	return hard_equals(s, len);
+#endif
+}
+
 /** @brief Compare two strings.
     @param a first string to compare
     @param b second string to compare
@@ -641,7 +669,7 @@ inline String &String::operator=(const String &x) {
 }
 
 #if HAVE_CXX_RVALUE_REFERENCES
-/** @overload */
+/** @brief Move-assign this string to @a x. */
 inline String &String::operator=(String &&x) {
     swap(x);
     return *this;
@@ -650,7 +678,10 @@ inline String &String::operator=(String &&x) {
 
 /** @brief Assign this string to the C string @a cstr. */
 inline String &String::operator=(const char *cstr) {
-    assign(cstr, strlen(cstr), true);
+    if (__builtin_constant_p(strlen(cstr)))
+	assign(cstr, strlen(cstr), true);
+    else
+	assign(cstr, -1, true);
     return *this;
 }
 
@@ -669,7 +700,10 @@ inline void String::append(const String &x) {
 /** @brief Append the null-terminated C string @a cstr to this string.
     @param cstr data to append */
 inline void String::append(const char *cstr) {
-    append(cstr, strlen(cstr), absent_memo());
+    if (__builtin_constant_p(strlen(cstr)))
+	append(cstr, strlen(cstr), absent_memo());
+    else
+	append(cstr, -1, absent_memo());
 }
 
 /** @brief Append the first @a len characters of @a s to this string.
@@ -822,12 +856,18 @@ inline bool operator==(const String &a, const String &b) {
 
 /** @relates String */
 inline bool operator==(const char *a, const String &b) {
-    return b.equals(a, strlen(a));
+    if (__builtin_constant_p(strlen(a)))
+	return b.equals(a, strlen(a));
+    else
+	return b.equals(a, -1);
 }
 
 /** @relates String */
 inline bool operator==(const String &a, const char *b) {
-    return a.equals(b, strlen(b));
+    if (__builtin_constant_p(strlen(b)))
+	return a.equals(b, strlen(b));
+    else
+	return a.equals(b, -1);
 }
 
 /** @relates String
@@ -836,17 +876,17 @@ inline bool operator==(const String &a, const char *b) {
     Returns true iff !(@a a == @a b).  At most one of the operands can be a
     null-terminated C string. */
 inline bool operator!=(const String &a, const String &b) {
-    return !a.equals(b.data(), b.length());
+    return !(a == b);
 }
 
 /** @relates String */
 inline bool operator!=(const char *a, const String &b) {
-    return !b.equals(a, strlen(a));
+    return !(a == b);
 }
 
 /** @relates String */
 inline bool operator!=(const String &a, const char *b) {
-    return !a.equals(b, strlen(b));
+    return !(a == b);
 }
 
 /** @relates String

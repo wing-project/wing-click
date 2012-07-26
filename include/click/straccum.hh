@@ -126,6 +126,7 @@ class StringAccum { public:
     char *grow(int);
     char *hard_extend(int nadjust, int nreserve);
     void hard_append(const char *s, int len);
+    void hard_append_cstr(const char *cstr);
     bool append_utf8_hard(int ch);
 
     friend StringAccum &operator<<(StringAccum &sa, const String &str);
@@ -194,6 +195,7 @@ inline StringAccum::StringAccum(const StringAccum &x) {
 }
 
 #if HAVE_CXX_RVALUE_REFERENCES
+/** @brief Move-construct a StringAccum from @a x. */
 inline StringAccum::StringAccum(StringAccum &&x)
     : r_(x.r_) {
     x.r_.cap = 0;
@@ -385,6 +387,9 @@ inline void StringAccum::adjust_length(int delta) {
     and adjust_length(@a nadjust). Returns the result of the reserve()
     call. */
 inline char *StringAccum::extend(int nadjust, int nreserve) {
+#if CLICK_OPTIMIZE_SIZE || __OPTIMIZE_SIZE__
+    return hard_extend(nadjust, nreserve);
+#else
     assert(nadjust >= 0 && nreserve >= 0);
     if (r_.len + nadjust + nreserve <= r_.cap) {
 	char *x = reinterpret_cast<char *>(r_.s + r_.len);
@@ -392,6 +397,7 @@ inline char *StringAccum::extend(int nadjust, int nreserve) {
 	return x;
     } else
 	return hard_extend(nadjust, nreserve);
+#endif
 }
 
 /** @brief Remove characters from the end of the StringAccum.
@@ -421,23 +427,30 @@ inline void StringAccum::append(unsigned char c) {
     @param len length of data
     @pre @a len >= 0 */
 inline void StringAccum::append(const char *s, int len) {
+#if CLICK_OPTIMIZE_SIZE || __OPTIMIZE_SIZE__
+    hard_append(s, len);
+#else
     assert(len >= 0);
     if (r_.len + len <= r_.cap) {
 	memcpy(r_.s + r_.len, s, len);
 	r_.len += len;
     } else
 	hard_append(s, len);
-}
-
-/** @brief Append the null-terminated C string @a s to this StringAccum.
-    @param s data to append */
-inline void StringAccum::append(const char *cstr) {
-    append(cstr, strlen(cstr));
+#endif
 }
 
 /** @overload */
 inline void StringAccum::append(const unsigned char *s, int len) {
     append(reinterpret_cast<const char *>(s), len);
+}
+
+/** @brief Append the null-terminated C string @a s to this StringAccum.
+    @param s data to append */
+inline void StringAccum::append(const char *cstr) {
+    if (__builtin_constant_p(strlen(cstr)))
+	append(cstr, strlen(cstr));
+    else
+	hard_append_cstr(cstr);
 }
 
 /** @brief Append the data from @a first to @a last to the end of this
@@ -454,15 +467,6 @@ inline void StringAccum::append(const unsigned char *first, const unsigned char 
     if (first < last)
 	append(first, last - first);
 }
-
-/** @brief Append string representation of @a x to this StringAccum.
-    @param x number to append
-    @param base numeric base: must be 8, 10, or 16
-    @param uppercase true means use uppercase letters in base 16 */
-void append_numeric(String::int_large_t x, int base = 10, bool uppercase = true);
-
-/** @overload */
-void append_numeric(String::uint_large_t x, int base = 10, bool uppercase = true);
 
 /** @brief Append Unicode character @a ch encoded in UTF-8.
     @return true if character was valid.
@@ -490,6 +494,7 @@ inline StringAccum &StringAccum::operator=(const StringAccum &x) {
 }
 
 #if HAVE_CXX_RVALUE_REFERENCES
+/** @brief Move-assign this StringAccum to @a x. */
 inline StringAccum &StringAccum::operator=(StringAccum &&x) {
     x.swap(*this);
     return *this;

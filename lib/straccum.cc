@@ -114,7 +114,11 @@ StringAccum::resize(int len)
 char *
 StringAccum::hard_extend(int nadjust, int nreserve)
 {
-    char *x = grow(r_.len + nadjust + nreserve);
+    char *x;
+    if (r_.len + nadjust + nreserve <= r_.cap)
+	x = reinterpret_cast<char *>(r_.s + r_.len);
+    else
+	x = grow(r_.len + nadjust + nreserve);
     if (x)
 	r_.len += nadjust;
     return x;
@@ -165,6 +169,12 @@ StringAccum::hard_append(const char *s, int len)
 	}
 	CLICK_LFREE(old_r.s - MEMO_SPACE, old_r.cap + MEMO_SPACE);
     }
+}
+
+void
+StringAccum::hard_append_cstr(const char *cstr)
+{
+    append(cstr, strlen(cstr));
 }
 
 bool
@@ -349,6 +359,7 @@ operator<<(StringAccum &sa, void *ptr)
 /** @brief Append result of snprintf() to this StringAccum.
     @param n maximum number of characters to print
     @param format format argument to snprintf()
+    @return *this
 
     The terminating null character is not appended to the string.
 
