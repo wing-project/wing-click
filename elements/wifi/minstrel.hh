@@ -83,7 +83,7 @@ private:
 			max_prob_rate = 0;
 		}
 		int get_next_sample() {
-			return click_random(1, rates.size() - 1);
+			return click_random(0, rates.size() - 1);
 		}
 		int rate_index(int rate) {
 			int ndx = 0;
