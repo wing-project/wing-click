@@ -31,10 +31,10 @@ public:
 class ProbeList {
 public:
 	ProbeList() :
-		_period(0), _tau(0) {
+		_period(0), _tau(0), _last_rx(0) {
 	}
 	ProbeList(const NodeAddress &node, uint32_t period, uint32_t tau) :
-		_node(node), _period(period), _tau(tau), _sent(0) {
+		_node(node), _period(period), _tau(tau), _sent(0), _last_rx(0) {
 	}
 
 	NodeAddress _node;

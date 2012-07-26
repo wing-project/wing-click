@@ -157,7 +157,9 @@ void WINGLinkStat::send_probe() {
 
 	// links_entry
 	int num_entries = 0;
-	while (ptr < end && num_entries < _neighbors.size()) {
+	// neighbors counter
+	int num_neighbors = 0;
+	while (ptr < end && num_entries < _neighbors.size() && num_neighbors < _neighbors.size()) {
 		ProbeList *probe;
 		if (rtype == PROBE_TYPE_HT) {
 			_neighbors_index_ht = (_neighbors_index_ht + 1) % _neighbors.size();
@@ -173,17 +175,20 @@ void WINGLinkStat::send_probe() {
 			probe = _bcast_stats.findp(_neighbors[_neighbors_index]);
 		}
 		if (!probe) {
-			click_chatter("%{element} :: %s :: lookup for %s, %d failed", 
-					this,
-					__func__, 
-					_neighbors[_neighbors_index].unparse().c_str(),
-					_neighbors_index);
+			if (_debug) {
+				click_chatter("%{element} :: %s :: lookup for %s failed", 
+						this,
+						__func__, 
+						_neighbors[_neighbors_index].unparse().c_str());	
+			}
+			num_neighbors++;
 			continue;
 		}
 		int size = probe->_probe_types.size() * sizeof(link_info) + sizeof(link_entry);
 		if (ptr + size > end) {
 			break;
 		}
+		num_neighbors++;
 		num_entries++;
 		link_entry *entry = (struct link_entry *) (ptr);
 		entry->set_node(probe->_node);
@@ -407,9 +412,10 @@ void WINGLinkStat::clear_stale()  {
 	ProbeList *list;
 	for (int x = 0; x < _neighbors.size(); x++) {
 		NodeAddress node = _neighbors[x];
+		bool remove = false;
 		// clear legacy stats
 		list = _bcast_stats.findp(node);
-		if (!list || (unsigned) now.sec() - list->_last_rx.sec() > 2 * list->_period / 1000) {
+		if (list && (unsigned) now.sec() - list->_last_rx.sec() > 2 * list->_period / 1000) {
 			if (_debug) {
 				click_chatter("%{element} :: %s :: clearing stale neighbor %s age %u", 
 						this, 
@@ -418,12 +424,11 @@ void WINGLinkStat::clear_stale()  {
 						now.sec() - list->_last_rx.sec());
 			}
 			_bcast_stats.remove(node);
-		} else {
-			new_neighbors.push_back(node);
+			remove = true;
 		}
 		// clear ht stats
 		list = _bcast_stats_ht.findp(node);
-		if (!list || (unsigned) now.sec() - list->_last_rx.sec() > 2 * list->_period / 1000) {
+		if (list && (unsigned) now.sec() - list->_last_rx.sec() > 2 * list->_period / 1000) {
 			if (_debug) {
 				click_chatter("%{element} :: %s :: clearing stale neighbor %s age %u", 
 						this, 
@@ -432,7 +437,10 @@ void WINGLinkStat::clear_stale()  {
 						now.sec() - list->_last_rx.sec());
 			}
 			_bcast_stats_ht.remove(node);
-		} else {
+			remove = true;
+		} 
+		// keep the nighbor
+		if (!remove) {
 			new_neighbors.push_back(node);
 		}
 	}
