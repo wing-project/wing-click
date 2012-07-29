@@ -241,13 +241,6 @@ WINGLinkStat::simple_action(Packet *p) {
 		p->kill();
 		return 0;
 	}
-	if (lp->rtype() == PROBE_TYPE_HT) {
-		click_chatter("%{element} :: %s :: ht probes packet are not supported", 
-				this,
-				__func__);
-		p->kill();
-		return 0;
-	}
 	NodeAddress node = lp->node();
 	if (node == _node) {
 		click_chatter("%{element} :: %s :: got own packet %s", 
@@ -259,18 +252,24 @@ WINGLinkStat::simple_action(Packet *p) {
 	}
 	_arp_table->insert(node, EtherAddress(eh->ether_shost));
 	struct click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p);
-	if (ceh->rate != lp->rate()) {
+	int rate;
+	if (lp->rtype() == PROBE_TYPE_HT) {
+		rate = ceh->mcs;
+	} else {
+		rate = ceh->rate;
+	}
+	if (rate != lp->rate()) {
 		click_chatter("%{element} :: %s :: packet comping from %s says rate %d is %d", 
 				this,
 				__func__, 
 				lp->node().unparse().c_str(), 
 				lp->rate(), 
-				ceh->rate);
+				rate);
 		p->kill();
 		return 0;
 	}
 	if (ceh->channel != lp->channel()) {
-		click_chatter("%{element} :: %s :: packet comping from %s says channel %d is %d", 
+		click_chatter("%{element} :: %s :: packet coming from %s says channel %d is %d", 
 				this,
 				__func__, 
 				lp->node().unparse().c_str(), 
@@ -281,9 +280,18 @@ WINGLinkStat::simple_action(Packet *p) {
 	}
 	uint32_t period = lp->period();
 	uint32_t tau = lp->tau();
-	ProbeList *probe_list = _bcast_stats.findp(node);
+	ProbeList *probe_list;
+	if (lp->rtype() == PROBE_TYPE_HT) {
+		probe_list = _bcast_stats_ht.findp(node);
+	} else {
+		probe_list = _bcast_stats.findp(node);
+	}
 	if (!probe_list) {
-		_bcast_stats.insert(node, ProbeList(node, period, tau));
+		if (lp->rtype() == PROBE_TYPE_HT) {
+			_bcast_stats_ht.insert(node, ProbeList(node, period, tau));
+		} else {
+			_bcast_stats.insert(node, ProbeList(node, period, tau));
+		}
 		_neighbors.push_back(node);
 		probe_list = _bcast_stats.findp(node);
 		probe_list->_sent = 0;
@@ -318,7 +326,7 @@ WINGLinkStat::simple_action(Packet *p) {
 	}
 
 	Timestamp now = Timestamp::now();
-	RateSize rs = RateSize(ceh->rate, lp->size(), lp->rtype());
+	RateSize rs = RateSize(rate, lp->size(), lp->rtype());
 	probe_list->_channel= lp->channel();
 	probe_list->_period = lp->period();
 	probe_list->_tau = lp->tau();
@@ -355,11 +363,13 @@ WINGLinkStat::simple_action(Packet *p) {
 		rates.push_back(r_entry->rate());
 		ptr += sizeof(rate_entry);
 	}
-	if (lp->rtype() == PROBE_TYPE_LEGACY) {
-		_rtable->insert(EtherAddress(eh->ether_shost), rates);
-	} else {
+
+	if (lp->rtype() == PROBE_TYPE_HT) {
 		_rtable_ht->insert(EtherAddress(eh->ether_shost), rates);
+	} else {
+		_rtable->insert(EtherAddress(eh->ether_shost), rates);
 	}
+
 	// links
 	int link_number = 0;
 	while (ptr < end && link_number < lp->num_links()) {
