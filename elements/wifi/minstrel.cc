@@ -195,7 +195,7 @@ void Minstrel::assign_rate(Packet *p_in)
 		nfo = _neighbors.findp(dst);
 	}
 
-	int ndx, sample_ndx = 0;
+	int ndx;
 	bool sample = false;
 	int delta;
 
@@ -209,15 +209,17 @@ void Minstrel::assign_rate(Packet *p_in)
 			nfo->sample_count = 0;
 			nfo->packet_count = 0;
 		} 
-		sample_ndx = nfo->get_next_sample();
-		if (nfo->sample_limit[sample_ndx] != 0) {
-			sample = true;
-			ndx = sample_ndx;
-			nfo->sample_count++;
-			if (nfo->sample_limit[sample_ndx] > 0) {
-				nfo->sample_limit[sample_ndx]--;
-			}
-		} 
+		if (nfo->rates.size() > 0) {
+			int sample_ndx = click_random(0, nfo->rates.size() - 1);
+			if (nfo->sample_limit[sample_ndx] != 0) {
+				sample = true;
+				ndx = sample_ndx;
+				nfo->sample_count++;
+				if (nfo->sample_limit[sample_ndx] > 0) {
+					nfo->sample_limit[sample_ndx]--;
+				}
+			} 
+		}
 	}
 	/* If the sampling rate already has a probability 
 	 * of >95%, we shouldn't be attempting to use it, 

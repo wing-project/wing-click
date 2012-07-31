@@ -82,9 +82,6 @@ private:
 			max_tp_rate2 = 0;
 			max_prob_rate = 0;
 		}
-		int get_next_sample() {
-			return click_random(0, rates.size() - 1);
-		}
 		int rate_index(int rate) {
 			int ndx = 0;
 			for (int x = 0; x < rates.size(); x++) {
