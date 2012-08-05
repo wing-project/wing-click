@@ -191,7 +191,17 @@ void Minstrel::assign_rate(Packet *p_in)
 					__func__,
 					dst.unparse().c_str());
 		}
-		_neighbors.insert(dst, DstInfo(dst, _rtable->lookup(dst)));
+		Vector<int> rates = _rtable->lookup(dst);
+		if (rates.size() == 0) {
+			Vector<int> rates = _rtable->lookup(EtherAddress::make_broadcast());
+			if (rates.size()) {
+				ceh->rate = rates[0];
+			} else {
+				ceh->rate = 2;
+			}
+			return;
+		}
+		_neighbors.insert(dst, DstInfo(dst, rates));
 		nfo = _neighbors.findp(dst);
 	}
 
