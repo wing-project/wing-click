@@ -259,7 +259,7 @@ WINGLinkStat::simple_action(Packet *p) {
 		rate = ceh->rate;
 	}
 	if (rate != lp->rate()) {
-		click_chatter("%{element} :: %s :: packet comping from %s says rate %d is %d", 
+		click_chatter("%{element} :: %s :: packet coming from %s says rate %d is %d", 
 				this,
 				__func__, 
 				lp->node().unparse().c_str(), 
@@ -289,11 +289,12 @@ WINGLinkStat::simple_action(Packet *p) {
 	if (!probe_list) {
 		if (lp->rtype() == PROBE_TYPE_HT) {
 			_bcast_stats_ht.insert(node, ProbeList(node, period, tau));
+			probe_list = _bcast_stats_ht.findp(node);
 		} else {
 			_bcast_stats.insert(node, ProbeList(node, period, tau));
+			probe_list = _bcast_stats.findp(node);
 		}
 		_neighbors.push_back(node);
-		probe_list = _bcast_stats.findp(node);
 		probe_list->_sent = 0;
 	} else if (probe_list->_period != period) {
 		if (_debug) {
@@ -413,6 +414,7 @@ WINGLinkStat::simple_action(Packet *p) {
 	_link_table->dijkstra(true);
 	_link_table->dijkstra(false);
 	p->kill();
+
 	return 0;
 }
 
@@ -478,14 +480,14 @@ static int nodeaddress_sorter(const void *va, const void *vb, void *) {
 }
 
 String WINGLinkStat::print_bcast_stats() {
-	return print_stats(_bcast_stats);
+	return print_stats(_bcast_stats, PROBE_TYPE_LEGACY);
 }
 
 String WINGLinkStat::print_bcast_stats_ht() {
-	return print_stats(_bcast_stats_ht);
+	return print_stats(_bcast_stats_ht, PROBE_TYPE_HT);
 }
 
-String WINGLinkStat::print_stats(ProbeMap &stats) {
+String WINGLinkStat::print_stats(ProbeMap &stats, int type) {
 	Vector<NodeAddress> addrs;
 	for (ProbeIter iter = stats.begin(); iter.live(); iter++) {
 		addrs.push_back(iter.key());
@@ -510,6 +512,10 @@ String WINGLinkStat::print_stats(ProbeMap &stats) {
 		sa << " last_rx " << now - pl->_last_rx;
 		sa << "\n";
 		for (int x = 0; x < _ads_rs.size(); x++) {
+			int rtype = _ads_rs[x]._rtype;
+			if (rtype != type) {
+				continue;
+			}
 			int rate = _ads_rs[x]._rate;
 			int size = _ads_rs[x]._size;
 			int rev = pl->rev_rate(_start, rate, size);

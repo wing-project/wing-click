@@ -201,7 +201,7 @@ private:
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);
-	String print_stats(ProbeMap &);
+	String print_stats(ProbeMap &, int);
 
 };
 
