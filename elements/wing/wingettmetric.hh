@@ -13,7 +13,7 @@ CLICK_DECLS
  */
 
 // MCS data rates (kbps)
-static const uint16_t mcs_rate_lookup[8] =
+static const uint32_t mcs_rate_lookup[8] =
 {
 7200, 14400, 21700, 28900, 43300, 57800, 65000, 72200
 };
