@@ -51,7 +51,6 @@ class AvailableRates : public Element { public:
   Vector<int> lookup(EtherAddress eth);
   int insert(EtherAddress eth, Vector<int>);
 
-  EtherAddress _bcast;
   bool _debug;
 
   int parse_and_insert(String s, ErrorHandler *errh);

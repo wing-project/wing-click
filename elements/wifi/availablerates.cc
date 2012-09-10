@@ -26,11 +26,6 @@ CLICK_DECLS
 
 AvailableRates::AvailableRates()
 {
-
-  /* bleh */
-  static unsigned char bcast_addr[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-  _bcast = EtherAddress(bcast_addr);
-
 }
 
 AvailableRates::~AvailableRates()
