@@ -29,7 +29,7 @@
 CLICK_DECLS
 
 Minstrel::Minstrel() 
-  : _rtable(0), _timer(this), _lookaround_rate(20), _offset(0), 
+  : _rtable(0), _timer(this), _rtable_ht(0), _lookaround_rate(20), _offset(0), 
 _active(true), _period(500), _ewma_level(75), _debug(false) {
 }
 
@@ -196,9 +196,19 @@ void Minstrel::assign_rate(Packet *p_in)
 					__func__,
 					dst.unparse().c_str());
 		}
+
 		Vector<int> rates = _rtable->lookup(dst);
-		Vector<int> rates_ht = _rtable_ht->lookup(dst);
+		Vector<int> rates_ht;
+		if (_rtable_ht) {
+			rates_ht = _rtable_ht->lookup(dst);
+		}
 		if ((rates.size() == 0) && (rates_ht.size() == 0)) {
+			if (_debug) {
+				click_chatter("%{element} :: %s :: rate info not found for %s",
+						this, 
+						__func__,
+						dst.unparse().c_str());
+			}
 			Vector<int> rates = _rtable->lookup(EtherAddress::make_broadcast());
 			ceh->rate = (rates.size()) ? rates[0] : ceh->rate = 2;
 			return;
