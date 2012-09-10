@@ -1,6 +1,6 @@
 /*
  * minstrel.{cc,hh} -- sets wifi txrate annotation on a packet
- * Roberto
+ * Roberto Riggio
  *
  * Copyright (c) 2010 CREATE-NET
  *
@@ -114,6 +114,7 @@ int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 	int ret = Args(conf, this, errh)
 		      .read("OFFSET", _offset)
 		      .read_m("RT", ElementCastArg("AvailableRates"), _rtable)
+                      .read("HT_RATES", ElementCastArg("AvailableRates"), _rtable_ht)
 		      .read("LOOKAROUND_RATE", _lookaround_rate)
 		      .read("EWMA_LEVEL", _ewma_level)
 		      .read("PERIOD", _period)
@@ -138,7 +139,15 @@ void Minstrel::process_feedback(Packet *p_in) {
 		return;
 	}
 	/* rate wasn't set */
-	if (ceh->rate == 0) {
+	int rate = 0;
+	int type = 0;
+	if (ceh->rate != 0) {
+		rate = ceh->rate;
+		type = RATE_TYPE_LEGACY;
+	} else if (ceh->mcs != 0) {
+		rate = ceh->mcs;
+		type = RATE_TYPE_HT;
+	} else {
 		return;
 	}
 	DstInfo *nfo = _neighbors.findp(dst);
@@ -151,7 +160,7 @@ void Minstrel::process_feedback(Packet *p_in) {
 		}
 		return;
 	}
-	nfo->add_result(ceh->rate, ceh->retries + 1, success);
+	nfo->add_result(rate, type, ceh->retries + 1, success);
 	return;
 }
 
@@ -175,11 +184,7 @@ void Minstrel::assign_rate(Packet *p_in)
 
 	if (dst.is_group() || !dst) {
 		Vector<int> rates = _rtable->lookup(EtherAddress::make_broadcast());
-		if (rates.size()) {
-			ceh->rate = rates[0];
-		} else {
-			ceh->rate = 2;
-		}
+		ceh->rate = (rates.size()) ? rates[0] : ceh->rate = 2;
 		return;
 	}
 
@@ -192,16 +197,13 @@ void Minstrel::assign_rate(Packet *p_in)
 					dst.unparse().c_str());
 		}
 		Vector<int> rates = _rtable->lookup(dst);
-		if (rates.size() == 0) {
+		Vector<int> rates_ht = _rtable_ht->lookup(dst);
+		if ((rates.size() == 0) && (rates_ht.size() == 0)) {
 			Vector<int> rates = _rtable->lookup(EtherAddress::make_broadcast());
-			if (rates.size()) {
-				ceh->rate = rates[0];
-			} else {
-				ceh->rate = 2;
-			}
+			ceh->rate = (rates.size()) ? rates[0] : ceh->rate = 2;
 			return;
 		}
-		_neighbors.insert(dst, DstInfo(dst, rates));
+		_neighbors.insert(dst, DstInfo(dst, rates, rates_ht));
 		nfo = _neighbors.findp(dst);
 	}
 
@@ -301,8 +303,9 @@ String Minstrel::print_rates()
 			tp = nfo->cur_tp[i] / ((18000 << 10) / 96);
 			prob = nfo->cur_prob[i] / 18;
 			eprob = nfo->probability[i] / 18;
-			sprintf(buffer, "%2d%s    %2u.%1u    %3u.%1u    %3u.%1u    %3u(%3u)    %8llu    %8llu\n",
+			sprintf(buffer, "%2d%s %s   %2u.%1u    %3u.%1u    %3u.%1u    %3u(%3u)    %8llu    %8llu\n",
 					nfo->rates[i] / 2, nfo->rates[i] & 1 ? ".5" : "  ",
+					nfo->types[i] == RATE_TYPE_HT ? "(HT)" : " ",
 					tp / 10, tp % 10,
 					eprob / 10, eprob % 10,
 					prob / 10, prob % 10,
