@@ -108,13 +108,13 @@ void WINGETTMetric::update_link(NodeAddress from, NodeAddress to, Vector<RateSiz
 				ack_rev = mcs1_ack_rev;
 			}
 
-			int metric = compute_metric(ack_rev, fwd[x], rs[x]._rate, rs[x]._rtype);
+			int metric = compute_metric(ack_rev, fwd[x], rs[x]._rate, rs[x]._size, rs[x]._rtype);
 
 			if (!fwd_metric || (metric && metric < fwd_metric)) {
 				fwd_metric = metric;
 			}
 
-			metric = compute_metric(ack_fwd, rev[x], rs[x]._rate, rs[x]._rtype);
+			metric = compute_metric(ack_fwd, rev[x], rs[x]._rate, rs[x]._size, rs[x]._rtype);
 
 			if (!rev_metric || (metric && metric < rev_metric)) {
 				rev_metric = metric;
