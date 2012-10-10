@@ -402,13 +402,19 @@ typedef struct {
 #define WIFI_ACK_A 44 // 25 + (14 * 8) / 6
 #define WIFI_PLCP_HEADER_A 25
 
+#define WIFI_SLOT_N 9
+#define WIFI_DIFS_N 28
+#define WIFI_SIFS_N 10
+#define WIFI_ACK_N 48 // 33 + (14 * 8) / 7.2
+#define WIFI_PLCP_HEADER_N 33
+
 #define is_b_rate(b) ((b == 2) || (b == 4) || (b == 11) || (b == 22))
 
 #define WIFI_CW_MIN_B 31
 #define WIFI_CW_MAX_B 1023
 
-#define WIFI_CW_MIN_A 15
-#define WIFI_CW_MAX_A 1023
+#define WIFI_CW_MIN 15
+#define WIFI_CW_MAX 1023
 
 // 6-byte LLC header (last byte is terminating NUL)
 #define WIFI_LLC_HEADER		((const uint8_t *) "\xAA\xAA\x03\x00\x00")

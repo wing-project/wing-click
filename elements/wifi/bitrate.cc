@@ -2,7 +2,6 @@
 #include "bitrate.hh"
 #include <clicknet/wifi.h>
 
-
 unsigned
 calc_transmit_time(int rate, int length)
 {
@@ -19,8 +18,8 @@ unsigned
 calc_backoff(int rate, int t)
 {
 	int t_slot = is_b_rate(rate) ? WIFI_SLOT_B : WIFI_SLOT_A;
-	int cw = is_b_rate(rate) ? WIFI_CW_MIN_B : WIFI_CW_MIN_A;
-	int cw_max = is_b_rate(rate) ? WIFI_CW_MAX_B : WIFI_CW_MAX_A;
+	int cw = is_b_rate(rate) ? WIFI_CW_MIN_B : WIFI_CW_MIN;
+	int cw_max = is_b_rate(rate) ? WIFI_CW_MAX_B : WIFI_CW_MAX;
 	/* there is backoff, even for the first packet */
 	for (int x = 0; x < t; x++) {
 		cw = WIFI_MIN(cw_max, (cw + 1) * 2);
