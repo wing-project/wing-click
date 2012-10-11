@@ -42,7 +42,6 @@ class Minstrel : public Element { public:
 	void add_handlers();
 	String print_rates();
 
-	uint32_t get_retry_count(uint32_t, uint32_t);
 	void assign_rate(Packet *);
 	void process_feedback(Packet *);
 

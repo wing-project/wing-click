@@ -29,7 +29,7 @@
 CLICK_DECLS
 
 Minstrel::Minstrel() 
-  : _rtable(0), _timer(this), _rtable_ht(0), _lookaround_rate(20), _offset(0), 
+  : _rtable(0), _rtable_ht(0), _timer(this), _lookaround_rate(20), _offset(0), 
 _active(true), _period(500), _ewma_level(75), _debug(false) {
 }
 
@@ -155,11 +155,6 @@ void Minstrel::process_feedback(Packet *p_in) {
 		nfo->add_result(ceh->rate, ceh->retries + 1, success);
 	} 
 	return;
-}
-
-uint32_t Minstrel::get_retry_count(uint32_t, uint32_t)
-{
-	return WIFI_MAX_RETRIES + 1;
 }
 
 void Minstrel::assign_rate(Packet *p_in)
