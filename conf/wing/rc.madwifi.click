@@ -1,5 +1,5 @@
 elementclass RateControl {
-  $rate, $rates|
+  $rate, $rates, __REST__ $rates_ht|  
 
   rate_control :: MadwifiRate(OFFSET 4, RT $rates, ALT_RATE true);
 
