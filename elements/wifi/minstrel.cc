@@ -114,7 +114,7 @@ int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 	int ret = Args(conf, this, errh)
 		      .read("OFFSET", _offset)
 		      .read_m("RT", ElementCastArg("AvailableRates"), _rtable)
-                      .read("HT_RATES", ElementCastArg("AvailableRates"), _rtable_ht)
+                      .read("RT_HT", ElementCastArg("AvailableRates"), _rtable_ht)
 		      .read("LOOKAROUND_RATE", _lookaround_rate)
 		      .read("EWMA_LEVEL", _ewma_level)
 		      .read("PERIOD", _period)
@@ -138,19 +138,8 @@ void Minstrel::process_feedback(Packet *p_in) {
 	if (dst == EtherAddress::make_broadcast()) {
 		return;
 	}
-	/* rate wasn't set */
-	int rate = 0;
-	int type = 0;
-	if (ceh->rate != 0) {
-		rate = ceh->rate;
-		type = RATE_TYPE_LEGACY;
-	} else if (ceh->mcs != 0) {
-		rate = ceh->mcs;
-		type = RATE_TYPE_HT;
-	} else {
-		return;
-	}
 	DstInfo *nfo = _neighbors.findp(dst);
+	/* rate wasn't set */
 	if (!nfo) {
 		if (_debug) {
 			click_chatter("%{element} :: %s :: no info for %s",
@@ -160,7 +149,11 @@ void Minstrel::process_feedback(Packet *p_in) {
 		}
 		return;
 	}
-	nfo->add_result(rate, type, ceh->retries + 1, success);
+	if (nfo->rate_type == RATE_TYPE_HT) {
+		nfo->add_result(ceh->mcs, ceh->retries + 1, success);
+	} else {
+		nfo->add_result(ceh->rate, ceh->retries + 1, success);
+	} 
 	return;
 }
 
@@ -213,7 +206,11 @@ void Minstrel::assign_rate(Packet *p_in)
 			ceh->rate = (rates.size()) ? rates[0] : ceh->rate = 2;
 			return;
 		}
-		_neighbors.insert(dst, DstInfo(dst, rates, rates_ht));
+		if (rates_ht.size() > 0) {
+			_neighbors.insert(dst, DstInfo(dst, rates_ht, RATE_TYPE_HT));
+		} else {
+			_neighbors.insert(dst, DstInfo(dst, rates, RATE_TYPE_LEGACY));
+		}
 		nfo = _neighbors.findp(dst);
 	}
 
@@ -253,27 +250,48 @@ void Minstrel::assign_rate(Packet *p_in)
 
 	ceh->magic = WIFI_EXTRA_MAGIC;
 
-	if (sample) {
-		if (nfo->rates[ndx] < nfo->rates[nfo->max_tp_rate]) {
-			ceh->rate = nfo->rates[nfo->max_tp_rate];
-			ceh->rate1 = nfo->rates[ndx];
+	if (nfo->rate_type == RATE_TYPE_HT) {
+
+		if (sample) {
+			if (nfo->rates[ndx] < nfo->rates[nfo->max_tp_rate]) {
+				ceh->mcs = nfo->rates[nfo->max_tp_rate];
+				ceh->mcs1 = nfo->rates[ndx];
+			} else {
+				ceh->mcs = nfo->rates[ndx];
+				ceh->mcs1 = nfo->rates[nfo->max_tp_rate];
+			}
 		} else {
-			ceh->rate = nfo->rates[ndx];
-			ceh->rate1 = nfo->rates[nfo->max_tp_rate];
+			ceh->mcs = nfo->rates[nfo->max_tp_rate];
+			ceh->mcs1 = nfo->rates[nfo->max_tp_rate2];
 		}
+
+		ceh->mcs2 = nfo->rates[nfo->max_prob_rate];
+		ceh->mcs3 = nfo->rates[0];
+
 	} else {
-		ceh->rate = nfo->rates[nfo->max_tp_rate];
-		ceh->rate1 = nfo->rates[nfo->max_tp_rate2];
+
+		if (sample) {
+			if (nfo->rates[ndx] < nfo->rates[nfo->max_tp_rate]) {
+				ceh->rate = nfo->rates[nfo->max_tp_rate];
+				ceh->rate1 = nfo->rates[ndx];
+			} else {
+				ceh->rate = nfo->rates[ndx];
+				ceh->rate1 = nfo->rates[nfo->max_tp_rate];
+			}
+		} else {
+			ceh->rate = nfo->rates[nfo->max_tp_rate];
+			ceh->rate1 = nfo->rates[nfo->max_tp_rate2];
+		}
+
+		ceh->rate2 = nfo->rates[nfo->max_prob_rate];
+		ceh->rate3 = nfo->rates[0];
+
 	}
 
-	ceh->max_tries = get_retry_count(p_in->length(), ceh->rate);
-	ceh->max_tries1 = get_retry_count(p_in->length(), ceh->rate1);
-
-	ceh->rate2 = nfo->rates[nfo->max_prob_rate];
-	ceh->max_tries2 = get_retry_count(p_in->length(), ceh->rate2);
-
-	ceh->rate3 = nfo->rates[0];
-	ceh->max_tries3 = get_retry_count(p_in->length(), ceh->rate3);
+	ceh->max_tries = WIFI_MAX_RETRIES + 1;
+	ceh->max_tries1 = WIFI_MAX_RETRIES + 1;
+	ceh->max_tries2 = WIFI_MAX_RETRIES + 1;
+	ceh->max_tries3 = WIFI_MAX_RETRIES + 1;
 
 	return;
 
@@ -308,14 +326,14 @@ String Minstrel::print_rates()
 	for (NeighborIter iter = _neighbors.begin(); iter.live(); iter++) {
 		DstInfo *nfo = &iter.value();
 		sa << nfo->eth << "\n";
-		sa << "rate     throughput  ewma prob   this prob  this success(attempts)   success    attempts\n";
+		sa << "rate    throughput    ewma prob    this prob    this success (attempts)    success    attempts\n";
 		for (i = 0; i < nfo->rates.size(); i++) {
 			tp = nfo->cur_tp[i] / ((18000 << 10) / 96);
 			prob = nfo->cur_prob[i] / 18;
 			eprob = nfo->probability[i] / 18;
-			sprintf(buffer, "%2d%s %s   %2u.%1u    %3u.%1u    %3u.%1u    %3u(%3u)    %8llu    %8llu\n",
-					nfo->rates[i] / 2, nfo->rates[i] & 1 ? ".5" : "  ",
-					nfo->types[i] == RATE_TYPE_HT ? "(HT)" : " ",
+			sprintf(buffer, "%2d%s    %2u.%1u    %3u.%1u    %3u.%1u    %3u (%3u)    %8llu    %8llu\n",
+					nfo->rate_type == RATE_TYPE_HT ? nfo->rates[i] : nfo->rates[i] / 2, 
+					(nfo->rates[i] & 1) && (nfo->rate_type == RATE_TYPE_LEGACY) ? ".5" : "  ",
 					tp / 10, tp % 10,
 					eprob / 10, eprob % 10,
 					prob / 10, prob % 10,

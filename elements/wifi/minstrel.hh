@@ -62,53 +62,48 @@ private:
 		Vector<int> cur_tp;
 		Vector<int> probability;
 		Vector<int> sample_limit;
-		Vector<int> types;
+		int rate_type;
 		int packet_count;
 		int sample_count;
 		int max_tp_rate;
 		int max_tp_rate2;
 		int max_prob_rate;
 		DstInfo() {}
-		DstInfo(EtherAddress neighbor, Vector<int> supported, Vector<int> supported_ht) {
+		DstInfo(EtherAddress neighbor, Vector<int> supported, int type) {
 			eth = neighbor;
 			int i;
 			for (i = 0; i < supported.size(); i++) {
 				rates.push_back(supported[i]);
-				types.push_back(RATE_TYPE_LEGACY);
 			}
-			for (i = 0; i < supported_ht.size(); i++) {
-				rates.push_back(supported_ht[i]);
-				types.push_back(RATE_TYPE_HT);
-			}
-			int len = supported.size() + supported_ht.size();
-			successes = Vector<int>(len, 0);
-			attempts = Vector<int>(len, 0);
-			last_successes = Vector<int>(len, 0);
-			last_attempts = Vector<int>(len, 0);
-			hist_successes = Vector<int>(len, 0);
-			hist_attempts = Vector<int>(len, 0);
-			cur_prob = Vector<int>(len, 0);
-			cur_tp = Vector<int>(len, 0);
-			probability = Vector<int>(len, 0);
-			sample_limit = Vector<int>(len, -1);
+			rate_type = type;
+			successes = Vector<int>(supported.size(), 0);
+			attempts = Vector<int>(supported.size(), 0);
+			last_successes = Vector<int>(supported.size(), 0);
+			last_attempts = Vector<int>(supported.size(), 0);
+			hist_successes = Vector<int>(supported.size(), 0);
+			hist_attempts = Vector<int>(supported.size(), 0);
+			cur_prob = Vector<int>(supported.size(), 0);
+			cur_tp = Vector<int>(supported.size(), 0);
+			probability = Vector<int>(supported.size(), 0);
+			sample_limit = Vector<int>(supported.size(), -1);
 			packet_count = 0;
 			sample_count = 0;
 			max_tp_rate = 0;
 			max_tp_rate2 = 0;
 			max_prob_rate = 0;
 		}
-		int rate_index(int rate, int type) {
+		int rate_index(int rate) {
 			int ndx = 0;
 			for (int x = 0; x < rates.size(); x++) {
-				if (rate == rates[x] && type == types[x]) {
+				if (rate == rates[x]) {
 					ndx = x;
 					break;
 				}
 			}
 			return (ndx == rates.size()) ? -1 : ndx;
 		}
-		void add_result(int rate, int type, int tries, int success) {
-			int ndx = rate_index(rate, type);
+		void add_result(int rate, int tries, int success) {
+			int ndx = rate_index(rate);
 			if (ndx >= 0) {
 				successes[ndx] += success;
 				attempts[ndx] += tries;
