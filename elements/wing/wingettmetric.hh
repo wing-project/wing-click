@@ -12,12 +12,6 @@ CLICK_DECLS
  * =a WINGETXMetric, WINGHopCountMetric
  */
 
-// MCS data rates (kbps)
-static const uint32_t mcs_rate_lookup[8] =
-{
-7200, 14400, 21700, 28900, 43300, 57800, 65000, 72200
-};
-
 class WINGETTMetric: public WINGLinkMetric {
 
 public:
@@ -40,7 +34,8 @@ public:
 		unsigned high_usecs = 0;
 
 		if (rtype == PROBE_TYPE_HT) {
-			// ... 			
+			low_usecs = calc_usecs_wifi_packet_ht(data_size, data_rate, retries / 100);
+			high_usecs = calc_usecs_wifi_packet_ht(data_size, data_rate, retries / 100 + 1);
 		} else {
 			low_usecs = calc_usecs_wifi_packet(data_size, data_rate, retries / 100);
 			high_usecs = calc_usecs_wifi_packet(data_size, data_rate, retries / 100 + 1);

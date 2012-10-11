@@ -405,7 +405,7 @@ typedef struct {
 #define WIFI_SLOT_N 9
 #define WIFI_DIFS_N 28
 #define WIFI_SIFS_N 10
-#define WIFI_ACK_N 48 // 33 + (14 * 8) / 7.2
+#define WIFI_ACK_N 50 // 33 + (14 * 8) / 6.5
 #define WIFI_PLCP_HEADER_N 33
 
 #define is_b_rate(b) ((b == 2) || (b == 4) || (b == 11) || (b == 22))
