@@ -118,9 +118,9 @@ LTM=""
 for i in $(seq 1 1 $NB_INTERFACES); do
 	set_mode $i
 	get_element "$HWADDRS" $i "addr"
-	echo "rates_$i :: AvailableRates(DEFAULT $AVAILABLE_RATES, $addr $AVAILABLE_RATES);"
+	echo "rates_$i :: AvailableRates($addr $AVAILABLE_RATES);"
 	if [ "x$AVAILABLE_RATES_HT" != "x" ]; then
-		echo "rates_ht_$i :: AvailableRates(DEFAULT $AVAILABLE_RATES_HT, $addr $AVAILABLE_RATES_HT);"
+		echo "rates_ht_$i :: AvailableRates($addr $AVAILABLE_RATES_HT);"
 	fi
 	LTM="$LTM $i"
 done
@@ -271,7 +271,11 @@ for i in $(seq 1 1 $NB_INTERFACES); do
 	set_mode $i
 	get_element "$IFNAMES" $i "ifname"
 	echo "sniff_dev_$i :: SniffDevice($ifname);"
-	echo "rc_$i :: RateControl($TX_RATE, rates_$i);"
+	if [ "x$AVAILABLE_RATES_HT" != "x" ]; then
+		echo "rc_$i :: RateControl($TX_RATE, rates_$i, rates_ht_$i);"
+	else
+		echo "rc_$i :: RateControl($TX_RATE, rates_$i);"
+	fi
 	echo "ls_$i :: LinkScheduler(lt, arp);"
 	echo "outgoing_$i :: PrioSched()
 -> SetTXPower(POWER 60) 
