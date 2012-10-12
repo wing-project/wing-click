@@ -112,9 +112,9 @@ int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 {
 
 	int ret = Args(conf, this, errh)
-		      .read("OFFSET", _offset)
-		      .read_m("RT", ElementCastArg("AvailableRates"), _rtable)
-                      .read("RT_HT", ElementCastArg("AvailableRates"), _rtable_ht)
+		      .read_p("OFFSET", _offset)
+		      .read_mp("RT", ElementCastArg("AvailableRates"), _rtable)
+                      .read_p("RT_HT", ElementCastArg("AvailableRates"), _rtable_ht)
 		      .read("LOOKAROUND_RATE", _lookaround_rate)
 		      .read("EWMA_LEVEL", _ewma_level)
 		      .read("PERIOD", _period)
