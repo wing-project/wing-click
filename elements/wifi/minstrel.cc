@@ -46,7 +46,11 @@ void Minstrel::run_timer(Timer *)
 		int i;
 		uint32_t p;
 		for (i = 0; i < nfo->rates.size(); i++) {
-			usecs = calc_usecs_wifi_packet(1500, nfo->rates[i], 0);
+			if (nfo->rate_type == RATE_TYPE_HT) {
+				usecs = calc_usecs_wifi_packet_ht(1500, nfo->rates[i], 0);
+			} else {
+				usecs = calc_usecs_wifi_packet(1500, nfo->rates[i], 0);
+			}
 			if (!usecs) {
 				usecs = 1000000;
 			}
@@ -60,7 +64,6 @@ void Minstrel::run_timer(Timer *)
 				p = ((p * (100 - _ewma_level)) + (nfo->probability[i] * _ewma_level)) / 100;
 				nfo->probability[i] = p;
 				nfo->cur_tp[i] = p * (1000000 / usecs);
-
 			}
 			nfo->last_successes[i] = nfo->successes[i];
 			nfo->last_attempts[i] = nfo->attempts[i];
