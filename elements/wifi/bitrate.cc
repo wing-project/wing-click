@@ -11,7 +11,7 @@ static const uint32_t mcs_rate_lookup[8] =
 unsigned
 calc_transmit_time(int rate, int length)
 {
-	unsigned t_plcp_header = 96;
+	unsigned t_plcp_header = 0;
 	if (is_b_rate(rate)) {
 		t_plcp_header = (rate == 2) ? WIFI_PLCP_HEADER_LONG_B : WIFI_PLCP_HEADER_SHORT_B;
 	} else {
