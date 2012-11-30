@@ -24,7 +24,7 @@ CLICK_DECLS
 #define PROCENTRY_ROUTE "/proc/net/route"
 
 DynGW::DynGW() :
-  _period(5000), _enabled(true), _timer(this)
+  _period(5000), _enabled(true), _default_route(true), _timer(this)
 {
 }
 
@@ -39,6 +39,7 @@ int DynGW::configure(Vector<String> &conf, ErrorHandler *errh) {
 		.read_m("SEL", ElementCastArg("WINGGatewaySelector"), _sel)
 		.read("PERIOD", _period)
 		.read("ENABLED", _enabled)
+		.read("DAFAULT_ROUTE", _default_route)
 		.complete();
 
 }
@@ -51,52 +52,92 @@ int DynGW::initialize(ErrorHandler *) {
 
 void DynGW::run_timer(Timer *) {
 
-	if (_enabled) {
-
-		// clear current HNAs
-		_sel->hnas_clear();
-
-		// setup new HNAs
-		char buff[1024], iface[17];
-		uint32_t gate_addr, dest_addr, netmask;
-		unsigned int iflags;
-		int num, metric, refcnt, use;
-
-		FILE *fp = fopen(PROCENTRY_ROUTE, "r");
-
-		if (!fp) {
-			click_chatter("%{element} :: %s :: cannot read proc file %s errno %s", 
-					this, 
-					__func__,
-					PROCENTRY_ROUTE, 
-					strerror(errno));
-		}
-
-		rewind(fp);
-
-		while (fgets(buff, 1023, fp)) {
-			num = sscanf(buff, "%16s %128X %128X %X %d %d %d %128X \n", 
-					iface,	&dest_addr, &gate_addr, &iflags, 
-					&refcnt, &use, &metric, &netmask);
-			if (num < 8) {
-				continue;
-			}
-			if ((iflags & 1) && (metric == 0)) {
-				IPAddress addr = IPAddress(dest_addr);
-				IPAddress mask = IPAddress(netmask);
-				if ((addr == IPAddress()) && (mask == IPAddress()) && (iface != _dev_name)) {
-					_sel->hna_add(IPAddress(), IPAddress());
-				}
-			}
-		}
-
-		fclose(fp);
-
-	}
-
 	// schedule next timer
 	_timer.schedule_after_msec(_period);
 
+	if (!_enabled) {
+		return;
+	}
+
+	// setup new HNAs
+	char buff[1024], iface[17];
+	uint32_t gate_addr, dest_addr, netmask;
+	unsigned int iflags;
+	int num, metric, refcnt, use;
+
+	FILE *fp = fopen(PROCENTRY_ROUTE, "r");
+
+	if (!fp) {
+		click_chatter("%{element} :: %s :: cannot read proc file %s errno %s", 
+				this, 
+				__func__,
+				PROCENTRY_ROUTE, 
+				strerror(errno));
+	}
+
+	rewind(fp);
+
+	bool found_other = false;
+	bool found_mesh = false;
+
+	while (fgets(buff, 1023, fp)) {
+		num = sscanf(buff, "%16s %128X %128X %X %d %d %d %128X \n", 
+				iface,	&dest_addr, &gate_addr, &iflags, 
+				&refcnt, &use, &metric, &netmask);
+		if (num < 8) {
+			continue;
+		}
+		if ((iflags & 1) && (metric == 0)) {
+			IPAddress addr = IPAddress(dest_addr);
+			IPAddress mask = IPAddress(netmask);
+			if ((addr == IPAddress()) && (mask == IPAddress()) && (iface != _dev_name)) {
+				found_other = true;
+			} else if ((addr == IPAddress()) && (mask == IPAddress()) && (iface == _dev_name)) {
+				found_mesh = true;
+			}
+		}
+	}
+
+	fclose(fp);
+
+	if (found_other && found_mesh) {
+		if (!_sel->is_gateway()) {
+			click_chatter("%{element} :: %s :: add default HNA", this, __func__);
+			_sel->hna_add(IPAddress(), IPAddress());
+		}
+		default_route("/sbin/route -n del default dev " + _dev_name);
+	} else if (!found_other && found_mesh) {
+		if (_sel->is_gateway()) {
+			click_chatter("%{element} :: %s :: del default HNA", this, __func__);
+			_sel->hna_del(IPAddress(), IPAddress());
+		}
+	} else if (found_other && !found_mesh) {
+		if (!_sel->is_gateway()) {
+			click_chatter("%{element} :: %s :: add default HNA", this, __func__);
+			_sel->hna_add(IPAddress(), IPAddress());
+		}
+	} else {
+		if (!_sel->is_gateway()) {
+			click_chatter("%{element} :: %s :: add default HNA", this, __func__);
+			_sel->hna_add(IPAddress(), IPAddress());
+		}
+		default_route("/sbin/route -n add default dev " + _dev_name);
+	}
+
+}
+
+void DynGW::default_route(String cmd) {
+	if (!_default_route) {
+		return;
+	}
+	click_chatter("%{element} :: %s :: executing %s", this, __func__, cmd.c_str());
+	if (system(cmd.c_str()) != 0) {
+		click_chatter("%{element} :: %s :: unable to execute command \"%s\", errno %s", 
+				this, 
+				__func__,
+				cmd.c_str(), 
+				strerror(errno));
+	} 
 }
 
 enum {

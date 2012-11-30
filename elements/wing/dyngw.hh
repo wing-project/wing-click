@@ -36,11 +36,14 @@ class DynGW : public Element {
 
 	unsigned int _period; // msecs
 	bool _enabled;
+	bool _default_route;
 
 	Timer _timer;
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);
+
+	void default_route(String);
 
 };
 
