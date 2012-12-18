@@ -666,7 +666,7 @@ class LinkTable : public LinkTableBase<IPAddress, Path> { public:
     ~LinkTable();
 
     const char *class_name() const		{ return "LinkTable"; }
-    int configure (Vector<String> &, ErrorHandler *) ;
+    int configure (Vector<String> &, ErrorHandler *);
 
     Path best_route(IPAddress, bool);
     String print_routes(bool, bool);

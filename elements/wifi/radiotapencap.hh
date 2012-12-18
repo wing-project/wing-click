@@ -22,8 +22,8 @@ Copies the wifi_radiotap_header from Packet::anno() and pushes it onto the packe
 
 class RadiotapEncap : public Element { public:
 
-  RadiotapEncap();
-  ~RadiotapEncap();
+  RadiotapEncap() CLICK_COLD;
+  ~RadiotapEncap() CLICK_COLD;
 
   const char *class_name() const	{ return "RadiotapEncap"; }
   const char *port_count() const	{ return PORTS_1_1; }
@@ -34,6 +34,8 @@ class RadiotapEncap : public Element { public:
   Packet *simple_action(Packet *);
   Packet *encap(Packet *);
   Packet *encap_ht(Packet *);
+
+  bool _debug;
 
 };
 

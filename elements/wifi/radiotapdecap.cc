@@ -56,7 +56,6 @@ RadiotapDecap::simple_action(Packet *p) {
 
 	while (!(err = ieee80211_radiotap_iterator_next(&iter))) {
 		u_int16_t flags;
-		uint8_t *mcs;
 		switch (iter.this_arg_index) {
 		case IEEE80211_RADIOTAP_FLAGS:
 			flags = le16_to_cpu(*(uint16_t *)iter.this_arg);
