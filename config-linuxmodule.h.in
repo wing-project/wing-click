@@ -52,6 +52,9 @@
 /* Define if your Linux kernel has files_lglock. */
 #undef HAVE_LINUX_FILES_LGLOCK
 
+/* Define if you have the d_make_root function. */
+#undef HAVE_LINUX_D_MAKE_ROOT
+
 /* Define if your Linux kernel has dev_ioctl. */
 #undef HAVE_LINUX_DEV_IOCTL
 
@@ -105,6 +108,9 @@
 
 /* Define if your Linux kernel exposes strlen. */
 #undef HAVE_LINUX_STRLEN_EXPOSED
+
+/* Define if 'struct super_block' has an 's_d_op' member. */
+#undef HAVE_LINUX_SUPER_BLOCK_S_D_OP
 
 /* Define if your Linux kernel has tulip_interrupt_hook. */
 #undef HAVE_LINUX_TULIP_INTERRUPT_HOOK
