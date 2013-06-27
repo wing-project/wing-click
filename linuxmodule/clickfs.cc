@@ -8,14 +8,15 @@
  * Copyright (c) 2008 Meraki, Inc.
  * Copyright (c) 2002-2013 Eddie Kohler
  *
- * This source code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation, version 2.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
- * more details.
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, subject to the conditions
+ * listed in the Click LICENSE file. These conditions include: you must
+ * preserve this copyright notice, and you cannot mention the copyright
+ * holders in advertising related to the Software without their permission.
+ * The Software is provided WITHOUT ANY WARRANTY, EXPRESS OR IMPLIED. This
+ * notice is a summary of the Click LICENSE file; the license in that file is
+ * legally binding.
  */
 
 #include <click/config.h>
@@ -50,13 +51,13 @@ static struct inode_operations *click_handler_inode_ops;
 static struct dentry_operations click_dentry_ops;
 static struct proclikefs_file_system *clickfs;
 
-static struct mutex clickfs_lock;
+static struct mutex clickfs_lock, click_ino_lock;
 static wait_queue_head_t clickfs_waitq;
 static atomic_t clickfs_read_count;
 extern uint32_t click_config_generation;
 static int clickfs_ready;
 
-//#define SPIN_LOCK_MSG(l, file, line, what)	printk("<1>%s:%d: pid %d: %sing %p in clickfs\n", (file), (line), current->pid, (what), (l))
+//#define SPIN_LOCK_MSG(l, file, line, what)	printk(KERN_ALERT "%s:%d: pid %d: %sing %p in clickfs\n", (file), (line), current->pid, (what), (l))
 #define SPIN_LOCK_MSG(l, file, line, what)	((void)(file), (void)(line))
 #define SPIN_LOCK(l, file, line)	do { SPIN_LOCK_MSG((l), (file), (line), "lock"); mutex_lock((l)); } while (0)
 #define SPIN_UNLOCK(l, file, line)	do { SPIN_LOCK_MSG((l), (file), (line), "unlock"); mutex_unlock((l)); } while (0)
@@ -147,18 +148,32 @@ struct ClickInodeInfo {
 static ClickIno click_ino;
 
 // Must be called with LOCK_CONFIG_READ.
+
+static int click_ino_check() {
+    int r = 0;
+    if (click_ino.generation() != click_config_generation) {
+        SPIN_LOCK(&click_ino_lock, __FILE__, __LINE__);
+        r = click_ino.prepare(click_router, click_config_generation);
+        SPIN_UNLOCK(&click_ino_lock, __FILE__, __LINE__);
+    }
+    return r;
+}
+
+// Must be called with LOCK_CONFIG_READ.
 // Return "subdir_error" if this subdirectory was configuration-specific and
 // the configuration was changed.  Otherwise, updates this directory's link
 // count (if the configuration was changed) and returns 0.
 
-static int
-inode_out_of_date(struct inode *inode, int subdir_error)
-{
+// If click_ino_check returns < 0, then it is not safe to access
+// click_ino. If click_ino_check returns 0, then it is safe to access
+// both click_ino and `inode`.
+
+static int click_ino_check(struct inode *inode, int subdir_error) {
     int error;
     if (INODE_INFO(inode).config_generation != click_config_generation) {
 	if (click_ino.has_element(inode->i_ino))
 	    return subdir_error;
-	if ((error = click_ino.prepare(click_router, click_config_generation)) < 0)
+	if ((error = click_ino_check()) < 0)
 	    return error;
 	INODE_INFO(inode).config_generation = click_config_generation;
 	set_nlink(inode, click_ino.nlink(inode->i_ino));
@@ -174,7 +189,7 @@ click_inode(struct super_block *sb, ino_t ino)
 {
     // Must be called with click_config_lock held.
 
-    if (click_ino.prepare(click_router, click_config_generation) < 0)
+    if (click_ino_check() < 0)
 	return 0;
 
     struct inode *inode = new_inode(sb);
@@ -221,7 +236,9 @@ click_inode(struct super_block *sb, ino_t ino)
 extern "C" {
 
 static struct dentry *
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+click_dir_lookup(struct inode *dir, struct dentry *dentry, unsigned)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
 click_dir_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *)
 #else
 click_dir_lookup(struct inode *dir, struct dentry *dentry)
@@ -232,7 +249,7 @@ click_dir_lookup(struct inode *dir, struct dentry *dentry)
 
     struct inode *inode = 0;
     int error;
-    if ((error = inode_out_of_date(dir, -EIO)) >= 0) {
+    if ((error = click_ino_check(dir, -EIO)) >= 0) {
 	// BEWARE!  Using stable_string() here is quite dangerous, since the
 	// data is actually mutable.  The code path has been audited to make
 	// sure this is OK.
@@ -260,7 +277,7 @@ click_dir_lookup(struct inode *dir, struct dentry *dentry)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
 static int
-click_dentry_revalidate(struct dentry *dentry, struct nameidata *nd)
+click_dentry_revalidate(struct dentry *dentry, unsigned flags)
 {
     struct inode *inode = dentry->d_inode;
     int r;
@@ -271,23 +288,28 @@ click_dentry_revalidate(struct dentry *dentry, struct nameidata *nd)
 	return 1;
 
     LOCK_CONFIG_READ();
-    if (click_ino.ino_element(inode->i_ino) >= 0) { // not a global directory
+    if (click_ino.has_element(inode->i_ino)) { // not a global directory
 	shrink_dcache_parent(dentry);
 	d_drop(dentry);
 	r = 0;
     }
 # ifdef LOOKUP_RCU
-    else if (nd->flags & LOOKUP_RCU)
+    else if (flags & LOOKUP_RCU)
 	r = -ECHILD;
 # endif
-    else if ((r = click_ino.prepare(click_router, click_config_generation)) >= 0) {
-	INODE_INFO(inode).config_generation = click_config_generation;
-	set_nlink(inode, click_ino.nlink(inode->i_ino));
-	r = 1;
-    }
+    else if ((r = click_ino_check(inode, -EIO)) == 0)
+        r = 1;
     UNLOCK_CONFIG_READ();
     return r;
 }
+
+# if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
+static int
+click_dentry_revalidate_nd(struct dentry *dentry, struct nameidata *nd)
+{
+    return click_dentry_revalidate(dentry, nd->flags);
+}
+# endif
 #else
 static int
 click_dir_revalidate(struct dentry *dentry)
@@ -297,18 +319,8 @@ click_dir_revalidate(struct dentry *dentry)
     if (!inode)
 	return -EINVAL;
 
-    int error = 0;
     LOCK_CONFIG_READ();
-    if (INODE_INFO(inode).config_generation != click_config_generation) {
-	if (click_ino.ino_element(inode->i_ino) >= 0) // not a global directory
-	    error = -EIO;
-	else if ((error = click_ino.prepare(click_router, click_config_generation)) < 0)
-	    /* preserve error */;
-	else {
-	    INODE_INFO(inode).config_generation = click_config_generation;
-	    set_nlink(inode, click_ino.nlink(inode->i_ino));
-	}
-    }
+    int error = click_ino_check(inode, -EIO);
     UNLOCK_CONFIG_READ();
     return error;
 }
@@ -342,7 +354,7 @@ click_dir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 
     LOCK_CONFIG_READ();
 
-    int error = inode_out_of_date(inode, -ENOENT);
+    int error = click_ino_check(inode, -ENOENT);
     int stored = 0;
     if (error < 0)
 	goto done;
@@ -414,7 +426,7 @@ click_read_super(struct super_block *sb, void * /* data */, int)
     return sb;
 
   out_no_root:
-    printk("<1>click_read_super: get root inode failed\n");
+    printk(KERN_ALERT "click_read_super: get root inode failed\n");
     iput(root_inode);
     sb->s_dev = 0;
     return 0;
@@ -451,7 +463,9 @@ click_get_sb(struct file_system_type *fs_type, int flags, const char *, void *da
 static void
 click_reread_super(struct super_block *sb)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0)
     lock_super(sb);
+#endif
     if (sb->s_root) {
 	struct inode *old_inode = sb->s_root->d_inode;
 	LOCK_CONFIG_READ();
@@ -465,8 +479,10 @@ click_reread_super(struct super_block *sb)
 	sb->s_d_op = &click_dentry_ops;
 #endif
     } else
-	printk("<1>silly click_reread_super\n");
+	printk(KERN_ALERT "silly click_reread_super\n");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0)
     unlock_super(sb);
+#endif
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
@@ -583,7 +599,7 @@ handler_open(struct inode *inode, struct file *filp)
 	|| (filp->f_flags & O_APPEND)
 	|| (writing && !(filp->f_flags & O_TRUNC)))
 	retval = -EACCES;
-    else if ((retval = inode_out_of_date(inode, -EIO)) < 0)
+    else if ((retval = click_ino_check(inode, -EIO)) < 0)
 	/* save retval */;
     else if (!(h = Router::handler(click_router, click_ino.ino_handler(inode->i_ino))))
 	retval = -EIO;
@@ -619,7 +635,7 @@ handler_read(struct file *filp, char *buffer, size_t count, loff_t *store_f_pos)
 	int retval;
 	const Handler *h;
 	struct inode *inode = filp->f_dentry->d_inode;
-	if ((retval = inode_out_of_date(inode, -EIO)) < 0)
+	if ((retval = click_ino_check(inode, -EIO)) < 0)
 	    /* save retval */;
 	else if (!(h = Router::handler(click_router, click_ino.ino_handler(inode->i_ino))))
 	    retval = -EIO;
@@ -722,7 +738,7 @@ handler_do_write(struct file *filp, void *address_ptr)
     const Handler *h;
     int retval;
 
-    if ((retval = inode_out_of_date(inode, -EIO)) < 0)
+    if ((retval = click_ino_check(inode, -EIO)) < 0)
 	/* save retval */;
     else if (!(h = Router::handler(click_router, click_ino.ino_handler(inode->i_ino)))
 	     || !h->write_visible())
@@ -855,7 +871,7 @@ do_handler_ioctl(struct inode *inode, struct file *filp,
     int retval;
     Element *e;
 
-    if ((retval = inode_out_of_date(inode, -EIO)) < 0)
+    if ((retval = click_ino_check(inode, -EIO)) < 0)
 	/* save retval */;
     else if (!click_router)
 	retval = -EINVAL;
@@ -871,7 +887,7 @@ do_handler_ioctl(struct inode *inode, struct file *filp,
 	hs->flags |= HANDLER_RAW;
 	retval = 0;
     } else if (click_ino.ino_element(inode->i_ino) < 0
-	     || !(e = click_router->element(click_ino.ino_element(inode->i_ino))))
+               || !(e = click_router->element(click_ino.ino_element(inode->i_ino))))
 	retval = -EIO;
     else {
 	union {
@@ -977,6 +993,7 @@ init_clickfs()
 
     mutex_init(&handler_strings_lock);
     mutex_init(&clickfs_lock);
+    mutex_init(&click_ino_lock);
     init_waitqueue_head(&clickfs_waitq);
     atomic_set(&clickfs_read_count, 0);
 
@@ -985,7 +1002,7 @@ init_clickfs()
 	|| !(click_dir_inode_ops = proclikefs_new_inode_operations(clickfs))
 	|| !(click_handler_file_ops = click_new_file_operations())
 	|| !(click_handler_inode_ops = proclikefs_new_inode_operations(clickfs))) {
-	printk("<1>click: could not initialize clickfs!\n");
+	printk(KERN_ALERT "click: could not initialize clickfs!\n");
 	return -EINVAL;
     }
 
@@ -996,8 +1013,10 @@ init_clickfs()
     // XXX statfs
 
     click_dentry_ops.d_delete = click_delete_dentry;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
     click_dentry_ops.d_revalidate = click_dentry_revalidate;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
+    click_dentry_ops.d_revalidate = click_dentry_revalidate_nd;
 #endif
 
     click_dir_file_ops->read = generic_read_dir;

@@ -1,27 +1,155 @@
 #! /usr/bin/perl -w
 use bytes;
-undef $/;
 
+sub usage () {
+    print STDERR "Usage: fixincludes.pl [-V] -o OUTPUTDIR CFLAGS
+   or: fixincludes.pl installtree [-m MODE] SRC DST\n";
+    exit 1;
+}
+
+sub mkpath (\%$) {
+    my($dirs, $dir) = @_;
+    my($superdir) = $dir;
+    $superdir =~ s{/+[^/]+/*$}{};
+    &mkpath($dirs, $superdir) if !exists($dirs->{$superdir}) && $superdir ne "";
+    if (!-d $dir && !mkdir($dir)) {
+        print STDERR "$dir: $!\n";
+        exit 1;
+    }
+    $dirs->{$dir} = 1;
+}
+
+if (@ARGV > 0 && $ARGV[0] eq "installtree") {
+    shift;
+    my($mode) = 755;
+    my($src, $dst);
+    while (@ARGV) {
+        if ($ARGV[0] =~ /^(?:-m|--m=|--mo=|--mod=|--mode=)(\d+)$/s) {
+            $mode = $1;
+            shift;
+        } elsif ($ARGV[0] =~ /^(?:-m|--m|--mo|--mod|--mode)$/s) {
+            usage if @ARGV < 2 || $ARGV[1] !~ /^\d+$/s;
+            $mode = $ARGV[1];
+            shift;
+            shift;
+        } elsif ($ARGV[0] =~ /^-/) {
+            usage;
+        } elsif (!defined($src)) {
+            $src = $ARGV[0];
+            shift;
+        } elsif (!defined($dst)) {
+            $dst = $ARGV[0];
+            shift;
+        } else {
+            usage;
+        }
+    }
+    usage if !defined($src) || !defined($dst) || "$src$dst" =~ /[\\"<>]/;
+    $mode = oct("0$mode");
+
+    $MD5SUM = $ENV{"MD5SUM"};
+    $null_md5sum = "d41d8cd98f00b204e9800998ecf8427e";
+    if (!defined($MD5SUM)) {
+        if (`sh -c "md5sum < /dev/null" 2>/dev/null | awk '{print \$1}'` =~ /^$null_md5sum/) {
+            $MD5SUM = "md5sum";
+        } elsif (`sh -c "md5 < /dev/null" 2>/dev/null | awk '{print \$1}'` =~ /^$null_md5sum/) {
+            $MD5SUM = "md5";
+        } elsif (`sh -c "sum < /dev/null" 2>/dev/null | awk '{print \$1}'` =~ /^$null_md5sum/) {
+            $MD5SUM = "sum";
+        } else {
+            print STDERR "Sorry, 'fixincludes.pl installtree' requires a working 'md5sum' program.\n";
+            exit 1;
+        }
+    }
+
+    open(SRC, "cd \"$src\"; find . -type f -print | xargs -L 100 $MD5SUM |") || die;
+    open(DST, "cd \"$dst\"; find . -type f -print | xargs -L 100 $MD5SUM |") || die;
+    my(%ch, %dst, $k, $v);
+    while (<DST>) {
+        $dst{$2} = $1 if /^([0-9a-f]+)\s*(.*)$/i && $1 ne $null_md5sum;
+    }
+    close DST;
+    while (<SRC>) {
+        if (/^([0-9a-f]+)\s*(.*)$/i && $1 ne $null_md5sum) {
+            $ch{$2} = 1 if !exists($dst{$2}) || $dst{$2} ne $1;
+            delete $dst{$2};
+        }
+    }
+    close SRC;
+    foreach $k (keys %dst) {
+        $ch{$k} = 0;
+    }
+
+    # compare and remove
+    my($nchanges, $ndone, $ttyout, $lastpercent, $percent);
+    $nchanges = scalar(keys(%ch));
+    $ttyout = -t STDOUT;
+    $lastpercent = "";
+    $ndone = 0;
+    my(%dirs);
+    undef $/;
+    while (($k, $v) = each %ch) {
+        my($file) = "$dst/$k";
+        if ($v) {
+            my($dir) = $file;
+            $dir =~ s{/+[^/]*$}{};
+            mkpath(%dirs, $dir) if !exists($dirs{$dir});
+            if (!open(F, "$src/$k")) {
+                print STDERR "$src/$k: $!\n";
+                exit 1;
+            }
+            if (!open(G, ">$file")) {
+                print STDERR "$file: $!\n";
+                exit 1;
+            }
+            while (<F>) {
+                print G $_;
+            }
+            close F;
+            close G;
+            if (!chmod $mode, $file) {
+                print STDERR "$file: $!\n";
+                exit 1;
+            }
+        } else {
+            if (!unlink($file)) {
+                print STDERR "$file: $!\n";
+                exit 1;
+            }
+        }
+        ++$ndone;
+        $percent = int(($ndone * 100) / $nchanges);
+        if ($ttyout && $percent ne $lastpercent) {
+            print "\r                                                                           \r  ... $percent% done";
+        }
+        $lastpercent = $percent;
+    }
+
+    if ($ttyout && $ndone) {
+        print "\r                                                                           \r  ... done, $ndone ", ($ndone == 1 ? "file installed\n" : "files installed\n");
+    }
+
+    exit 0;
+}
+
+undef $/;
 my($outputroot, $verbose);
 while (@ARGV) {
     if ($ARGV[0] eq "-o" && @ARGV > 1) {
 	$outputroot = $ARGV[1];
 	shift;
 	shift;
-    } elsif ($ARGV[0] =~ /^-o(.*)$/) {
+    } elsif ($ARGV[0] =~ /^-o(.+)$/s) {
 	$outputroot = $1;
 	shift;
-    } elsif ($ARGV[0] eq "-V" || $ARGV[0] eq "--verbose") {
+    } elsif ($ARGV[0] =~ /^(?:-V|--v|--ve|--ver|--verb|--verbo|--verbos|--verbose)$/s) {
 	$verbose = 1;
 	shift;
     } else {
 	last;
     }
 }
-if (!$outputroot || !@ARGV) {
-    print STDERR "Usage: fixincludes.pl -o OUTPUTDIR CFLAGS\n";
-    exit 1;
-}
+usage if !$outputroot || !@ARGV;
 
 # create superdirectories
 @outputroot = split(m{/}, $outputroot);
@@ -216,6 +344,9 @@ sub one_includeroot ($$) {
 	    if ($d eq "mpspec.h") {
 		s<^\#define\s+(\w+)\s+\{\s*\{\s*\[\s*0\s*\.\.\.\s*(\w+)\s*-\s*1\s*\]\s*=\s*(.*?)\s*\}\s*\}><expand_array_initializer($1, $2, $3)>emg;
 	    }
+            if ($d =~ m<\Adma->) {
+                s<DEFINE_DMA_ATTRS\((\w+)\);><struct dma_attrs $1; init_dma_attrs(&$1);>g;
+            }
 	    if ($d eq "kernel.h") {
 		# BUILD_BUG_ON_* cannot define a struct inside sizeof().
 		# Rather than negative-bitfield size, produce a negative
@@ -231,6 +362,14 @@ sub one_includeroot ($$) {
 	    if ($d eq "netdevice.h") {
 		1 while (s<(^struct net_device[ \n]*\{[\000-\377]*)^\tenum( \{[^}]*\}) (\w+)><enum net_device_$3$2;\n$1\tenum net_device_$3 $3>mg);
 	    }
+            if ($d eq "aio.h") {
+                while (1) {
+                    my($a) = s<^(\s*)(\S+)\s*=\s*\(struct kiocb\)\s*\{\s*(\w+):\s*(.*?),\s*><$1\($2\).$3 = $4;\n$1$2 = (struct kiocb) {>m;
+                    my($b) = s<^(\s*)(\S+)\s*=\s*\(struct kiocb\)\s*\{\s*(\.[\.\w]+)\s*=\s*(.*?),\s*><$1\($2\)$3 = $4;\n$1$2 = (struct kiocb) {>m;
+                    s<^(\s*)(\S+)\s*=\s*\(struct kiocb\)\s*\{\s*\}\s*;><>m;
+                    last if !$a && !$b;
+                }
+            }
 
 	    # ktime initializers
 	    if ($d eq "ktime.h") {
