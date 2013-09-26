@@ -202,7 +202,11 @@ click_inode(struct super_block *sb, ino_t ino)
     if (click_ino.is_handler(ino)) {
 	int hi = click_ino.ino_handler(ino);
 	if (const Handler *h = Router::handler(click_router, hi)) {
-	    inode->i_mode = S_IFREG | (h->read_visible() ? click_fsmode.read : 0) | (h->write_visible() ? click_fsmode.write : 0);
+	    inode->i_mode = S_IFREG;
+            if (h->read_visible())
+                inode->i_mode |= click_fsmode.read;
+            if (h->write_visible() || (h->read_visible() && h->read_param()))
+                inode->i_mode |= click_fsmode.write;
 	    inode->i_uid = click_fsmode.uid;
 	    inode->i_gid = click_fsmode.gid;
 	    inode->i_op = click_handler_inode_ops;
@@ -504,6 +508,14 @@ click_delete_dentry(struct dentry *)
 
 /*************************** Handler operations ******************************/
 
+// see static_assert below
+#define HS_ALIVE		1
+#define HS_READING		2
+#define HS_DONE			4
+#define HS_RAW			8
+#define HS_DIRECT		HANDLER_DIRECT
+#define HS_WRITE_UNLIMITED	HANDLER_WRITE_UNLIMITED
+
 struct HandlerString {
     String data;
     int flags;                  // 0 means free
@@ -535,7 +547,8 @@ static HandlerString* alloc_handler_string(const Handler* h) {
             hs = new HandlerString;
         if (hs) {
             handler_strings->push_back(hs);
-            hs->flags = h->flags();
+            hs->flags = HS_ALIVE
+                | (h->flags() & (HS_WRITE_UNLIMITED | HS_DIRECT));
         }
     }
     SPIN_UNLOCK(&handler_strings_lock, __FILE__, __LINE__);
@@ -553,6 +566,27 @@ static void free_handler_string(HandlerString* hs) {
     } else
         delete hs;
     SPIN_UNLOCK(&handler_strings_lock, __FILE__, __LINE__);
+}
+
+static inline void handler_string_add_newline(HandlerString* hs,
+                                              const Handler* h) {
+    if (!h->raw()
+        && !(hs->flags & HS_RAW)
+        && !(hs->flags & HS_DIRECT)
+        && hs->data
+        && hs->data.back() != '\n')
+        hs->data += '\n';
+}
+
+static inline String handler_string_strip_newline(const HandlerString* hs,
+                                                  const Handler* h) {
+    if (!h->raw()
+        && !(hs->flags & HS_RAW)
+        && hs->data
+        && hs->data.back() == '\n')
+        return hs->data.substring(hs->data.begin(), hs->data.end() - 1);
+    else
+        return hs->data;
 }
 
 static void
@@ -588,23 +622,23 @@ handler_open(struct inode *inode, struct file *filp)
 {
     LOCK_CONFIG_READ();
 
-    bool reading = (filp->f_flags & O_ACCMODE) != O_WRONLY;
-    bool writing = (filp->f_flags & O_ACCMODE) != O_RDONLY;
+    bool reading = (filp->f_mode & FMODE_READ) != 0;
+    bool writing = (filp->f_mode & FMODE_WRITE) != 0;
 
     int retval = 0;
     HandlerString* hs = 0;
     const Handler *h;
 
-    if ((reading && writing)
-	|| (filp->f_flags & O_APPEND)
-	|| (writing && !(filp->f_flags & O_TRUNC)))
+    if ((filp->f_flags & O_APPEND)
+	|| (!reading && writing && !(filp->f_flags & O_TRUNC)))
 	retval = -EACCES;
     else if ((retval = click_ino_check(inode, -EIO)) < 0)
 	/* save retval */;
     else if (!(h = Router::handler(click_router, click_ino.ino_handler(inode->i_ino))))
 	retval = -EIO;
-    else if ((reading && !h->read_visible())
-	     || (writing && !h->write_visible()))
+    else if (reading && writing && (h->flags() & HANDLER_DIRECT))
+        retval = -EACCES;
+    else if (reading ? !h->read_visible() : !h->write_visible())
 	retval = -EPERM;
     else if (!(hs = alloc_handler_string(h)))
 	retval = -ENOMEM;
@@ -622,61 +656,116 @@ handler_open(struct inode *inode, struct file *filp)
 }
 
 static ssize_t
+handler_prepare_read(HandlerString* hs, struct file* filp,
+                     char* buffer, size_t count, loff_t* store_f_pos)
+{
+    LOCK_CONFIG_READ();
+    ssize_t retval;
+    const Handler *h;
+    struct inode *inode = filp->f_dentry->d_inode;
+    if ((retval = click_ino_check(inode, -EIO)) < 0)
+        /* save retval */;
+    else if (!(h = Router::handler(click_router, click_ino.ino_handler(inode->i_ino))))
+        retval = -EIO;
+    else if (!h->read_visible())
+        retval = -EPERM;
+    else {
+        int eindex = click_ino.ino_element(inode->i_ino);
+        Element *e = Router::element(click_router, eindex);
+
+        if ((hs->flags & HS_DIRECT) && buffer) {
+            click_handler_direct_info hdi;
+            hdi.buffer = buffer;
+            hdi.count = count;
+            hdi.store_f_pos = store_f_pos;
+            hdi.string = &hs->data;
+            hdi.retval = 0;
+            (void) h->__call_read(e, &hdi);
+            count = hdi.count;
+            retval = hdi.retval;
+        } else if (hs->flags & HS_DIRECT)
+            retval = -EINVAL;
+        else {
+            String param;
+            if ((filp->f_mode & FMODE_READ) && (filp->f_mode & FMODE_WRITE))
+                param = handler_string_strip_newline(hs, h);
+            if (h->exclusive()) {
+                lock_threads();
+                hs->data = h->call_read(e, param, 0).unique();
+                unlock_threads();
+            } else
+                hs->data = h->call_read(e, param, 0);
+            handler_string_add_newline(hs, h);
+            retval = (hs->data.out_of_memory() ? -ENOMEM : 0);
+        }
+    }
+    UNLOCK_CONFIG_READ();
+    if (retval >= 0)
+        hs->flags |= HS_DONE;
+    return retval;
+}
+
+static loff_t
+handler_llseek(struct file* filp, loff_t offset, int origin)
+{
+    HandlerString* hs = FILP_HS(filp);
+    if (!hs)
+        return -EIO;
+
+    if ((filp->f_mode & FMODE_READ) && (filp->f_mode & FMODE_WRITE))
+        return -ESPIPE;
+
+    if (origin == SEEK_END) {
+        // ensure the string's existence before seeking
+        if ((filp->f_mode & FMODE_READ)
+            && (hs->flags & (HS_DIRECT | HS_DONE)) != HS_DONE) {
+            ssize_t r = handler_prepare_read(hs, filp, 0, 0, 0);
+            if (r < 0)
+                return r;
+        }
+        offset += hs->data.length();
+    } else if (origin == SEEK_CUR)
+        offset += filp->f_pos;
+
+    if (offset >= 0 && offset <= 0x7FFFFFFF) {
+        if (offset != filp->f_pos) {
+            filp->f_pos = offset;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
+            filp->f_version = 0;
+#else
+            filp->f_reada = 0;
+            filp->f_version = ++event;
+#endif
+        }
+        return offset;
+    } else
+        return -EINVAL;
+}
+
+static ssize_t
 handler_read(struct file *filp, char *buffer, size_t count, loff_t *store_f_pos)
 {
     loff_t f_pos = *store_f_pos;
+    ssize_t r = -EIO;
     HandlerString* hs = FILP_READ_HS(filp);
     if (!hs)
-	return -EIO;
+	return r;
 
-    // (re)read handler if necessary
-    if ((hs->flags & (HANDLER_DIRECT | HANDLER_DONE)) != HANDLER_DONE) {
-	LOCK_CONFIG_READ();
-	int retval;
-	const Handler *h;
-	struct inode *inode = filp->f_dentry->d_inode;
-	if ((retval = click_ino_check(inode, -EIO)) < 0)
-	    /* save retval */;
-	else if (!(h = Router::handler(click_router, click_ino.ino_handler(inode->i_ino))))
-	    retval = -EIO;
-	else if (!h->read_visible())
-	    retval = -EPERM;
-	else {
-	    int eindex = click_ino.ino_element(inode->i_ino);
-	    Element *e = Router::element(click_router, eindex);
-
-	    if (hs->flags & HANDLER_DIRECT) {
-		click_handler_direct_info hdi;
-		hdi.buffer = buffer;
-		hdi.count = count;
-		hdi.store_f_pos = store_f_pos;
-		hdi.string = &hs->data;
-		hdi.retval = 0;
-		(void) h->__call_read(e, &hdi);
-		count = hdi.count;
-		retval = hdi.retval;
-	    } else if (h->exclusive()) {
-		lock_threads();
-		hs->data = h->call_read(e);
-		unlock_threads();
-	    } else
-		hs->data = h->call_read(e);
-
-	    if (!h->raw()
-		&& !(hs->flags & HANDLER_RAW)
-		&& !(hs->flags & HANDLER_DIRECT)
-		&& hs->data
-		&& hs->data.back() != '\n')
-		hs->data += '\n';
-	    retval = (hs->data.out_of_memory() ? -ENOMEM : 0);
-	}
-	UNLOCK_CONFIG_READ();
-	if (retval < 0)
-	    return retval;
-	hs->flags |= HANDLER_DONE;
+    // read-write handler: reset file position if switching to reading
+    if ((filp->f_mode & FMODE_READ) && (filp->f_mode & FMODE_WRITE)
+        && !(hs->flags & HS_READING)) {
+        f_pos = 0;
+        hs->flags |= HS_READING;
     }
 
-    if (!(hs->flags & HANDLER_DIRECT)) {
+    // (re)read handler if necessary
+    if ((hs->flags & (HS_DIRECT | HS_DONE)) != HS_DONE) {
+        r = handler_prepare_read(hs, filp, buffer, count, store_f_pos);
+        if (r < 0)
+            return r;
+    }
+
+    if (!(hs->flags & HS_DIRECT)) {
 	const String &s = hs->data;
 	if (f_pos > s.length())
 	    f_pos = s.length();
@@ -684,10 +773,11 @@ handler_read(struct file *filp, char *buffer, size_t count, loff_t *store_f_pos)
 	    count = s.length() - f_pos;
 	if (copy_to_user(buffer, s.data() + f_pos, count) > 0)
 	    return -EFAULT;
+        *store_f_pos = f_pos + count;
+        r = count;
     }
 
-    *store_f_pos += count;
-    return count;
+    return r;
 }
 
 static ssize_t
@@ -700,12 +790,18 @@ handler_write(struct file *filp, const char *buffer, size_t count, loff_t *store
     String &s = hs->data;
     int old_length = s.length();
 
-    hs->flags &= ~HANDLER_DONE;
+    hs->flags &= ~HS_DONE;
 #ifdef LARGEST_HANDLER_WRITE
     if (f_pos + count > LARGEST_HANDLER_WRITE
-	&& !(hs->flags & HANDLER_WRITE_UNLIMITED))
+	&& !(hs->flags & HS_WRITE_UNLIMITED))
 	return -EFBIG;
 #endif
+    // read-write handler: reset file position if switching to writing
+    if ((filp->f_mode & FMODE_READ) && (filp->f_mode & FMODE_WRITE)
+        && (hs->flags & HS_READING)) {
+        f_pos = 0;
+        hs->flags &= ~HS_READING;
+    }
 
     if (f_pos + count > old_length) {
 	s.append_fill(0, f_pos + count - old_length);
@@ -726,7 +822,7 @@ handler_write(struct file *filp, const char *buffer, size_t count, loff_t *store
     if (copy_from_user(data + f_pos, buffer, count) > 0)
 	return -EFAULT;
 
-    *store_f_pos += count;
+    *store_f_pos = f_pos + count;
     return count;
 }
 
@@ -758,13 +854,11 @@ handler_do_write(struct file *filp, void *address_ptr)
 	    goto exit;
 	}
 
-	String data = hs->data;
-	if (!h->raw()
-	    && !(hs->flags & HANDLER_RAW)
-	    && (!address_ptr || !(chs.flags & CLICK_LLRPC_CALL_HANDLER_FLAG_RAW))
-	    && data
-	    && data.back() == '\n')
-	    data = data.substring(data.begin(), data.end() - 1);
+	String data;
+        if (!address_ptr || !(chs.flags & CLICK_LLRPC_CALL_HANDLER_FLAG_RAW))
+            data = handler_string_strip_newline(hs, h);
+        else
+            data = hs->data;
 
 	ClickfsHandlerErrorHandler cerrh;
 	if (h->exclusive()) {
@@ -774,7 +868,7 @@ handler_do_write(struct file *filp, void *address_ptr)
 	} else
 	    retval = h->call_write(data, e, &cerrh);
 
-	hs->flags |= HANDLER_DONE;
+	hs->flags |= HS_DONE;
 
 	if (cerrh._sa && !address_ptr) {
 	    ErrorHandler *errh = click_logged_errh;
@@ -829,7 +923,7 @@ handler_flush(struct file *filp
 #endif
 	      )
 {
-    bool writing = (filp->f_flags & O_ACCMODE) != O_RDONLY;
+    bool writing = (filp->f_mode & FMODE_WRITE) && !(filp->f_mode & FMODE_READ);
     HandlerString* hs = FILP_WRITE_HS(filp);
     int retval = 0;
 
@@ -839,8 +933,7 @@ handler_flush(struct file *filp
     int f_count = atomic_read(&filp->f_count);
 #endif
 
-    if (writing && f_count == 1 && hs
-	&& !(hs->flags & HANDLER_DONE)) {
+    if (writing && f_count == 1 && hs && !(hs->flags & HS_DONE)) {
 	LOCK_CONFIG_WRITE();
 	retval = handler_do_write(filp, 0);
 	UNLOCK_CONFIG_WRITE();
@@ -880,11 +973,11 @@ do_handler_ioctl(struct inode *inode, struct file *filp,
     else if (command == CLICK_LLRPC_ABANDON_HANDLER) {
 	HandlerString* hs = FILP_HS(filp);
 	hs->data = String();
-	hs->flags |= HANDLER_DONE;
+	hs->flags |= HS_DONE;
 	retval = 0;
     } else if (command == CLICK_LLRPC_RAW_HANDLER) {
 	HandlerString* hs = FILP_HS(filp);
-	hs->flags |= HANDLER_RAW;
+	hs->flags |= HS_RAW;
 	retval = 0;
     } else if (click_ino.ino_element(inode->i_ino) < 0
                || !(e = click_router->element(click_ino.ino_element(inode->i_ino))))
@@ -989,7 +1082,8 @@ init_clickfs()
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
     static_assert(sizeof(((struct inode *)0)->u) >= sizeof(ClickInodeInfo), "The file-system-specific data in struct inode isn't big enough.");
 #endif
-    static_assert(HANDLER_DIRECT + HANDLER_DONE + HANDLER_RAW + HANDLER_SPECIAL_INODE + HANDLER_WRITE_UNLIMITED < Handler::USER_FLAG_0, "Too few driver handler flags available.");
+    static_assert(HANDLER_DIRECT + HANDLER_WRITE_UNLIMITED < Handler::USER_FLAG_0, "Too few driver handler flags available.");
+    static_assert(((HS_DIRECT | HS_WRITE_UNLIMITED) & (HS_READING | HS_DONE | HS_RAW)) == 0, "Handler flag overlap.");
 
     mutex_init(&handler_strings_lock);
     mutex_init(&clickfs_lock);
@@ -1026,6 +1120,7 @@ init_clickfs()
     click_dir_inode_ops->revalidate = click_dir_revalidate;
 #endif
 
+    click_handler_file_ops->llseek = handler_llseek;
     click_handler_file_ops->read = handler_read;
     click_handler_file_ops->write = handler_write;
 #if HAVE_UNLOCKED_IOCTL
