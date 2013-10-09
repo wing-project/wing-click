@@ -101,6 +101,7 @@ extern "C" void
 click_assert_failed(const char *file, int line, const char *problem_text)
 {
     click_chatter(KERN_ALERT "%s:%d: assertion failed: %s", file, line, problem_text);
+    dump_stack();
 #if HAVE_KERNEL_ASSERT
     if (assert_stops_router) {
 	if (click_router) {
@@ -314,7 +315,7 @@ init_module()
     Router::add_read_handler(0, "messages", read_messages, 0, HANDLER_DIRECT);
 #if HAVE_KERNEL_ASSERT
     Router::add_read_handler(0, "assert_stop", read_global, (void *) (intptr_t) h_assert_stop);
-    Router::add_write_handler(0, "assert_stop", write_assert_stop, 0, Handler::NONEXCLUSIVE);
+    Router::add_write_handler(0, "assert_stop", write_assert_stop, 0, Handler::h_nonexclusive);
 #endif
 
     // filesystem interface
