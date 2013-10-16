@@ -1,6 +1,6 @@
 /*
  * settxrate.{cc,hh} -- sets wifi txrate annotation on a packet
- * John Bicket
+ * John Bicket, Roberto Riggio
  *
  * Copyright (c) 2003 Massachusetts Institute of Technology
  *
@@ -27,7 +27,7 @@
 CLICK_DECLS
 
 SetTXRate::SetTXRate() : _rate(0), _rate1(0), _rate2(0), _rate3(0),
-                         _max_tries(0), _max_tries1(1), _max_tries2(0),
+                         _max_tries(0), _max_tries1(0), _max_tries2(0),
                          _max_tries3(0), _et(0), _offset(0) {
 }
 

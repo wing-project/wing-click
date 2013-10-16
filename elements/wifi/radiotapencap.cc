@@ -124,11 +124,11 @@ RadiotapEncap::encap_ht(Packet *p) {
 	                 IEEE80211_RADIOTAP_MCS_HAVE_MCS | 
 	                 IEEE80211_RADIOTAP_MCS_HAVE_GI;
 
-	if (false) {
+	if (ceh->flags & WIFI_EXTRA_MCS_SGI) {
 		crh->wt_flags |= IEEE80211_RADIOTAP_MCS_SGI;
 	}
 
-	if (false) {
+	if (ceh->flags & WIFI_EXTRA_MCS_BW_40) {
 		crh->wt_flags |= IEEE80211_RADIOTAP_MCS_BW_40;
 	}
 

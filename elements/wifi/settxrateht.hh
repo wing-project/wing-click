@@ -5,49 +5,67 @@
 CLICK_DECLS
 
 /*
- * =c
- * SetTXRateHT([I<KEYWORDS>])
- * =s Wifi
- * Sets the MCS index for a packet.
- * =d
- * Sets the Wifi MCS Annotation on a packet.
- * Regular Arguments:
- * =over 8
- * =item MCS
- * Unsigned integer. The mcs field indicates the MCS rate 
- * index as in IEEE_802.11n-2009
- * =back 8
- * =h rate read/write
- * Same as MCS Argument
- * =a AutoRateFallback, MadwifiRate, ProbeRate, ExtraEncap
+=c
+SetTXRateHT([I<KEYWORDS>])
+
+=s Wifi
+
+Sets the bit-rate for a packet.
+
+=d
+
+Sets the Wifi TXRate Annotation on a packet.
+
+Regular Arguments:
+=over 8
+
+=item MCS
+Unsigned integer. MCS index.
+
+=back 8
+
+=h rate read/write
+Same as RATE Argument
+
+=a AutoRateFallback, MadwifiRate, ProbeRate, ExtraEncap
 */
 
-class SetTXRateHT : public Element { 
+class SetTXRateHT: public Element {
+public:
 
-  public:
+	SetTXRateHT() CLICK_COLD;
+	~SetTXRateHT() CLICK_COLD;
 
-	SetTXRateHT();
-	~SetTXRateHT();
+	const char *class_name() const { return "SetTXRateHT"; }
+	const char *port_count() const { return PORTS_1_1; }
+	const char *processing() const { return AGNOSTIC; }
 
-	const char *class_name() const		{ return "SetTXRateHT"; }
-	const char *port_count() const		{ return PORTS_1_1; }
-	const char *processing() const		{ return AGNOSTIC; }
-
-	int configure(Vector<String> &, ErrorHandler *);
-	bool can_live_reconfigure() const		{ return true; }
+	int configure(Vector<String> &, ErrorHandler *) CLICK_COLD;
+	bool can_live_reconfigure() const { return true; }
 
 	Packet *simple_action(Packet *);
 
-	void add_handlers();
-	static String read_handler(Element *e, void *);
-	static int write_handler(const String &arg, Element *e, void *, ErrorHandler *errh);
+	void add_handlers() CLICK_COLD;
 
-  private:
+	static String read_handler(Element *e, void *) CLICK_COLD;
+	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 
-	int _mcs;
-	int _tries;
+private:
+
+	unsigned _mcs;
+	unsigned _mcs1;
+	unsigned _mcs2;
+	unsigned _mcs3;
+
+	unsigned _max_tries;
+	unsigned _max_tries1;
+	unsigned _max_tries2;
+	unsigned _max_tries3;
+
 	uint16_t _et;
 	unsigned _offset;
+	bool _sgi;
+	bool _bw_40;
 
 };
 
