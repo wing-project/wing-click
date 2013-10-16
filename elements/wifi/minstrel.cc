@@ -115,9 +115,9 @@ int Minstrel::configure(Vector<String> &conf, ErrorHandler *errh)
 {
 
 	int ret = Args(conf, this, errh)
-		      .read_p("OFFSET", _offset)
-		      .read_mp("RT", ElementCastArg("AvailableRates"), _rtable)
-                      .read_p("RT_HT", ElementCastArg("AvailableRates"), _rtable_ht)
+		      .read("OFFSET", _offset)
+		      .read("RT", ElementCastArg("AvailableRates"), _rtable)
+              .read("RT_HT", ElementCastArg("AvailableRates"), _rtable_ht)
 		      .read("LOOKAROUND_RATE", _lookaround_rate)
 		      .read("EWMA_LEVEL", _ewma_level)
 		      .read("PERIOD", _period)
@@ -152,11 +152,7 @@ void Minstrel::process_feedback(Packet *p_in) {
 		}
 		return;
 	}
-	if (nfo->rate_type == RATE_TYPE_HT) {
-		nfo->add_result(ceh->mcs, ceh->retries + 1, success);
-	} else {
-		nfo->add_result(ceh->rate, ceh->retries + 1, success);
-	} 
+	nfo->add_result(ceh->rate, ceh->max_tries, success);
 	return;
 }
 
@@ -249,42 +245,24 @@ void Minstrel::assign_rate(Packet *p_in)
 	ceh->magic = WIFI_EXTRA_MAGIC;
 
 	if (nfo->rate_type == RATE_TYPE_HT) {
-
-		if (sample) {
-			if (nfo->rates[ndx] < nfo->rates[nfo->max_tp_rate]) {
-				ceh->mcs = nfo->rates[nfo->max_tp_rate];
-				ceh->mcs1 = nfo->rates[ndx];
-			} else {
-				ceh->mcs = nfo->rates[ndx];
-				ceh->mcs1 = nfo->rates[nfo->max_tp_rate];
-			}
-		} else {
-			ceh->mcs = nfo->rates[nfo->max_tp_rate];
-			ceh->mcs1 = nfo->rates[nfo->max_tp_rate2];
-		}
-
-		ceh->mcs2 = nfo->rates[nfo->max_prob_rate];
-		ceh->mcs3 = nfo->rates[0];
-
-	} else {
-
-		if (sample) {
-			if (nfo->rates[ndx] < nfo->rates[nfo->max_tp_rate]) {
-				ceh->rate = nfo->rates[nfo->max_tp_rate];
-				ceh->rate1 = nfo->rates[ndx];
-			} else {
-				ceh->rate = nfo->rates[ndx];
-				ceh->rate1 = nfo->rates[nfo->max_tp_rate];
-			}
-		} else {
-			ceh->rate = nfo->rates[nfo->max_tp_rate];
-			ceh->rate1 = nfo->rates[nfo->max_tp_rate2];
-		}
-
-		ceh->rate2 = nfo->rates[nfo->max_prob_rate];
-		ceh->rate3 = nfo->rates[0];
-
+		ceh->flags |= WIFI_EXTRA_MCS;
 	}
+
+	if (sample) {
+		if (nfo->rates[ndx] < nfo->rates[nfo->max_tp_rate]) {
+			ceh->rate = nfo->rates[nfo->max_tp_rate];
+			ceh->rate1 = nfo->rates[ndx];
+		} else {
+			ceh->rate = nfo->rates[ndx];
+			ceh->rate1 = nfo->rates[nfo->max_tp_rate];
+		}
+	} else {
+		ceh->rate = nfo->rates[nfo->max_tp_rate];
+		ceh->rate1 = nfo->rates[nfo->max_tp_rate2];
+	}
+
+	ceh->rate2 = nfo->rates[nfo->max_prob_rate];
+	ceh->rate3 = nfo->rates[0];
 
 	ceh->max_tries = WIFI_MAX_RETRIES + 1;
 	ceh->max_tries1 = WIFI_MAX_RETRIES + 1;

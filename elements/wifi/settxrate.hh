@@ -31,30 +31,41 @@ Same as RATE Argument
 =a AutoRateFallback, MadwifiRate, ProbeRate, ExtraEncap
 */
 
-class SetTXRate : public Element { public:
+class SetTXRate: public Element {
+public:
 
-  SetTXRate() CLICK_COLD;
-  ~SetTXRate() CLICK_COLD;
+	SetTXRate() CLICK_COLD;
+	~SetTXRate() CLICK_COLD;
 
-  const char *class_name() const		{ return "SetTXRate"; }
-  const char *port_count() const		{ return PORTS_1_1; }
-  const char *processing() const		{ return AGNOSTIC; }
+	const char *class_name() const { return "SetTXRate"; }
+	const char *port_count() const { return PORTS_1_1; }
+	const char *processing() const { return AGNOSTIC; }
 
-  int configure(Vector<String> &, ErrorHandler *) CLICK_COLD;
-  bool can_live_reconfigure() const		{ return true; }
+	int configure(Vector<String> &, ErrorHandler *) CLICK_COLD;
+	bool can_live_reconfigure() const { return true; }
 
-  Packet *simple_action(Packet *);
+	Packet *simple_action(Packet *);
 
-  void add_handlers() CLICK_COLD;
-  static String read_handler(Element *e, void *) CLICK_COLD;
-  static int write_handler(const String &arg, Element *e,
-			   void *, ErrorHandler *errh);
+	void add_handlers() CLICK_COLD;
+
+	static String read_handler(Element *e, void *) CLICK_COLD;
+	static int write_handler(const String &, Element *, void *, ErrorHandler *);
+
 private:
 
-  int _rate;
-  int _tries;
-  uint16_t _et;     // This protocol's ethertype
-  unsigned _offset;
+	unsigned _rate;
+	unsigned _rate1;
+	unsigned _rate2;
+	unsigned _rate3;
+
+	unsigned _max_tries;
+	unsigned _max_tries1;
+	unsigned _max_tries2;
+	unsigned _max_tries3;
+
+	uint16_t _et;
+	unsigned _offset;
+
 };
 
 CLICK_ENDDECLS

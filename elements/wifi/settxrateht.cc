@@ -70,7 +70,8 @@ SetTXRateHT::simple_action(Packet *p_in)
 
 	struct click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p_in);
 	ceh->magic = WIFI_EXTRA_MAGIC;
-	ceh->mcs = _mcs;
+	ceh->flags |= WIFI_EXTRA_MCS;
+	ceh->rate = _mcs;
 	ceh->max_tries = _tries;
 
 	return p_in;

@@ -10,22 +10,22 @@
 #ifndef _CLICKNET_WIFI_H_
 #define _CLICKNET_WIFI_H_
 
-
 #define WIFI_EXTRA_MAGIC  0x7492001
 
 enum {
-  WIFI_EXTRA_TX			= (1<<0), /* packet transmission */
-  WIFI_EXTRA_TX_FAIL		= (1<<1), /* transmission failed */
+  WIFI_EXTRA_TX			        = (1<<0), /* packet transmission */
+  WIFI_EXTRA_TX_FAIL		    = (1<<1), /* transmission failed */
   WIFI_EXTRA_TX_USED_ALT_RATE	= (1<<2), /* used alternate bitrate */
-  WIFI_EXTRA_RX_ERR		= (1<<3), /* failed crc check */
-  WIFI_EXTRA_RX_MORE		= (1<<4), /* first part of a fragmented skb */
-  WIFI_EXTRA_NO_SEQ		= (1<<5),
-  WIFI_EXTRA_NO_TXF		= (1<<6),
-  WIFI_EXTRA_DO_RTS_CTS		= (1<<7),
-  WIFI_EXTRA_DO_CTS		= (1<<8)
+  WIFI_EXTRA_RX_ERR		        = (1<<3), /* failed crc check */
+  WIFI_EXTRA_RX_MORE		    = (1<<4), /* first part of a fragmented skb */
+  WIFI_EXTRA_NO_SEQ		        = (1<<5),
+  WIFI_EXTRA_NO_TXF	 	        = (1<<6),
+  WIFI_EXTRA_DO_RTS_CTS		    = (1<<7),
+  WIFI_EXTRA_DO_CTS		        = (1<<8),
+  WIFI_EXTRA_MCS		        = (1<<9),
+  WIFI_EXTRA_MCS_SGI		    = (1<<10),
+  WIFI_EXTRA_MCS_BW_40		    = (1<<11)
 };
-
-
 
 struct click_wifi_extra {
   uint32_t magic;
@@ -38,26 +38,17 @@ struct click_wifi_extra {
   uint8_t power;
   uint8_t pad;
 
-  uint8_t rate;			/* bitrate in Mbps*2 */
-  uint8_t rate1;		/* bitrate in Mbps*2 */
-  uint8_t rate2;		/* bitrate in Mbps*2 */
-  uint8_t rate3;		/* bitrate in Mbps*2 */
-
-  uint8_t mcs;			/* MCS index */
-  uint8_t mcs1;		    /* MCS index */
-  uint8_t mcs2;		    /* MCS index */
-  uint8_t mcs3;		    /* MCS index */
+  uint8_t rate;			/* bitrate in Mbps*2 or MCS index */
+  uint8_t rate1;		/* bitrate in Mbps*2 or MCS index */
+  uint8_t rate2;		/* bitrate in Mbps*2 or MCS index */
+  uint8_t rate3;		/* bitrate in Mbps*2 or MCS index */
 
   uint8_t max_tries;
   uint8_t max_tries1;
   uint8_t max_tries2;
   uint8_t max_tries3;
 
-  uint8_t virt_col;
-  uint8_t retries;
-  uint16_t len;
 } CLICK_SIZE_PACKED_ATTRIBUTE;
-
 
 /*
  * generic definitions for IEEE 802.11 frames
@@ -112,7 +103,6 @@ struct click_wifi {
 #define WIFI_FC0_SUBTYPE_QOS               0x80
 #define WIFI_FC0_SUBTYPE_QOS_NULL          0xc0
 
-
 #define	WIFI_FC1_DIR_MASK		0x03
 #define	WIFI_FC1_DIR_NODS		0x00	/* STA->STA */
 #define	WIFI_FC1_DIR_TODS		0x01	/* STA->AP  */
@@ -152,15 +142,12 @@ typedef uint8_t *	wifi_mgt_beacon_t;
 #define	WIFI_CAPINFO_CF_POLLREQ		0x08
 #define	WIFI_CAPINFO_PRIVACY		0x10
 
-
-
 #define WIFI_MAX_RETRIES 11
 
 #define WIFI_QOS_HAS_SEQ(wh) \
         (((wh)->i_fc[0] & \
           (WIFI_FC0_TYPE_MASK | WIFI_FC0_SUBTYPE_QOS)) == \
           (WIFI_FC0_TYPE_DATA | WIFI_FC0_SUBTYPE_QOS))
-
 
 /*
  * Management information elements
@@ -280,7 +267,6 @@ typedef uint8_t *	wifi_mgt_auth_t;
 #define	WIFI_STATUS_RATES		23
 #define WIFI_STATUS_SHORTSLOT_REQUIRED  25
 
-
 #define	WIFI_WEP_KEYLEN			5	/* 40bit */
 #define	WIFI_WEP_IVLEN			3	/* 24bit */
 #define	WIFI_WEP_KIDLEN			1	/* 1 octet */
@@ -288,7 +274,6 @@ typedef uint8_t *	wifi_mgt_auth_t;
 #define	WIFI_WEP_NKID			4	/* number of key ids */
 
 #define WIFI_WEP_HEADERSIZE (WIFI_WEP_IVLEN + WIFI_WEP_KIDLEN)
-
 
 #define WIFI_WEP_NOSUP	-1
 #define WIFI_WEP_OFF	0
@@ -316,7 +301,6 @@ typedef uint8_t *	wifi_mgt_auth_t;
 #define WIFI_SEQ_SEQ_MASK                  0xfff0
 #define WIFI_SEQ_SEQ_SHIFT                 4
 
-
 /*
  * 802.11 protocol crypto-related definitions.
  */
@@ -330,11 +314,6 @@ typedef uint8_t *	wifi_mgt_auth_t;
 #ifndef WIFI_MIN
 #define WIFI_MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
-
-
-
-/* ARPHRD_IEEE80211_PRISM uses a bloated version of Prism2 RX frame header
- * (from linux-wlan-ng) */
 
 /*
  * For packet capture, define the same physical layer packet header
@@ -360,7 +339,6 @@ enum {
         P80211ENUM_truth_false                  = 0x00
 };
 
-
 typedef struct {
   uint32_t did;
   uint16_t status;
@@ -384,7 +362,6 @@ typedef struct {
   p80211item_uint32_t istx;
   p80211item_uint32_t frmlen;
 } wlan_ng_prism2_header;
-
 
 #define LWNG_CAP_DID_BASE   (4 | (1 << 6)) /* section 4, group 1 */
 #define LWNG_CAPHDR_VERSION 0x80211001

@@ -67,13 +67,14 @@ RadiotapDecap::simple_action(Packet *p) {
 			}
 			break;
 		case IEEE80211_RADIOTAP_MCS:
-			ceh->mcs = *((uint8_t *)iter.this_arg+2);
+			ceh->rate = *((uint8_t *)iter.this_arg+2);
+			ceh->flags |= WIFI_EXTRA_MCS;
 			break;
 		case IEEE80211_RADIOTAP_RATE:
 			ceh->rate = *iter.this_arg;
 			break;
 		case IEEE80211_RADIOTAP_DATA_RETRIES:
-			ceh->retries = *iter.this_arg;
+			ceh->max_tries = *iter.this_arg + 1;
 			break;
 		case IEEE80211_RADIOTAP_CHANNEL:
 			ceh->channel = le16_to_cpu(*(uint16_t *)iter.this_arg);
