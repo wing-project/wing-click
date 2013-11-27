@@ -2,6 +2,7 @@
 #ifndef CLICK_EMPOWERPACKET_HH
 #define CLICK_EMPOWERPACKET_HH
 #include <click/config.h>
+#include <click/etheraddress64.hh>
 CLICK_DECLS
 
 /* protocol version */
@@ -54,12 +55,15 @@ struct empower_hello : public empower_header {,
 	uint32_t _port;  /* OVS port id to which the WTP generating
 	                  * this message is attached
 	                  */
-	uint8_t	_wtp[6]; /* WTP EtherAddress */
+	uint8_t	_wtp[6];  /* WTP EtherAddress */
+	uint8_t	_dpid[8]; /* DPID EtherAddress */
   public:
-	EtherAddress wtp()							  { return EtherAddress(_wtp); }
-	uint32_t     port()                           { return ntohl(_port); }
-	void         set_port(uint32_t port)          { _port = htonl(port); }
-	void         set_wtp(EtherAddress wtp)		  { memcpy(_wtp, wtp.data(), 6); }
+	EtherAddress   wtp()							  { return EtherAddress(_wtp); }
+	EtherAddress64 dpid()							  { return EtherAddress64(_dpid); }
+	uint32_t       port()                             { return ntohl(_port); }
+	void           set_port(uint32_t port)            { _port = htonl(port); }
+	void           set_wtp(EtherAddress wtp)		  { memcpy(_wtp, wtp.data(), 6); }
+	void           set_dpid(EtherAddress64 dpid)	  { memcpy(_dpid, dpid.data(), 8); }
 });
 
 /* probe request packet format */

@@ -23,6 +23,7 @@
 #include <clicknet/wifi.h>
 #include <clicknet/llc.h>
 #include <clicknet/ether.h>
+#include <click/etheraddress64.hh>
 #include "empowerpacket.hh"
 #include "empowerbeaconsource.hh"
 #include "empoweropenauthresponder.hh"
@@ -149,7 +150,7 @@ void EmpowerLVAPManager::send_probe_request(EtherAddress src, String ssid) {
 
 void EmpowerLVAPManager::send_hello() {
 
-	if (!_port)
+	if (_port == 0 || _dpid == EtherAddress64())
 		return;
 
 	WritablePacket *p = Packet::make(sizeof(empower_hello));
@@ -171,6 +172,7 @@ void EmpowerLVAPManager::send_hello() {
 	hello->set_seq(get_next_seq());
 	hello->set_port(_port);
 	hello->set_wtp(_hwaddr);
+	hello->set_dpid(_dpid);
 
 	checked_output_push(0, p);
 
@@ -497,8 +499,9 @@ int EmpowerLVAPManager::del_lvap(EtherAddress sta) {
 }
 
 enum {
-	H_DEBUG,
 	H_PORT,
+	H_DPID,
+	H_DEBUG,
 	H_MASK,
 	H_LVAPS,
 	H_ADD_LVAP,
@@ -508,10 +511,12 @@ enum {
 String EmpowerLVAPManager::read_handler(Element *e, void *thunk) {
 	EmpowerLVAPManager *td = (EmpowerLVAPManager *) e;
 	switch ((uintptr_t) thunk) {
-	case H_DEBUG:
-		return String(td->_debug) + "\n";
 	case H_PORT:
 		return String(td->_port) + "\n";
+	case H_DPID:
+		return td->_dpid.unparse() + "\n";
+	case H_DEBUG:
+		return String(td->_debug) + "\n";
 	case H_MASK:
 		return String(td->_mask.unparse()) + "\n";
 	case H_LVAPS: {
@@ -563,6 +568,13 @@ int EmpowerLVAPManager::write_handler(const String &in_s, Element *e,
 		f->_port = port;
 		break;
 	}
+	case H_DPID: {
+		EtherAddress64 dpid;
+		if (!EtherAddress64Arg().parse(s, dpid))
+			return errh->error("error parsing address");
+		f->_dpid = dpid;
+		break;
+	}
 	}
 	return 0;
 }
@@ -570,9 +582,11 @@ int EmpowerLVAPManager::write_handler(const String &in_s, Element *e,
 void EmpowerLVAPManager::add_handlers() {
 	add_read_handler("debug", read_handler, (void *) H_DEBUG);
 	add_read_handler("port", read_handler, (void *) H_PORT);
+	add_read_handler("dpid", read_handler, (void *) H_DPID);
 	add_read_handler("lvaps", read_handler, (void *) H_LVAPS);
 	add_read_handler("mask", read_handler, (void *) H_MASK);
 	add_write_handler("port", write_handler, (void *) H_PORT);
+	add_write_handler("dpid", write_handler, (void *) H_DPID);
 	add_write_handler("debug", write_handler, (void *) H_DEBUG);
 }
 

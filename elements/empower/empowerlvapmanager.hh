@@ -5,6 +5,7 @@
 #include <click/element.hh>
 #include <click/timer.hh>
 #include <click/etheraddress.hh>
+#include <click/etheraddress64.hh>
 #include <click/hashtable.hh>
 CLICK_DECLS
 
@@ -119,6 +120,8 @@ private:
 	String _debugfs_string;
 
 	uint32_t _seq;
+
+	EtherAddress64 _dpid;
 	uint32_t _port;
 
 	unsigned int _period; // msecs
