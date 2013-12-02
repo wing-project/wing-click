@@ -44,10 +44,10 @@ public:
 
 	const char *class_name() const { return "EmpowerWifiEncap"; }
 	const char *port_count() const { return PORTS_1_1; }
-	const char *processing() const { return AGNOSTIC; }
+	const char *processing() const { return PUSH; }
 
 	int configure(Vector<String> &, ErrorHandler *);
-	Packet *simple_action(Packet *);
+	void push(int, Packet *);
 	void add_handlers();
 
 private:
@@ -55,6 +55,8 @@ private:
 	class EmpowerLVAPManager *_el;
 
 	bool _debug;
+
+	Packet *wifi_encap(Packet *, EtherAddress, EtherAddress, EtherAddress);
 
 	static int write_handler(const String &, Element *, void *, ErrorHandler *);
 	static String read_handler(Element *, void *);

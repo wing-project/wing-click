@@ -45,8 +45,8 @@ int EmpowerWifiEncap::configure(Vector<String> &conf,
 
 }
 
-Packet *
-EmpowerWifiEncap::simple_action(Packet *p) {
+void
+EmpowerWifiEncap::push(int, Packet *p) {
 
 	if (p->length() < sizeof(struct click_ether)) {
 		click_chatter("%{element} :: %s :: packet too small: %d vs %d",
@@ -55,50 +55,61 @@ EmpowerWifiEncap::simple_action(Packet *p) {
 				      p->length(),
 				      sizeof(struct click_ether));
 		p->kill();
-		return 0;
+		return;
 	}
-
-	uint8_t mode = WIFI_FC1_DIR_FROMDS;
 
 	EtherAddress src;
 	EtherAddress dst;
+	EtherAddress bssid;
 
 	uint16_t ethtype;
-	WritablePacket *p_out = 0;
 
 	click_ether *eh = (click_ether *) p->data();
 	src = EtherAddress(eh->ether_shost);
 	dst = EtherAddress(eh->ether_dhost);
 
-    EmpowerStationState *ess = _el->lvaps()->get_pointer(dst);
-
-    if (!ess) {
-        p->kill();
-        return 0;
+    if (!dst.is_broadcast()) {
+        EmpowerStationState *ess = _el->lvaps()->get_pointer(dst);
+        if (!ess) {
+			p->kill();
+			return;
+		}
+		if (!ess->_authentication_status) {
+			click_chatter("%{element} :: %s :: station %s not authenticated",
+						  this,
+						  __func__,
+						  dst.unparse().c_str());
+			p->kill();
+			return;
+		}
+		if (!ess->_association_status) {
+			click_chatter("%{element} :: %s :: station %s not associated",
+						  this,
+						  __func__,
+						  dst.unparse().c_str());
+			p->kill();
+			return;
+		}
+		output(0).push(wifi_encap(p, dst, src, ess->_bssid));
+    } else {
+    	for (LVAPSIter it = _el->lvaps()->begin(); it.live(); it++)
+    		if (Packet *q = p->clone())
+    			output(0).push(wifi_encap(q, dst, src, it.value()._bssid));
     }
+}
 
-    if (!ess->_authentication_status) {
-        click_chatter("%{element} :: %s :: station %s not authenticated",
-                      this,
-                      __func__,
-                      dst.unparse().c_str());
-        p->kill();
-        return 0;
-    }
+Packet *
+EmpowerWifiEncap::wifi_encap(Packet *q, EtherAddress dst, EtherAddress src, EtherAddress bssid) {
 
-    if (!ess->_association_status) {
-        click_chatter("%{element} :: %s :: station %s not associated",
-                      this,
-                      __func__,
-                      dst.unparse().c_str());
-        p->kill();
-        return 0;
-    }
+	uint8_t mode = WIFI_FC1_DIR_FROMDS;
+	uint16_t ethtype;
 
-	memcpy(&ethtype, p->data() + 12, 2);
+    memcpy(&ethtype, q->data() + 12, 2);
 
-	p_out = p->uniqueify();
+    WritablePacket *p_out = q->uniqueify();
+
 	if (!p_out) {
+		p_out->kill();
 		return 0;
 	}
 
@@ -106,14 +117,18 @@ EmpowerWifiEncap::simple_action(Packet *p) {
 	p_out = p_out->push(sizeof(struct click_llc));
 
 	if (!p_out) {
+		p_out->kill();
 		return 0;
 	}
 
 	memcpy(p_out->data(), WIFI_LLC_HEADER, WIFI_LLC_HEADER_LEN);
 	memcpy(p_out->data() + 6, &ethtype, 2);
 
-	if (!(p_out = p_out->push(sizeof(struct click_wifi))))
+	if (!(p_out = p_out->push(sizeof(struct click_wifi)))) {
+		p_out->kill();
 		return 0;
+	}
+
 	struct click_wifi *w = (struct click_wifi *) p_out->data();
 
 	memset(p_out->data(), 0, sizeof(click_wifi));
@@ -125,16 +140,16 @@ EmpowerWifiEncap::simple_action(Packet *p) {
 	case WIFI_FC1_DIR_NODS:
 		memcpy(w->i_addr1, dst.data(), 6);
 		memcpy(w->i_addr2, src.data(), 6);
-		memcpy(w->i_addr3, ess->_bssid.data(), 6);
+		memcpy(w->i_addr3, bssid.data(), 6);
 		break;
 	case WIFI_FC1_DIR_TODS:
-		memcpy(w->i_addr1, ess->_bssid.data(), 6);
+		memcpy(w->i_addr1, bssid.data(), 6);
 		memcpy(w->i_addr2, src.data(), 6);
 		memcpy(w->i_addr3, dst.data(), 6);
 		break;
 	case WIFI_FC1_DIR_FROMDS:
 		memcpy(w->i_addr1, dst.data(), 6);
-		memcpy(w->i_addr2, ess->_bssid.data(), 6);
+		memcpy(w->i_addr2, bssid.data(), 6);
 		memcpy(w->i_addr3, src.data(), 6);
 		break;
 	default:
