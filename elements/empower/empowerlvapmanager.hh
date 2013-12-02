@@ -102,6 +102,7 @@ public:
 	void send_status_lvap(EtherAddress);
 
 	LVAP* lvaps() { return &_lvaps; }
+	LVAP* reverse_lvaps() { return &_reverse_lvaps; }
 	uint32_t get_next_seq() { return ++_seq; }
 
 private:
@@ -114,6 +115,7 @@ private:
 	class EmpowerPowerSaveBuffer *_epsb;
 
 	LVAP _lvaps;
+	LVAP _reverse_lvaps;
 	EtherAddress _hwaddr;
 	EtherAddress _mask;
 	Timer _timer;

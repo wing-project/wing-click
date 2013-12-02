@@ -442,12 +442,13 @@ int EmpowerLVAPManager::add_lvap(EtherAddress sta, EtherAddress bssid,
 		state._power_save = false;
 		state._ssid = ssid;
 		_lvaps.set(sta, state);
+		_reverse_lvaps.set(bssid, state);
 
 		/* Regenerate the BSSID mask */
 		compute_bssid_mask();
 
 		if (_epsb) {
-			_epsb->request_queue(sta);
+			_epsb->request_queue(bssid);
 		}
 
 		return 0;
@@ -488,14 +489,17 @@ int EmpowerLVAPManager::del_lvap(EtherAddress sta) {
 		return -1;
 	}
 
+	EmpowerStationState *ess = _lvaps.get_pointer(sta);
+
+	if (_epsb) {
+		_epsb->release_queue(ess->_bssid);
+	}
+
 	_lvaps.erase(_lvaps.find(sta));
+	_reverse_lvaps.erase(_reverse_lvaps.find(ess->_bssid));
 
 	// Remove this VAP's BSSID from the mask
 	compute_bssid_mask();
-
-	if (_epsb) {
-		_epsb->release_queue(sta);
-	}
 
 	return 0;
 

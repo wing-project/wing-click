@@ -86,7 +86,7 @@ EmpowerPowerSaveFilter::simple_action(Packet *p) {
 
 	if (ess->_power_save && (!(w->i_fc[1] & WIFI_FC1_PWR_MGT))) {
 		ess->_power_save = (w->i_fc[1] & WIFI_FC1_PWR_MGT);
-		_epsb->touch_queue(src);
+		_epsb->touch_queue(ess->_bssid);
 	} else {
 		ess->_power_save = (w->i_fc[1] & WIFI_FC1_PWR_MGT);
 	}

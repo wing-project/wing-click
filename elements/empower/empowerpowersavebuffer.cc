@@ -96,34 +96,37 @@ void EmpowerPowerSaveBuffer::push(int, Packet *p) {
 
 	struct click_wifi *w = (struct click_wifi *) p->data();
 	uint8_t dir = w->i_fc[1] & WIFI_FC1_DIR_MASK;
-	EtherAddress dst;
+	EtherAddress bssid;
 
 	switch (dir) {
-	case WIFI_FC1_DIR_NODS:
-	case WIFI_FC1_DIR_FROMDS:
-	case WIFI_FC1_DIR_DSTODS:
-		dst = EtherAddress(w->i_addr1);
-		break;
 	case WIFI_FC1_DIR_TODS:
-		dst = EtherAddress(w->i_addr3);
+		bssid = EtherAddress(w->i_addr1);
+		break;
+	case WIFI_FC1_DIR_FROMDS:
+		bssid = EtherAddress(w->i_addr2);
+		break;
+	case WIFI_FC1_DIR_NODS:
+	case WIFI_FC1_DIR_DSTODS:
+		bssid = EtherAddress(w->i_addr3);
 		break;
 	default:
 		click_chatter("%{element} :: %s :: invalid dir %d",
 				      this,
 				      __func__,
 				      dir);
-		output(0).push(p);
+		p->kill();
+		return;
 	}
 
-	// get queue for dst
-	PowerSaveQueue* q = _ps_table->get(dst);
+	// get queue for bssid (virtual)
+	PowerSaveQueue* q = _ps_table->get(bssid);
 
 	// no queue, this should never happen
 	if (!q) {
-		click_chatter("%{element} :: %s :: no buffer for sta %s",
+		click_chatter("%{element} :: %s :: no buffer for bssid %s",
 				      this,
 				      __func__,
-				      dst.unparse().c_str());
+				      bssid.unparse().c_str());
 		p->kill();
 		return;
 	} // end if
@@ -135,7 +138,7 @@ void EmpowerPowerSaveBuffer::push(int, Packet *p) {
 	// push packet on queue or fail
 	if (q->push(p)) {
 		if (_size == 0) {
-			_next = dst;
+			_next = bssid;
 			_empty_note.wake();
 			_sleepiness = 0;
 		}
@@ -164,7 +167,7 @@ EmpowerPowerSaveBuffer::pull(int) {
 
 	PSTIter active = _ps_table->find(_next);
 	PowerSaveQueue* q = active.value();
-	EmpowerStationState* ess = _el->lvaps()->get_pointer(_next);
+	EmpowerStationState* ess = _el->reverse_lvaps()->get_pointer(_next);
 	Packet* p = 0;
 
 	if (!ess->_power_save && q->top()) {
