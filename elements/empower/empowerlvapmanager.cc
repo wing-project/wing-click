@@ -124,6 +124,9 @@ void EmpowerLVAPManager::send_auth_request(EtherAddress src) {
 
 void EmpowerLVAPManager::send_probe_request(EtherAddress src, String ssid) {
 
+	if (_port == 0 || _dpid == EtherAddress64())
+		return;
+
 	WritablePacket *p = Packet::make(sizeof(empower_probe_request) + ssid.length());
 
 	if (!p) {
