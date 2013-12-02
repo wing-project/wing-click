@@ -58,15 +58,10 @@ EmpowerWifiEncap::push(int, Packet *p) {
 		return;
 	}
 
-	EtherAddress src;
-	EtherAddress dst;
-	EtherAddress bssid;
-
-	uint16_t ethtype;
-
 	click_ether *eh = (click_ether *) p->data();
-	src = EtherAddress(eh->ether_shost);
-	dst = EtherAddress(eh->ether_dhost);
+
+	EtherAddress src = EtherAddress(eh->ether_shost);
+	EtherAddress dst = EtherAddress(eh->ether_dhost);
 
     if (!dst.is_broadcast()) {
         EmpowerStationState *ess = _el->lvaps()->get_pointer(dst);
