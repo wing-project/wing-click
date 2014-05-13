@@ -125,6 +125,22 @@ AvailableRates::lookup(EtherAddress eth)
   return Vector<int>();
 }
 
+Vector<int>
+AvailableRates::supported(EtherAddress eth)
+{
+  if (!eth) {
+    click_chatter("%s: lookup called with NULL eth!\n", name().c_str());
+    return Vector<int>();
+  }
+
+  DstInfo *dst = _rtable.findp(eth);
+  if (dst) {
+    return dst->_rates;
+  }
+
+  return Vector<int>();
+}
+
 int
 AvailableRates::insert(EtherAddress eth, Vector<int> rates)
 {
