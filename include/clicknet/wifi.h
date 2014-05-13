@@ -24,7 +24,8 @@ enum {
   WIFI_EXTRA_DO_CTS		        = (1<<8),
   WIFI_EXTRA_MCS		        = (1<<9),
   WIFI_EXTRA_MCS_SGI		    = (1<<10),
-  WIFI_EXTRA_MCS_BW_40		    = (1<<11)
+  WIFI_EXTRA_MCS_BW_40		    = (1<<11),
+  WIFI_EXTRA_TX_NOACK		= (1<<12)
 };
 
 struct click_wifi_extra {
@@ -38,10 +39,10 @@ struct click_wifi_extra {
   uint8_t power;
   uint8_t pad;
 
-  uint8_t rate;			/* bitrate in Mbps*2 or MCS index */
-  uint8_t rate1;		/* bitrate in Mbps*2 or MCS index */
-  uint8_t rate2;		/* bitrate in Mbps*2 or MCS index */
-  uint8_t rate3;		/* bitrate in Mbps*2 or MCS index */
+  int8_t rate;		/* bitrate in Mbps*2 or MCS index */
+  int8_t rate1;		/* bitrate in Mbps*2 or MCS index */
+  int8_t rate2;		/* bitrate in Mbps*2 or MCS index */
+  int8_t rate3;		/* bitrate in Mbps*2 or MCS index */
 
   uint8_t max_tries;
   uint8_t max_tries1;

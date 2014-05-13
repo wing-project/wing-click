@@ -28,12 +28,14 @@ CLICK_DECLS
 
 #define CLICK_RADIOTAP_PRESENT (			          \
 	(1 << IEEE80211_RADIOTAP_RATE)			        | \
+	(1 << IEEE80211_RADIOTAP_CHANNEL)		        | \
 	(1 << IEEE80211_RADIOTAP_DATA_RETRIES)		    | \
 	(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE)	| \
 	(1 << IEEE80211_RADIOTAP_EXT)			        | \
 	0)
 
 #define CLICK_RADIOTAP_PRESENT_HT (			          \
+	(1 << IEEE80211_RADIOTAP_CHANNEL)		        | \
 	(1 << IEEE80211_RADIOTAP_DATA_RETRIES)		    | \
 	(1 << IEEE80211_RADIOTAP_MCS)			        | \
 	(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE)	| \
@@ -45,12 +47,19 @@ struct click_radiotap_header {
 	u_int32_t	it_present1;
 	u_int32_t	it_present2;
 	u_int32_t	it_present3;
+
 	u_int8_t	wt_rate;
+	u_int8_t	wt_channel_frequency_pad;
+	u_int16_t	wt_channel_frequency;
+	u_int16_t	wt_channel_type;
 	u_int8_t	wt_data_retries;
+
 	u_int8_t	wt_rate1;
 	u_int8_t	wt_data_retries1;
+
 	u_int8_t	wt_rate2;
 	u_int8_t	wt_data_retries2;
+
 	u_int8_t	wt_rate3;
 	u_int8_t	wt_data_retries3;
 
@@ -61,18 +70,24 @@ struct click_radiotap_header_ht {
 	u_int32_t	it_present1;
 	u_int32_t	it_present2;
 	u_int32_t	it_present3;
+
+	u_int16_t	wt_channel_frequency;
+	u_int16_t	wt_channel_type;
 	u_int8_t	wt_data_retries;
 	u_int8_t	wt_known;
 	u_int8_t	wt_flags;
 	u_int8_t	wt_mcs;
+
 	u_int8_t	wt_data_retries1;
 	u_int8_t	wt_known1;
 	u_int8_t	wt_flags1;
 	u_int8_t	wt_mcs1;
+
 	u_int8_t	wt_data_retries2;
 	u_int8_t	wt_known2;
 	u_int8_t	wt_flags2;
 	u_int8_t	wt_mcs2;
+
 	u_int8_t	wt_data_retries3;
 	u_int8_t	wt_known3;
 	u_int8_t	wt_flags3;
@@ -132,6 +147,8 @@ RadiotapEncap::encap_ht(Packet *p) {
 		crh->wt_flags |= IEEE80211_RADIOTAP_MCS_BW_40;
 	}
 
+	crh->wt_channel_frequency = cpu_to_le16(ceh->channel);
+	crh->wt_channel_type |= (ceh->channel < 3000) ? IEEE80211_CHAN_2GHZ : IEEE80211_CHAN_5GHZ;
 	crh->wt_mcs = ceh->rate;
 	crh->wt_data_retries = (ceh->max_tries > 0) ? ceh->max_tries - 1 : WIFI_MAX_RETRIES;
 
@@ -140,21 +157,51 @@ RadiotapEncap::encap_ht(Packet *p) {
 	crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
 	crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_EXT);
 
-	if (ceh->rate1 != 0) {
+	if (ceh->rate1 != -1) {
 		crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_MCS);
 		crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
 		crh->wt_mcs1 = ceh->rate1;
 		crh->wt_data_retries1 = (ceh->max_tries1 > 0) ? ceh->max_tries1 - 1 : WIFI_MAX_RETRIES;
-		if (ceh->rate2 != 0) {
+		crh->wt_known1 |= IEEE80211_RADIOTAP_MCS_HAVE_BW |
+		                  IEEE80211_RADIOTAP_MCS_HAVE_MCS |
+		                  IEEE80211_RADIOTAP_MCS_HAVE_GI;
+		if (ceh->flags & WIFI_EXTRA_MCS_SGI) {
+			crh->wt_flags1 |= IEEE80211_RADIOTAP_MCS_SGI;
+		}
+
+		if (ceh->flags & WIFI_EXTRA_MCS_BW_40) {
+			crh->wt_flags1 |= IEEE80211_RADIOTAP_MCS_BW_40;
+		}
+		if (ceh->rate2 != -1) {
 			crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_MCS);
 			crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
 			crh->wt_mcs2 = ceh->rate2;
 			crh->wt_data_retries2 = (ceh->max_tries2 > 0) ? ceh->max_tries2 - 1 : WIFI_MAX_RETRIES;
-			if (ceh->rate3 != 0) {
+			crh->wt_known2 |= IEEE80211_RADIOTAP_MCS_HAVE_BW |
+			                  IEEE80211_RADIOTAP_MCS_HAVE_MCS |
+			                  IEEE80211_RADIOTAP_MCS_HAVE_GI;
+			if (ceh->flags & WIFI_EXTRA_MCS_SGI) {
+				crh->wt_flags2 |= IEEE80211_RADIOTAP_MCS_SGI;
+			}
+
+			if (ceh->flags & WIFI_EXTRA_MCS_BW_40) {
+				crh->wt_flags2 |= IEEE80211_RADIOTAP_MCS_BW_40;
+			}
+			if (ceh->rate3 != -1) {
 				crh->it_present3 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_MCS);
 				crh->it_present3 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
 				crh->wt_mcs3 = ceh->rate3;
 				crh->wt_data_retries3 = (ceh->max_tries3 > 0) ? ceh->max_tries3 - 1 : WIFI_MAX_RETRIES;
+				crh->wt_known3 |= IEEE80211_RADIOTAP_MCS_HAVE_BW |
+				                  IEEE80211_RADIOTAP_MCS_HAVE_MCS |
+				                  IEEE80211_RADIOTAP_MCS_HAVE_GI;
+				if (ceh->flags & WIFI_EXTRA_MCS_SGI) {
+					crh->wt_flags3 |= IEEE80211_RADIOTAP_MCS_SGI;
+				}
+
+				if (ceh->flags & WIFI_EXTRA_MCS_BW_40) {
+					crh->wt_flags3 |= IEEE80211_RADIOTAP_MCS_BW_40;
+				}
 			}
 		}
 	}
@@ -191,6 +238,8 @@ RadiotapEncap::encap(Packet *p) {
 	crh->wt_ihdr.it_present = cpu_to_le32(CLICK_RADIOTAP_PRESENT);
 
 	crh->wt_rate = ceh->rate;
+	crh->wt_channel_frequency = cpu_to_le16(ceh->channel);
+	crh->wt_channel_type |= (ceh->channel < 3000) ? IEEE80211_CHAN_2GHZ : IEEE80211_CHAN_5GHZ;
 	crh->wt_data_retries = (ceh->max_tries > 0) ? ceh->max_tries - 1 : WIFI_MAX_RETRIES;
 
 	crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
@@ -198,17 +247,17 @@ RadiotapEncap::encap(Packet *p) {
 	crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RADIOTAP_NAMESPACE);
 	crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_EXT);
 
-	if (ceh->rate1 != 0) {
+	if (ceh->rate1 != -1) {
 		crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RATE);
 		crh->it_present1 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
 		crh->wt_rate1 = ceh->rate1;
 		crh->wt_data_retries1 = (ceh->max_tries1 > 0) ? ceh->max_tries1 - 1 : WIFI_MAX_RETRIES;
-		if (ceh->rate2 != 0) {
+		if (ceh->rate2 != -1) {
 			crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RATE);
 			crh->it_present2 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
 			crh->wt_rate2 = ceh->rate2;
 			crh->wt_data_retries2 = (ceh->max_tries2 > 0) ? ceh->max_tries2 - 1 : WIFI_MAX_RETRIES;
-			if (ceh->rate3 != 0) {
+			if (ceh->rate3 != -1) {
 				crh->it_present3 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_RATE);
 				crh->it_present3 |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DATA_RETRIES);
 				crh->wt_rate3 = ceh->rate3;

@@ -47,6 +47,18 @@ hold at a time.  Default is 2048; zero means unlimited.
 Unsigned integer.  The maximum number of ARP entries the ARPTable will hold at
 a time.  Default is zero, which means unlimited.
 
+=item ENTRY_PACKET_CAPACITY
+
+Unsigned integer.  The maximum number of saved IP packets the ARPTable will hold
+for any given ARP entry at a time.  Default is zero, which means unlimited.
+
+=item CAPACITY_SLIM_FACTOR
+
+Unsigned integer. ARPTable removes 1/CAPACITY_SLIM_FACTOR of saved packets on
+exceeding CAPACITY. Default is 2.  Increase for better bounds on the number of
+saved packets; decrease for better performance under an nmap-style denial-of-
+service attack.
+
 =item TIMEOUT
 
 Time value.  The amount of time after which an ARP entry will expire.  Default
@@ -121,6 +133,19 @@ class ARPTableBase : public Element { public:
     void set_entry_capacity(uint32_t entry_capacity) {
 	_entry_capacity = entry_capacity;
     }
+    uint32_t entry_packet_capacity() const {
+	return _entry_packet_capacity;
+    }
+    void set_entry_packet_capacity(uint32_t entry_packet_capacity) {
+	_entry_packet_capacity = entry_packet_capacity;
+    }
+    uint32_t capacity_slim_factor() const {
+	return _capacity_slim_factor;
+    }
+    void set_capacity_slim_factor(uint32_t capacity_slim_factor) {
+        assert(capacity_slim_factor != 0);
+	_capacity_slim_factor = capacity_slim_factor;
+    }
     Timestamp timeout() const {
 	return Timestamp::make_jiffies((click_jiffies_t) _timeout_j);
     }
@@ -159,12 +184,13 @@ class ARPTableBase : public Element { public:
 	click_jiffies_t _polled_at_j;
 	Packet *_head;
 	Packet *_tail;
+	uint32_t _entry_packet_count;
 	List_member<ARPEntry> _age_link;
 	typedef T key_type;
 	typedef T key_const_reference;
 	ARPEntry(T ip)
 	    : _ip(ip), _hashnext(), _eth(EtherAddress::make_broadcast()),
-	      _known(false), _num_polls_since_reply(0), _head(), _tail() {
+	      _known(false), _num_polls_since_reply(0), _head(), _tail(), _entry_packet_count(0) {
 	}
 	key_const_reference hashkey() const {
 	    return _ip;
@@ -202,6 +228,8 @@ class ARPTableBase : public Element { public:
     atomic_uint32_t _packet_count;
     uint32_t _entry_capacity;
     uint32_t _packet_capacity;
+    uint32_t _entry_packet_capacity;
+    uint32_t _capacity_slim_factor;
     uint32_t _timeout_j;
     atomic_uint32_t _drops;
     SizedHashAllocator<sizeof(ARPEntry)> _alloc;
