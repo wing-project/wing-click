@@ -5,11 +5,11 @@
 #endif
 #include <endian.h>
 
-#if !defined(le32toh) || !defined(le16toh) 
-#    include <byteswap.h> 
-#    define le32toh(x) bswap_32(x) 
-#    define le16toh(x) bswap_16(x) 
-#endif 
+#if !defined(le32toh) || !defined(le16toh)
+#    include <byteswap.h>
+#    define le32toh(x) bswap_32(x)
+#    define le16toh(x) bswap_16(x)
+#endif
 
 #define le16_to_cpu		le16toh
 #define le32_to_cpu		le32toh

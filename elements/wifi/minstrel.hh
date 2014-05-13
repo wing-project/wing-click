@@ -16,10 +16,6 @@ CLICK_DECLS
  * =a SetTXRate, FilterTX
  */
 
-enum rate_type {
-	RATE_TYPE_LEGACY = 0x01,
-	RATE_TYPE_HT = 0x02,
-};
 
 class Minstrel : public Element { public:
 
@@ -61,20 +57,20 @@ private:
 		Vector<int> cur_tp;
 		Vector<int> probability;
 		Vector<int> sample_limit;
-		int rate_type;
+		uint8_t flags;
 		int packet_count;
 		int sample_count;
 		int max_tp_rate;
 		int max_tp_rate2;
 		int max_prob_rate;
 		DstInfo() {}
-		DstInfo(EtherAddress neighbor, Vector<int> supported, int type) {
+		DstInfo(EtherAddress neighbor, Vector<int> supported) {
 			eth = neighbor;
 			int i;
 			for (i = 0; i < supported.size(); i++) {
 				rates.push_back(supported[i]);
 			}
-			rate_type = type;
+			flags = 0;
 			successes = Vector<int>(supported.size(), 0);
 			attempts = Vector<int>(supported.size(), 0);
 			last_successes = Vector<int>(supported.size(), 0);
@@ -92,7 +88,7 @@ private:
 			max_prob_rate = 0;
 		}
 		int rate_index(int rate) {
-			int ndx = 0;
+			int ndx = -1;
 			for (int x = 0; x < rates.size(); x++) {
 				if (rate == rates[x]) {
 					ndx = x;

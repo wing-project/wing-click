@@ -218,12 +218,7 @@ void WINGLinkStat::send_probe() {
 
 	struct click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p);
 	ceh->magic = WIFI_EXTRA_MAGIC;
-
-	if (rtype == PROBE_TYPE_HT) {
-		ceh->mcs = rate;
-	} else {
-		ceh->rate = rate;
-	}
+	ceh->rate = rate;
 
 	checked_output_push(0, p);
 
@@ -252,12 +247,7 @@ WINGLinkStat::simple_action(Packet *p) {
 	}
 	_arp_table->insert(node, EtherAddress(eh->ether_shost));
 	struct click_wifi_extra *ceh = WIFI_EXTRA_ANNO(p);
-	int rate;
-	if (lp->rtype() == PROBE_TYPE_HT) {
-		rate = ceh->mcs;
-	} else {
-		rate = ceh->rate;
-	}
+	int rate = ceh->rate;
 	if (rate != lp->rate()) {
 		click_chatter("%{element} :: %s :: packet coming from %s says rate %d is %d", 
 				this,

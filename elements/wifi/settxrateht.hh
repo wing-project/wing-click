@@ -52,10 +52,10 @@ public:
 
 private:
 
-	unsigned _mcs;
-	unsigned _mcs1;
-	unsigned _mcs2;
-	unsigned _mcs3;
+	int _mcs;
+	int _mcs1;
+	int _mcs2;
+	int _mcs3;
 
 	unsigned _max_tries;
 	unsigned _max_tries1;

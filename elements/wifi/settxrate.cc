@@ -26,7 +26,7 @@
 #include <clicknet/wifi.h>
 CLICK_DECLS
 
-SetTXRate::SetTXRate() : _rate(0), _rate1(0), _rate2(0), _rate3(0),
+SetTXRate::SetTXRate() : _rate(-1), _rate1(-1), _rate2(-1), _rate3(-1),
                          _max_tries(0), _max_tries1(0), _max_tries2(0),
                          _max_tries3(0), _et(0), _offset(0) {
 }

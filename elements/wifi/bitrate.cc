@@ -66,7 +66,7 @@ calc_transmit_time_ht(int rate, int length)
 }
 
 unsigned
-calc_backoff_ht(int rate, int t)
+calc_backoff_ht(int, int t)
 {
 	int cw = WIFI_CW_MIN;
 	/* there is backoff, even for the first packet */

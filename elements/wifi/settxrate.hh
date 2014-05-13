@@ -53,10 +53,10 @@ public:
 
 private:
 
-	unsigned _rate;
-	unsigned _rate1;
-	unsigned _rate2;
-	unsigned _rate3;
+	int _rate;
+	int _rate1;
+	int _rate2;
+	int _rate3;
 
 	unsigned _max_tries;
 	unsigned _max_tries1;

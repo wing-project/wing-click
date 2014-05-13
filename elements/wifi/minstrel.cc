@@ -46,7 +46,7 @@ void Minstrel::run_timer(Timer *)
 		int i;
 		uint32_t p;
 		for (i = 0; i < nfo->rates.size(); i++) {
-			if (nfo->rate_type == RATE_TYPE_HT) {
+			if (nfo->flags & WIFI_EXTRA_MCS) {
 				usecs = calc_usecs_wifi_packet_ht(1500, nfo->rates[i], 0);
 			} else {
 				usecs = calc_usecs_wifi_packet(1500, nfo->rates[i], 0);
@@ -172,6 +172,7 @@ void Minstrel::assign_rate(Packet *p_in)
 	if (dst.is_group() || !dst) {
 		Vector<int> rates = _rtable->lookup(EtherAddress::make_broadcast());
 		ceh->rate = (rates.size()) ? rates[0] : ceh->rate = 2;
+		ceh->max_tries = WIFI_MAX_RETRIES + 1;
 		return;
 	}
 
@@ -184,10 +185,10 @@ void Minstrel::assign_rate(Packet *p_in)
 					dst.unparse().c_str());
 		}
 
-		Vector<int> rates = _rtable->lookup(dst);
+		Vector<int> rates = _rtable->supported(dst);
 		Vector<int> rates_ht;
 		if (_rtable_ht) {
-			rates_ht = _rtable_ht->lookup(dst);
+			rates_ht = _rtable_ht->supported(dst);
 		}
 		if ((rates.size() == 0) && (rates_ht.size() == 0)) {
 			if (_debug) {
@@ -198,14 +199,17 @@ void Minstrel::assign_rate(Packet *p_in)
 			}
 			Vector<int> rates = _rtable->lookup(EtherAddress::make_broadcast());
 			ceh->rate = (rates.size()) ? rates[0] : ceh->rate = 2;
+			ceh->max_tries = WIFI_MAX_RETRIES + 1;
 			return;
 		}
 		if (rates_ht.size() > 0) {
-			_neighbors.insert(dst, DstInfo(dst, rates_ht, RATE_TYPE_HT));
+			_neighbors.insert(dst, DstInfo(dst, rates_ht));
+			nfo = _neighbors.findp(dst);
+			nfo->flags |= WIFI_EXTRA_MCS;
 		} else {
-			_neighbors.insert(dst, DstInfo(dst, rates, RATE_TYPE_LEGACY));
+			_neighbors.insert(dst, DstInfo(dst, rates));
+			nfo = _neighbors.findp(dst);
 		}
-		nfo = _neighbors.findp(dst);
 	}
 
 	int ndx;
@@ -244,7 +248,7 @@ void Minstrel::assign_rate(Packet *p_in)
 
 	ceh->magic = WIFI_EXTRA_MAGIC;
 
-	if (nfo->rate_type == RATE_TYPE_HT) {
+	if (nfo->flags & WIFI_EXTRA_MCS) {
 		ceh->flags |= WIFI_EXTRA_MCS;
 	}
 
@@ -308,8 +312,8 @@ String Minstrel::print_rates()
 			prob = nfo->cur_prob[i] / 18;
 			eprob = nfo->probability[i] / 18;
 			sprintf(buffer, "%2d%s    %2u.%1u    %3u.%1u    %3u.%1u    %3u (%3u)    %8llu    %8llu\n",
-					nfo->rate_type == RATE_TYPE_HT ? nfo->rates[i] : nfo->rates[i] / 2, 
-					(nfo->rates[i] & 1) && (nfo->rate_type == RATE_TYPE_LEGACY) ? ".5" : "  ",
+					(nfo->flags & WIFI_EXTRA_MCS) ? nfo->rates[i] : nfo->rates[i] / 2,
+					(nfo->rates[i] & 1) && !(nfo->flags & WIFI_EXTRA_MCS) ? ".5" : "  ",
 					tp / 10, tp % 10,
 					eprob / 10, eprob % 10,
 					prob / 10, prob % 10,
